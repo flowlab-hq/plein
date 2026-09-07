@@ -18,7 +18,8 @@
     "build": "tsc",
     "check": "node dist/cli.js check",
     "plein": "node dist/cli.js",
-    "test": "node dist/cli.js check fixtures/basic.plein"
+    "smoke": "bash scripts/mac/smoke.sh",
+    "test": "bash scripts/mac/smoke.sh"
   },
   "engines": {
     "node": ">=18"
