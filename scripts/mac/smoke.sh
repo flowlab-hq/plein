@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Smoke the packaged `plein check` contract:
-#   - golden fixture exits 0
+#   - golden fixtures (model + views) exit 0
 #   - broken fixture exits non-zero and prints diagnostics
 #   - unknown-keyword fixture exits non-zero and prints diagnostics
+#   - malformed-views fixture exits non-zero and prints diagnostics
 #
 # Usage:
 #   ./scripts/mac/smoke.sh              # build from this checkout, then check
@@ -51,7 +52,9 @@ expect_diag() {
 }
 
 expect_ok fixtures/valid-basic.plein
+expect_ok fixtures/valid-views.plein
 expect_diag fixtures/broken-syntax.plein
 expect_diag fixtures/unknown-keyword.plein
+expect_diag fixtures/malformed-views.plein
 
 echo "smoke ok"

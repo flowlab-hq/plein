@@ -5,6 +5,7 @@ export {
   type PleinModel,
   type ElementDecl,
   type RelationshipDecl,
+  type ViewDecl,
 } from "./parser.js";
 export {
   ELEMENT_KEYWORDS,

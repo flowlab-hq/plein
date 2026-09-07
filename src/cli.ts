@@ -23,7 +23,7 @@ try {
   const source = readFileSync(file, "utf8");
   const model = checkPlein(source, fileArg);
   console.log(
-    `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships)`,
+    `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views)`,
   );
 } catch (error) {
   if (error instanceof ParseError) {

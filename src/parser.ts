@@ -34,9 +34,20 @@ export type RelationshipDecl = {
   line: number;
 };
 
+export type ViewDecl = {
+  name: string;
+  viewpoint?: string;
+  title?: string;
+  includes: string[];
+  excludes: string[];
+  autoLayout?: string;
+  line: number;
+};
+
 export type PleinModel = {
   elements: ElementDecl[];
   relationships: RelationshipDecl[];
+  views: ViewDecl[];
 };
 
 type TokenKind = "ident" | "string" | "{" | "}" | "->" | ":" | "other" | "eof";
@@ -48,8 +59,9 @@ type Token = {
   column: number;
 };
 
-const IDENT_START = /[A-Za-z_]/;
+const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
+const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "view", "viewpoint"]);
 
 function tokenize(source: string, file: string): Token[] {
   const tokens: Token[] = [];
@@ -144,7 +156,7 @@ function tokenize(source: string, file: string): Token[] {
       continue;
     }
 
-    // Views/styles may contain punctuation we do not interpret yet.
+    // Styles (and include-list commas) may contain punctuation we do not treat as syntax.
     advance();
     tokens.push({ kind: "other", value: ch, line: startLine, column: startColumn });
   }
@@ -159,6 +171,7 @@ class Parser {
   private index = 0;
   private readonly elements: ElementDecl[] = [];
   private readonly relationships: RelationshipDecl[] = [];
+  private readonly views: ViewDecl[] = [];
 
   constructor(source: string, file: string) {
     this.file = file;
@@ -178,6 +191,7 @@ class Parser {
     return {
       elements: this.elements,
       relationships: this.relationships,
+      views: this.views,
     };
   }
 
@@ -187,7 +201,11 @@ class Parser {
         this.parseModel();
         continue;
       }
-      if (this.checkIdent("views") || this.checkIdent("styles")) {
+      if (this.checkIdent("views")) {
+        this.parseViews();
+        continue;
+      }
+      if (this.checkIdent("styles")) {
         this.advance();
         this.skipBlock();
         continue;
@@ -295,6 +313,130 @@ class Parser {
     );
   }
 
+  private parseViews(): void {
+    this.advance();
+    this.expect("{", "expected '{' after views");
+    while (!this.check("}") && !this.check("eof")) {
+      if (this.checkIdent("view")) {
+        this.parseNamedView();
+        continue;
+      }
+      if (this.checkIdent("viewpoint")) {
+        this.parseViewpoint();
+        continue;
+      }
+      const token = this.peek();
+      throw new ParseError(
+        `unexpected '${token.value || token.kind}' in views (expected view or viewpoint)`,
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    this.expect("}", "expected '}' to close views");
+  }
+
+  private parseNamedView(): void {
+    const start = this.advance();
+    const name = this.expect("ident", "expected view name");
+    this.expect("{", "expected '{' after view name");
+    const view = this.parseViewBody({
+      name: name.value,
+      includes: [],
+      excludes: [],
+      line: start.line,
+    });
+    this.views.push(view);
+  }
+
+  private parseViewpoint(): void {
+    const start = this.advance();
+    const viewpoint = this.expect("ident", "expected viewpoint keyword");
+    let title: string | undefined;
+    if (this.check("string")) {
+      title = this.advance().value;
+    }
+    this.expect("{", "expected '{' after viewpoint");
+    const view = this.parseViewBody({
+      name: viewpoint.value,
+      viewpoint: viewpoint.value,
+      title,
+      includes: [],
+      excludes: [],
+      line: start.line,
+    });
+    this.views.push(view);
+  }
+
+  private parseViewBody(view: ViewDecl): ViewDecl {
+    while (!this.check("}") && !this.check("eof")) {
+      if (this.checkIdent("include")) {
+        const clause = this.advance();
+        view.includes.push(...this.parseSelectorList("include", clause));
+        continue;
+      }
+      if (this.checkIdent("exclude")) {
+        const clause = this.advance();
+        view.excludes.push(...this.parseSelectorList("exclude", clause));
+        continue;
+      }
+      if (this.checkIdent("title")) {
+        this.advance();
+        const title = this.expect("string", "expected quoted title after title");
+        view.title = title.value;
+        continue;
+      }
+      if (this.checkIdent("autoLayout")) {
+        this.advance();
+        if (this.check("ident") && !this.isViewClauseStart()) {
+          view.autoLayout = this.advance().value;
+        } else {
+          view.autoLayout = "tb";
+        }
+        continue;
+      }
+      const token = this.peek();
+      throw new ParseError(
+        `unexpected '${token.value || token.kind}' in view '${view.name}'`,
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    this.expect("}", `expected '}' to close view '${view.name}'`);
+    return view;
+  }
+
+  private parseSelectorList(verb: string, start: Token): string[] {
+    const selectors: string[] = [];
+    while (!this.check("}") && !this.check("eof") && !this.isViewClauseStart()) {
+      const token = this.peek();
+      if (token.kind === "ident" || token.kind === "string") {
+        selectors.push(this.advance().value);
+        continue;
+      }
+      if (token.kind === "other" && token.value === ",") {
+        this.advance();
+        continue;
+      }
+      throw new ParseError(
+        `unexpected '${token.value || token.kind}' in ${verb} list`,
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    if (selectors.length === 0) {
+      throw new ParseError(`expected selector after ${verb}`, this.file, start.line, start.column);
+    }
+    return selectors;
+  }
+
+  private isViewClauseStart(): boolean {
+    const token = this.peek();
+    return token.kind === "ident" && VIEW_CLAUSES.has(token.value);
+  }
+
   private skipBlock(): void {
     this.expect("{", "expected '{' to open ignored block");
     let depth = 1;
@@ -380,5 +522,35 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
     }
   }
 
+  const viewNames = new Map<string, ViewDecl>();
+  for (const view of model.views) {
+    const existing = viewNames.get(view.name);
+    if (existing) {
+      throw new ParseError(`duplicate view name '${view.name}'`, file, view.line, 1);
+    }
+    viewNames.set(view.name, view);
+
+    for (const selector of [...view.includes, ...view.excludes]) {
+      if (!isResolvableViewSelector(selector)) {
+        continue;
+      }
+      if (!seen.has(selector)) {
+        throw new ParseError(
+          `unknown identifier '${selector}' in view '${view.name}'`,
+          file,
+          view.line,
+          1,
+        );
+      }
+    }
+  }
+
   return model;
+}
+
+function isResolvableViewSelector(selector: string): boolean {
+  if (selector.includes("*") || selector.includes("->") || selector.startsWith("tag:")) {
+    return false;
+  }
+  return resolveElementKeyword(selector) === undefined;
 }
