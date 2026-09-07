@@ -39,7 +39,7 @@ export type PleinModel = {
   relationships: RelationshipDecl[];
 };
 
-type TokenKind = "ident" | "string" | "{" | "}" | "->" | ":" | "eof";
+type TokenKind = "ident" | "string" | "{" | "}" | "->" | ":" | "other" | "eof";
 
 type Token = {
   kind: TokenKind;
@@ -144,7 +144,9 @@ function tokenize(source: string, file: string): Token[] {
       continue;
     }
 
-    throw new ParseError(`unexpected character '${ch}'`, file, startLine, startColumn);
+    // Views/styles may contain punctuation we do not interpret yet.
+    advance();
+    tokens.push({ kind: "other", value: ch, line: startLine, column: startColumn });
   }
 
   tokens.push({ kind: "eof", value: "", line, column });
