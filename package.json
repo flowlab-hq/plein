@@ -1,7 +1,7 @@
 {
   "name": "plein",
   "version": "0.1.0",
-  "description": "Plein CLI — happy-path structural check for .plein models",
+  "description": "Plein CLI — structural check for .plein models",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +18,7 @@
     "build": "tsc",
     "check": "node dist/cli.js check",
     "plein": "node dist/cli.js",
-    "test": "node dist/cli.js check fixtures/basic.plein"
+    "test": "tsc && node --test dist/check.test.js"
   },
   "engines": {
     "node": ">=18"
