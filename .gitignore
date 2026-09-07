@@ -1,3 +1,6 @@
 node_modules/
 dist/
 *.tsbuildinfo
+app/ui/bundle.js
+app/src-tauri/target/
+app/src-tauri/gen/

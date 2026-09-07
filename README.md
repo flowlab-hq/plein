@@ -12,7 +12,17 @@ Plein source files use the `.plein` extension.
 
 ## Mac install (Apple Silicon)
 
-The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work there, but that path is untested). Plein is CLI-only — there is no GUI. A signed `.pkg` is not published (no Apple signing identity).
+The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested; the `.app` is Apple Silicon only). A signed `.pkg` is not published (no Apple signing identity).
+
+**Mac app (list UI):** open a `.plein` file and browse elements, relationships, and views. Selecting a view filters the include/exclude set from the markup. There is no diagram canvas. Build and smoke notes: [app/README.md](app/README.md).
+
+```bash
+npm install
+npm test
+npm run app:preview
+```
+
+On an Apple Silicon Mac, `npm run app:build` writes `Plein.app`.
 
 **1. Install Homebrew** (skip if `brew --version` already works):
 
