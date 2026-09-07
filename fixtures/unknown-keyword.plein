@@ -1,0 +1,21 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-service "Booking service" as booking
+    business-object "Freight order" as order
+    application-component "Rate engine" as rates
+    legacyBatch "Legacy batch" as legacy-batch
+
+    shipper -> booking: serving
+    booking -> order: access
+    booking -> rates: serving
+    rates -> order: realization
+  }
+
+  views {
+    view booking-context {
+      title "Booking context"
+      include shipper, booking, order, rates
+    }
+  }
+}
