@@ -44,14 +44,15 @@ Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](script
 
 ## CLI
 
-Happy-path structural check: load a model (elements + typed relationships) and exit 0 when it is valid. `views` and `styles` are ignored for now.
+Structural check: load a model (elements + typed relationships) and exit 0 when it is valid. Syntax errors and unknown keywords exit non-zero with `file:line:column` diagnostics on stderr. `views` and `styles` are ignored for now.
 
 Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 
 ```bash
 npm install
 npm run build
-npx plein check fixtures/basic.plein
+npx plein check fixtures/valid-basic.plein
+npm test
 ```
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases).

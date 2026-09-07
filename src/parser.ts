@@ -215,7 +215,15 @@ class Parser {
     const first = this.expect("ident", "expected element keyword or relationship source");
     const elementKeyword = resolveElementKeyword(first.value);
 
-    if (elementKeyword && this.check("string")) {
+    if (this.check("string")) {
+      if (!elementKeyword) {
+        throw new ParseError(
+          `unknown keyword '${first.value}'`,
+          this.file,
+          first.line,
+          first.column,
+        );
+      }
       const label = this.advance().value;
       if (!this.checkIdent("as")) {
         const token = this.peek();
