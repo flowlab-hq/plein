@@ -1,0 +1,26 @@
+{
+  "name": "plein",
+  "version": "0.1.0",
+  "description": "Plein CLI — happy-path structural check for .plein models",
+  "type": "module",
+  "bin": {
+    "plein": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "node dist/cli.js check",
+    "plein": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "fixtures"
+  ],
+  "license": "MIT"
+}
