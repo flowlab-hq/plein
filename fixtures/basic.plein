@@ -1,0 +1,48 @@
+plein {
+  model {
+    stakeholder "Cargo owner" as cargoOwner
+    businessActor "Shipper" as shipper
+    role "Dispatcher" as dispatcher
+    service "Booking service" as booking
+    process "Book freight" as bookFreight
+    event "Order placed" as orderPlaced
+    businessObject "Freight order" as order
+    applicationComponent "Rate engine" as rates
+    applicationInterface "Rate API" as rateApi
+    dataObject "Rate card" as rateCard
+    node "NordFreight cloud" as cloud
+    artifact "Order API" as orderApi
+    capability "Network planning" as planning
+    goal "On-time delivery" as onTime
+    workPackage "Booking rollout" as rollout
+
+    shipper -> booking: serves
+    dispatcher -> bookFreight: assignedTo
+    bookFreight -> orderPlaced: triggers
+    booking -> order: accesses
+    rates -> booking: realizes
+    rates -> rateCard: accesses
+    rateApi -> rates: composedOf
+    cloud -> rates: aggregates
+    orderApi -> booking: serves
+    planning -> bookFreight: realizes
+    onTime -> booking: influences
+    order -> rateCard: associatedWith
+    bookFreight -> booking: flowsTo
+    dispatcher -> shipper: specializes
+    rollout -> booking: assignedTo
+    cargoOwner -> onTime: associatedWith
+  }
+
+  views {
+    view booking-context {
+      title "NordFreight booking context"
+      include shipper, booking, order, rates, cloud
+    }
+  }
+
+  styles {
+    element businessActor { background "#E8F1FF" }
+    element service { background "#EAF7EA" }
+  }
+}
