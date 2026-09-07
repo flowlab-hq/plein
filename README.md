@@ -8,7 +8,19 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
 
-Plein source files use the `.plein` extension. A future `plein check` command will validate models locally and in CI.
+Plein source files use the `.plein` extension.
+
+## CLI
+
+Happy-path structural check: load a model (elements + typed relationships) and exit 0 when it is valid. `views` and `styles` are ignored for now.
+
+```bash
+npm install
+npm run build
+npx plein check fixtures/basic.plein
+```
+
+See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases).
 
 ## Branding
 
