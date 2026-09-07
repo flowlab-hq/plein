@@ -1,0 +1,23 @@
+plein {
+  model {
+    application-component "TMS" as tms
+    application-interface "Booking API" as bookingApi
+    data-object "Shipment" as shipment
+    application-component "Customs gateway" as customsGateway
+    application-component "Legacy batch" as legacyBatch
+
+    tms -> bookingApi: serving
+    bookingApi -> shipment: access
+    customsGateway -> shipment: access
+    tms -> legacyBatch: flow
+  }
+
+  views {
+    viewpoint applicationStructure "Application Structure" {
+      include applicationComponent applicationInterface dataObject
+      include tms customsGateway
+      exclude "* -> legacyBatch"
+      autoLayout lr
+    }
+  }
+}

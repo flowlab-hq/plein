@@ -44,7 +44,7 @@ Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](script
 
 ## CLI
 
-Structural check: load a model (elements + typed relationships) and exit 0 when it is valid. Syntax errors and unknown keywords exit non-zero with `file:line:column` diagnostics on stderr. `views` and `styles` are ignored for now.
+Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. `styles` are ignored for now.
 
 Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 

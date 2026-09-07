@@ -31,3 +31,17 @@ test("plein check exits non-zero on fixtures/unknown-keyword.plein mentioning un
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /unknown keyword/i);
 });
+
+test("plein check exits 0 on fixtures/valid-views.plein and reports a view count", () => {
+  const result = runCheck("fixtures/valid-views.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-views\.plein/);
+  assert.match(result.stdout, /1 views/);
+});
+
+test("plein check exits non-zero on fixtures/malformed-views.plein with line diagnostic", () => {
+  const result = runCheck("fixtures/malformed-views.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /malformed-views\.plein:\d+:\d+:/);
+  assert.match(result.stderr, /viewpoint keyword/i);
+});

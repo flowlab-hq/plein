@@ -1,0 +1,12 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-service "Booking service" as booking
+  }
+
+  views {
+    viewpoint {
+      include shipper booking
+    }
+  }
+}
