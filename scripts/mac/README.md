@@ -9,14 +9,14 @@ Plein ships as a **Homebrew formula** so Arran (or anyone on Apple Silicon) can 
 | Homebrew formula (`Formula/plein.rb`) | **Supported** — tap this repo, `brew install plein` |
 | Signed `.pkg` | **Skipped** — no Apple Developer signing identity in this project |
 | Standalone `darwin-arm64` binary | **Not produced here** — this builder is Linux; a Node/Bun SEA would be tens of MB and needs a macOS host or a GitHub Release to distribute |
-| GUI | **None** — CLI only |
+| GUI | **Tauri list UI** — [app/README.md](../../app/README.md). Apple Silicon `.app`; Intel unsupported |
 
-Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The user only runs `brew` and `plein`.
+Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The user only runs `brew` and `plein`. The Mac list UI is a separate Tauri `.app` (not installed by Homebrew).
 
 ## Supported Macs
 
-- **Apple Silicon (arm64)** — supported target
-- **Intel (x86_64)** — out of scope for this release. The formula does not block Intel; it may work via Homebrew + Node, but it is untested
+- **Apple Silicon (arm64)** — supported target for Homebrew `plein check` and the Tauri `.app`
+- **Intel (x86_64)** — out of scope. The formula does not block Intel (may work via Homebrew + Node, untested). The `.app` is **not** built for Intel.
 
 ## Install (same 3 steps as the README)
 
@@ -69,3 +69,5 @@ The script checks:
 3. `fixtures/unknown-keyword.plein` — non-zero + diagnostics (currently a parse error on `legacyBatch`; a dedicated unknown-keyword message may land from Moss later)
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
+
+The Mac list UI has its own smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`).

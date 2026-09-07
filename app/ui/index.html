@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plein</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="toolbar">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"></span>
+          <h1>Plein</h1>
+        </div>
+        <button type="button" id="open-button">Open…</button>
+        <input
+          id="file-input"
+          type="file"
+          accept=".plein,text/plain"
+          hidden
+        />
+        <p id="file-label" class="file-label">No file open</p>
+      </header>
+
+      <p id="error" class="error" hidden></p>
+
+      <main id="workspace" class="workspace empty">
+        <aside class="sidebar">
+          <h2>Views</h2>
+          <ul id="view-list"></ul>
+        </aside>
+        <section class="lists">
+          <article>
+            <h2 id="elements-heading">Elements</h2>
+            <ul id="element-list" class="rows"></ul>
+          </article>
+          <article>
+            <h2 id="relationship-heading">Relationships</h2>
+            <ul id="relationship-list" class="rows"></ul>
+          </article>
+        </section>
+      </main>
+
+      <p id="empty-hint" class="hint">
+        Open a <code>.plein</code> file to list elements, relationships, and views.
+        There is no diagram canvas in this app.
+      </p>
+    </div>
+    <script type="module" src="./bundle.js"></script>
+  </body>
+</html>
