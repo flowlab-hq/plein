@@ -1,35 +1,36 @@
 {
-  "name": "plein",
-  "version": "0.1.0",
-  "description": "Plein CLI — structural check for .plein models",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "bin": {
-    "plein": "./dist/cli.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "check": "node dist/cli.js check",
-    "plein": "node dist/cli.js",
-    "test": "tsc && node --test dist/check.test.js"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
-  },
-  "files": [
-    "dist",
-    "fixtures"
-  ],
-  "license": "MIT"
+    "name": "plein",
+    "version": "0.1.0",
+    "description": "Plein CLI — structural check for .plein models",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+          ".": {
+                  "types": "./dist/index.d.ts",
+                  "import": "./dist/index.js"
+          }
+    },
+    "bin": {
+          "plein": "./dist/cli.js"
+    },
+    "scripts": {
+          "build": "tsc",
+          "check": "node dist/cli.js check",
+          "plein": "node dist/cli.js",
+          "test": "tsc && node --test dist/check.test.js",
+          "smoke": "bash scripts/mac/smoke.sh"
+    },
+    "engines": {
+          "node": ">=18"
+    },
+    "devDependencies": {
+          "@types/node": "^22.10.0",
+          "typescript": "^5.7.0"
+    },
+    "files": [
+          "dist",
+          "fixtures"
+        ],
+    "license": "MIT"
 }

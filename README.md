@@ -10,9 +10,43 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 
 Plein source files use the `.plein` extension.
 
+## Mac install (Apple Silicon)
+
+The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work there, but that path is untested). Plein is CLI-only — there is no GUI. A signed `.pkg` is not published (no Apple signing identity).
+
+**1. Install Homebrew** (skip if `brew --version` already works):
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+**2. Install Plein** — Homebrew provides Node if needed; you do not run npm:
+
+```bash
+brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein
+brew install plein
+```
+
+**3. Check a model:**
+
+```bash
+git clone https://github.com/flowlab-hq/plein.git
+cd plein
+plein check fixtures/valid-basic.plein
+```
+
+Expected walkthrough:
+
+* `plein check fixtures/valid-basic.plein` prints `ok fixtures/valid-basic.plein (...)` and exits 0.
+* `plein check fixtures/broken-syntax.plein` prints a line-oriented diagnostic (for example `expected '}' to close plein`) and exits non-zero.
+
+Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](scripts/mac/README.md).
+
 ## CLI
 
 Structural check: load a model (elements + typed relationships) and exit 0 when it is valid. Syntax errors and unknown keywords exit non-zero with `file:line:column` diagnostics on stderr. `views` and `styles` are ignored for now.
+
+Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 
 ```bash
 npm install
