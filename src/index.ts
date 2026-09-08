@@ -35,6 +35,14 @@ export {
   type LayoutMembership,
 } from "./layout.js";
 export {
+  browseNamedView,
+  switchNamedView,
+  namedViews,
+  namedViewNames,
+  viewSwitcherLabel,
+  type BrowsedView,
+} from "./browser.js";
+export {
   ELEMENT_KEYWORDS,
   RELATIONSHIP_KEYWORDS,
   resolveElementKeyword,

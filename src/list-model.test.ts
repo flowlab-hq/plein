@@ -87,6 +87,10 @@ test("selecting applicationStructure applies type includes and relationship excl
     list.relationships.some((rel) => rel.target === "legacyBatch"),
     false,
   );
+  assert.deepEqual(
+    list.views.map((view) => view.name),
+    ["applicationStructure", "applicationCooperation"],
+  );
 });
 
 test("selecting booking-context on basic.plein filters elements and implied relationships", () => {

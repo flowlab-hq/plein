@@ -34,7 +34,15 @@
           <ul id="view-list"></ul>
         </aside>
         <section class="diagram-pane">
-          <h2 id="diagram-heading">Viewpoint</h2>
+          <div class="diagram-toolbar">
+            <h2 id="diagram-heading">Viewpoint</h2>
+            <div
+              id="diagram-views"
+              class="view-switcher"
+              role="tablist"
+              aria-label="Named viewpoints"
+            ></div>
+          </div>
           <div id="diagram" class="diagram"></div>
         </section>
         <section class="lists">
@@ -50,8 +58,8 @@
       </main>
 
       <p id="empty-hint" class="hint">
-        Open a <code>.plein</code> file to render one named viewpoint from the
-        views block as a diagram, and to list elements and relationships.
+        Open a <code>.plein</code> file to browse named viewpoints from the
+        views block. Each view is a diagram of the same loaded model.
       </p>
     </div>
     <script type="module" src="./bundle.js"></script>

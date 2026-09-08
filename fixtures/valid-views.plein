@@ -19,5 +19,9 @@ plein {
       exclude "* -> legacyBatch"
       autoLayout lr
     }
+    viewpoint applicationCooperation "Application Cooperation" {
+      include tms bookingApi
+      autoLayout lr
+    }
   }
 }
