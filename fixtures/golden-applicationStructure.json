@@ -1,0 +1,20 @@
+{
+  "file": "fixtures/valid-views.plein",
+  "view": "applicationStructure",
+  "direction": "lr",
+  "nodes": [
+    "bookingApi",
+    "customsGateway",
+    "legacyBatch",
+    "shipment",
+    "tms"
+  ],
+  "edges": [
+    "bookingApi->shipment:accesses",
+    "customsGateway->shipment:accesses",
+    "tms->bookingApi:serves"
+  ],
+  "excludedEdges": [
+    "tms->legacyBatch:flowsTo"
+  ]
+}
