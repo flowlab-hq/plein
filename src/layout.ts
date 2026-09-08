@@ -301,18 +301,27 @@ function collectAttr(svg: string, attr: string): string[] {
   const values = new Set<string>();
   const pattern = new RegExp(`${attr}="([^"]+)"`, "g");
   for (const match of svg.matchAll(pattern)) {
-    values.add(match[1]!);
+    values.add(unescapeXml(match[1]!));
   }
   return [...values].sort();
 }
 
 function escapeXml(value: string): string {
+  // Keep `>` unescaped so data-edge-id stays `source->target:type`.
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
+}
+
+function unescapeXml(value: string): string {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 }
 
 function xmlId(value: string): string {
