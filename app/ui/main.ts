@@ -1,4 +1,10 @@
-import { filterModel, firstNamedView, loadPleinSource, type LoadResult } from "../../src/list-model.ts";
+import {
+  filterModel,
+  firstNamedView,
+  loadPleinSource,
+  reloadPleinSource,
+  type LoadResult,
+} from "../../src/list-model.ts";
 import { layoutViewpoint, renderViewpointSvg } from "../../src/layout.ts";
 
 type TauriBridge = {
@@ -6,7 +12,7 @@ type TauriBridge = {
     invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
   };
   event: {
-    listen: (event: string, handler: (event: { payload: string }) => void) => Promise<unknown>;
+    listen: (event: string, handler: (event: { payload: unknown }) => void) => Promise<unknown>;
   };
 };
 
@@ -16,6 +22,7 @@ type OpenedFile = {
 };
 
 const openButton = document.querySelector("#open-button") as HTMLButtonElement;
+const reloadButton = document.querySelector("#reload-button") as HTMLButtonElement;
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
 const fileLabel = document.querySelector("#file-label") as HTMLElement;
 const errorBox = document.querySelector("#error") as HTMLElement;
@@ -31,9 +38,14 @@ const diagram = document.querySelector("#diagram") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
+let lastSource: string | null = null;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
+}
+
+function isFilesystemPath(file: string): boolean {
+  return file.includes("/") || file.includes("\\");
 }
 
 function showError(message: string | null): void {
@@ -77,6 +89,8 @@ function renderDiagram(): void {
 }
 
 function render(): void {
+  reloadButton.disabled = loaded === null;
+
   if (!loaded) {
     workspace.classList.add("empty");
     emptyHint.hidden = false;
@@ -162,8 +176,17 @@ function escapeHtml(value: string): string {
 }
 
 function openSource(source: string, file: string): void {
+  lastSource = source;
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
+  render();
+}
+
+function applyReload(source: string, file: string): void {
+  lastSource = source;
+  const next = reloadPleinSource(source, file, selectedView);
+  loaded = next.loaded;
+  selectedView = next.selectedView;
   render();
 }
 
@@ -188,8 +211,31 @@ async function openPath(path: string): Promise<void> {
   openSource(opened.contents, opened.path);
 }
 
+async function reloadOpen(): Promise<void> {
+  if (!loaded) {
+    return;
+  }
+  const api = tauri();
+  if (api && isFilesystemPath(loaded.file)) {
+    try {
+      const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path: loaded.file });
+      applyReload(opened.contents, opened.path);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : String(error));
+    }
+    return;
+  }
+  if (lastSource !== null) {
+    applyReload(lastSource, loaded.file);
+  }
+}
+
 openButton.addEventListener("click", () => {
   void openFromTauriDialog();
+});
+
+reloadButton.addEventListener("click", () => {
+  void reloadOpen();
 });
 
 fileInput.addEventListener("change", async () => {
@@ -199,6 +245,22 @@ fileInput.addEventListener("change", async () => {
   }
   openSource(await file.text(), file.name);
   fileInput.value = "";
+});
+
+window.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+    return;
+  }
+  const key = event.key.toLowerCase();
+  if (key === "o") {
+    event.preventDefault();
+    void openFromTauriDialog();
+    return;
+  }
+  if (key === "r") {
+    event.preventDefault();
+    void reloadOpen();
+  }
 });
 
 window.addEventListener("dragover", (event) => {
@@ -213,6 +275,10 @@ window.addEventListener("dragleave", () => {
 window.addEventListener("drop", async (event) => {
   event.preventDefault();
   document.body.classList.remove("dragging");
+  if (tauri()) {
+    // Native DragDrop in Rust emits open-file with a filesystem path.
+    return;
+  }
   const file = event.dataTransfer?.files[0];
   if (!file) {
     return;
@@ -228,7 +294,13 @@ async function boot(): Promise<void> {
       await openPath(startup);
     }
     await api.event.listen("open-file", (event) => {
-      void openPath(event.payload);
+      void openPath(String(event.payload));
+    });
+    await api.event.listen("open-dialog", () => {
+      void openFromTauriDialog();
+    });
+    await api.event.listen("reload-file", () => {
+      void reloadOpen();
     });
   }
   render();

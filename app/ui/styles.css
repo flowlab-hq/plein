@@ -70,9 +70,14 @@ button {
   cursor: pointer;
 }
 
-button:hover,
+button:hover:not(:disabled),
 button:focus-visible {
   border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .file-label {

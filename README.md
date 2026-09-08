@@ -14,7 +14,7 @@ Plein source files use the `.plein` extension.
 
 The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested; the `.app` is Apple Silicon only). A signed `.pkg` is not published (no Apple signing identity).
 
-**Mac app:** open a `.plein` file and render **one named viewpoint** from the `views` block as an SVG diagram. The list UI (elements, relationships, views) stays beside it. Open selects the first named view. Layout of that include/exclude set is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`). Live reload and a dedicated multi-view switcher are out of scope. Build, Open → view, and golden-assert notes: [app/README.md](app/README.md).
+**Mac app:** open a `.plein` file and render **one named viewpoint** from the `views` block as an SVG diagram. The list UI (elements, relationships, views) stays beside it. Open selects the first named view. Layout of that include/exclude set is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`). **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. A dedicated multi-view switcher is out of scope. Build, Open → view, reload, and golden-assert notes: [app/README.md](app/README.md).
 
 ```bash
 npm install
@@ -75,6 +75,8 @@ See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document 
 npm test
 # or only the layout assert:
 ./scripts/assert-viewpoint-layout.sh
+# edit → reload → diagram (no app):
+./scripts/assert-reload-diagram.sh
 ```
 
 ## Branding
