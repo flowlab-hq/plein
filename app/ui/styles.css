@@ -96,7 +96,8 @@ button:focus-visible {
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: minmax(240px, 1fr) minmax(160px, 0.42fr);
   min-height: 0;
 }
 
@@ -105,25 +106,65 @@ button:focus-visible {
 }
 
 .sidebar,
-.lists article {
+.lists article,
+.diagram-pane {
   background: var(--panel);
 }
 
 .sidebar {
+  grid-row: 1 / span 2;
   border-right: 1px solid var(--line);
   padding: 12px;
+  overflow: auto;
+}
+
+.diagram-pane {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diagram {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.diagram svg {
+  display: block;
+  min-height: 100%;
+}
+
+.diagram-empty {
+  margin: auto;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .lists {
+  grid-column: 2;
+  grid-row: 2;
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   min-height: 0;
 }
 
 .lists article {
   overflow: auto;
   padding: 12px 16px 16px;
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.lists article:last-child {
+  border-right: 0;
 }
 
 h2 {

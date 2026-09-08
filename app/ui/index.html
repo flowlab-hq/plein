@@ -30,6 +30,10 @@
           <h2>Views</h2>
           <ul id="view-list"></ul>
         </aside>
+        <section class="diagram-pane">
+          <h2 id="diagram-heading">Viewpoint</h2>
+          <div id="diagram" class="diagram"></div>
+        </section>
         <section class="lists">
           <article>
             <h2 id="elements-heading">Elements</h2>
@@ -43,8 +47,8 @@
       </main>
 
       <p id="empty-hint" class="hint">
-        Open a <code>.plein</code> file to list elements, relationships, and views.
-        There is no diagram canvas in this app.
+        Open a <code>.plein</code> file to render one named viewpoint from the
+        views block as a diagram, and to list elements and relationships.
       </p>
     </div>
     <script type="module" src="./bundle.js"></script>

@@ -30,6 +30,11 @@ export type LoadFailure = {
 
 export type LoadResult = LoadSuccess | LoadFailure;
 
+/** First named viewpoint in document order — M9 renders this one on open. */
+export function firstNamedView(model: PleinModel): string | null {
+  return model.views[0]?.name ?? null;
+}
+
 type RelPattern = {
   source: string;
   target: string;

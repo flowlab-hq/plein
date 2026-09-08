@@ -10,6 +10,7 @@ export {
 export {
   loadPleinSource,
   filterModel,
+  firstNamedView,
   formatLoadError,
   type LoadResult,
   type LoadSuccess,
