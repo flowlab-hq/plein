@@ -1,4 +1,5 @@
-import { filterModel, loadPleinSource, type LoadResult } from "../../src/list-model.ts";
+import { filterModel, firstNamedView, loadPleinSource, type LoadResult } from "../../src/list-model.ts";
+import { layoutViewpoint, renderViewpointSvg } from "../../src/layout.ts";
 
 type TauriBridge = {
   core: {
@@ -25,6 +26,8 @@ const elementList = document.querySelector("#element-list") as HTMLElement;
 const relationshipList = document.querySelector("#relationship-list") as HTMLElement;
 const elementsHeading = document.querySelector("#elements-heading") as HTMLElement;
 const relationshipHeading = document.querySelector("#relationship-heading") as HTMLElement;
+const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
+const diagram = document.querySelector("#diagram") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
@@ -43,6 +46,36 @@ function showError(message: string | null): void {
   errorBox.textContent = message;
 }
 
+function namedViewForDiagram(): string | null {
+  if (!loaded?.ok) {
+    return null;
+  }
+  return selectedView ?? firstNamedView(loaded.model);
+}
+
+function renderDiagram(): void {
+  if (!loaded?.ok) {
+    diagramHeading.textContent = "Viewpoint";
+    diagram.replaceChildren();
+    return;
+  }
+
+  const viewName = namedViewForDiagram();
+  if (!viewName) {
+    diagramHeading.textContent = "Viewpoint";
+    const hint = document.createElement("p");
+    hint.className = "diagram-empty";
+    hint.textContent = "This file has no named viewpoint in the views block.";
+    diagram.replaceChildren(hint);
+    return;
+  }
+
+  const view = loaded.model.views.find((candidate) => candidate.name === viewName);
+  diagramHeading.textContent = view?.title || viewName;
+  const layout = layoutViewpoint(loaded.model, viewName);
+  diagram.innerHTML = renderViewpointSvg(layout);
+}
+
 function render(): void {
   if (!loaded) {
     workspace.classList.add("empty");
@@ -52,6 +85,7 @@ function render(): void {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
+    renderDiagram();
     return;
   }
 
@@ -64,6 +98,7 @@ function render(): void {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
+    renderDiagram();
     return;
   }
 
@@ -98,6 +133,8 @@ function render(): void {
       return item;
     }),
   );
+
+  renderDiagram();
 }
 
 function buttonForView(name: string | null, current: boolean, label: string): HTMLLIElement {
@@ -125,8 +162,8 @@ function escapeHtml(value: string): string {
 }
 
 function openSource(source: string, file: string): void {
-  selectedView = null;
   loaded = loadPleinSource(source, file);
+  selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   render();
 }
 

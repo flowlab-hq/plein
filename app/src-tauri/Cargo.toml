@@ -1,7 +1,7 @@
 [package]
 name = "plein-app"
 version = "0.1.0"
-description = "Plein Mac list UI"
+description = "Plein Mac app — open a .plein and render one viewpoint"
 authors = ["Flowlab HQ"]
 edition = "2021"
 rust-version = "1.77.2"

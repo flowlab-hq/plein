@@ -1,7 +1,7 @@
 {
   "name": "plein",
   "version": "0.1.0",
-  "description": "Plein CLI and Mac list UI for .plein models",
+  "description": "Plein CLI and Mac app for .plein models",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

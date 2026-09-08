@@ -14,7 +14,7 @@ Plein source files use the `.plein` extension.
 
 The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested; the `.app` is Apple Silicon only). A signed `.pkg` is not published (no Apple signing identity).
 
-**Mac app:** open a `.plein` file and browse elements, relationships, and views. Selecting a view filters the include/exclude set from the markup. Viewpoint **layout** for that set (nodes/edges + SVG) lives in `src/layout.ts` so a diagram pane can render one named view. Live reload and a multi-view diagram switcher are out of scope. Build, Open → view, and golden-assert notes: [app/README.md](app/README.md).
+**Mac app:** open a `.plein` file and render **one named viewpoint** from the `views` block as an SVG diagram. The list UI (elements, relationships, views) stays beside it. Open selects the first named view. Layout of that include/exclude set is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`). Live reload and a dedicated multi-view switcher are out of scope. Build, Open → view, and golden-assert notes: [app/README.md](app/README.md).
 
 ```bash
 npm install
