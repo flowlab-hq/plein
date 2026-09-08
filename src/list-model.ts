@@ -35,6 +35,34 @@ export function firstNamedView(model: PleinModel): string | null {
   return model.views[0]?.name ?? null;
 }
 
+/**
+ * Keep the current named viewpoint across a reload when it still exists.
+ * `null` means the list "All" selection — that stays "All".
+ * If the named view was removed, fall back to the first remaining view.
+ */
+export function viewAfterReload(model: PleinModel, previousView: string | null): string | null {
+  if (previousView === null) {
+    return null;
+  }
+  if (model.views.some((view) => view.name === previousView)) {
+    return previousView;
+  }
+  return firstNamedView(model);
+}
+
+/** Re-parse a .plein and keep the current viewpoint when possible (M9b reload). */
+export function reloadPleinSource(
+  source: string,
+  file: string,
+  previousView: string | null,
+): { loaded: LoadResult; selectedView: string | null } {
+  const loaded = loadPleinSource(source, file);
+  return {
+    loaded,
+    selectedView: loaded.ok ? viewAfterReload(loaded.model, previousView) : previousView,
+  };
+}
+
 type RelPattern = {
   source: string;
   target: string;

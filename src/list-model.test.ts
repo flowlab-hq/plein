@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { filterModel, firstNamedView, loadPleinSource } from "./list-model.js";
+import { filterModel, firstNamedView, loadPleinSource, viewAfterReload } from "./list-model.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -37,6 +37,9 @@ test("load→list valid-basic.plein lists elements, relationships, and views", (
   );
   assert.equal(result.list.viewName, null);
   assert.equal(firstNamedView(result.model), "booking-context");
+  assert.equal(viewAfterReload(result.model, "booking-context"), "booking-context");
+  assert.equal(viewAfterReload(result.model, null), null);
+  assert.equal(viewAfterReload(result.model, "removed-view"), "booking-context");
 });
 
 test("selecting booking-context keeps the include set from valid-basic.plein", () => {

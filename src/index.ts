@@ -9,8 +9,10 @@ export {
 } from "./parser.js";
 export {
   loadPleinSource,
+  reloadPleinSource,
   filterModel,
   firstNamedView,
+  viewAfterReload,
   formatLoadError,
   type LoadResult,
   type LoadSuccess,

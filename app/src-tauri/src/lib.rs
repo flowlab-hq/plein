@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(serde::Serialize)]
@@ -78,6 +79,81 @@ fn files_from_cli_args() -> Vec<PathBuf> {
         .collect()
 }
 
+fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
+    let open = MenuItem::with_id(app, "open", "Open…", true, Some("CmdOrCtrl+O"))?;
+    let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &open,
+            &reload,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+        ],
+    )?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let app_menu = Submenu::with_items(
+            app,
+            "Plein",
+            true,
+            &[
+                &PredefinedMenuItem::about(app, None, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::hide(app, None)?,
+                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::show_all(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::quit(app, None)?,
+            ],
+        )?;
+        let edit_menu = Submenu::with_items(
+            app,
+            "Edit",
+            true,
+            &[
+                &PredefinedMenuItem::undo(app, None)?,
+                &PredefinedMenuItem::redo(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::cut(app, None)?,
+                &PredefinedMenuItem::copy(app, None)?,
+                &PredefinedMenuItem::paste(app, None)?,
+                &PredefinedMenuItem::select_all(app, None)?,
+            ],
+        )?;
+        let window_menu = Submenu::with_items(
+            app,
+            "Window",
+            true,
+            &[
+                &PredefinedMenuItem::minimize(app, None)?,
+                &PredefinedMenuItem::maximize(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::close_window(app, None)?,
+            ],
+        )?;
+        return Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &window_menu]);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    Menu::with_items(app, &[&file_menu])
+}
+
+fn emit_menu_action(app: &AppHandle, id: &str) {
+    match id {
+        "open" => {
+            let _ = app.emit("open-dialog", ());
+        }
+        "reload" => {
+            let _ = app.emit("reload-file", ());
+        }
+        _ => {}
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -93,7 +169,16 @@ pub fn run() {
             if !files.is_empty() {
                 remember_paths(app.handle(), files);
             }
+            app.set_menu(build_menu(app)?)?;
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            emit_menu_action(app, event.id().0.as_str());
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                remember_paths(window.app_handle(), paths.clone());
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building Plein")
