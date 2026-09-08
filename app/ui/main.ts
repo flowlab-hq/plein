@@ -3,9 +3,10 @@ import {
   firstNamedView,
   loadPleinSource,
   reloadPleinSource,
+  viewAfterReload,
   type LoadResult,
 } from "../../src/list-model.ts";
-import { layoutViewpoint, renderViewpointSvg } from "../../src/layout.ts";
+import { browseNamedView, namedViews, viewSwitcherLabel } from "../../src/browser.ts";
 
 type TauriBridge = {
   core: {
@@ -35,9 +36,11 @@ const elementsHeading = document.querySelector("#elements-heading") as HTMLEleme
 const relationshipHeading = document.querySelector("#relationship-heading") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
+const diagramViews = document.querySelector("#diagram-views") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
+let lastNamedView: string | null = null;
 let lastSource: string | null = null;
 
 function tauri(): TauriBridge | undefined {
@@ -62,10 +65,42 @@ function namedViewForDiagram(): string | null {
   if (!loaded?.ok) {
     return null;
   }
-  return selectedView ?? firstNamedView(loaded.model);
+  if (selectedView !== null) {
+    return selectedView;
+  }
+  return lastNamedView ?? firstNamedView(loaded.model);
+}
+
+function selectNamedView(name: string): void {
+  selectedView = name;
+  lastNamedView = name;
+  render();
+}
+
+function renderViewSwitcher(): void {
+  if (!loaded?.ok) {
+    diagramViews.replaceChildren();
+    return;
+  }
+  const current = namedViewForDiagram();
+  diagramViews.replaceChildren(
+    ...namedViews(loaded.model).map((view) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.textContent = viewSwitcherLabel(view);
+      tab.title = view.name;
+      tab.setAttribute("aria-selected", view.name === current ? "true" : "false");
+      tab.addEventListener("click", () => {
+        selectNamedView(view.name);
+      });
+      return tab;
+    }),
+  );
 }
 
 function renderDiagram(): void {
+  renderViewSwitcher();
   if (!loaded?.ok) {
     diagramHeading.textContent = "Viewpoint";
     diagram.replaceChildren();
@@ -73,7 +108,8 @@ function renderDiagram(): void {
   }
 
   const viewName = namedViewForDiagram();
-  if (!viewName) {
+  const exists = viewName !== null && loaded.model.views.some((view) => view.name === viewName);
+  if (!viewName || !exists) {
     diagramHeading.textContent = "Viewpoint";
     const hint = document.createElement("p");
     hint.className = "diagram-empty";
@@ -82,10 +118,9 @@ function renderDiagram(): void {
     return;
   }
 
-  const view = loaded.model.views.find((candidate) => candidate.name === viewName);
-  diagramHeading.textContent = view?.title || viewName;
-  const layout = layoutViewpoint(loaded.model, viewName);
-  diagram.innerHTML = renderViewpointSvg(layout);
+  const browsed = browseNamedView(loaded.model, viewName);
+  diagramHeading.textContent = browsed.title;
+  diagram.innerHTML = browsed.svg;
 }
 
 function render(): void {
@@ -161,6 +196,9 @@ function buttonForView(name: string | null, current: boolean, label: string): HT
   }
   button.addEventListener("click", () => {
     selectedView = name;
+    if (name !== null) {
+      lastNamedView = name;
+    }
     render();
   });
   item.append(button);
@@ -179,6 +217,7 @@ function openSource(source: string, file: string): void {
   lastSource = source;
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
+  lastNamedView = selectedView;
   render();
 }
 
@@ -187,6 +226,7 @@ function applyReload(source: string, file: string): void {
   const next = reloadPleinSource(source, file, selectedView);
   loaded = next.loaded;
   selectedView = next.selectedView;
+  lastNamedView = loaded.ok ? viewAfterReload(loaded.model, lastNamedView) : lastNamedView;
   render();
 }
 

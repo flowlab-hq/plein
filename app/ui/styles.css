@@ -133,6 +133,31 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
+.diagram-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.view-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.view-switcher button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.view-switcher button[aria-selected="true"] {
+  background: #e8f1ff;
+  border-color: #0b57d0;
+  color: #0b57d0;
+}
+
 .diagram {
   flex: 1;
   min-height: 0;
@@ -182,6 +207,7 @@ h2 {
 }
 
 #diagram-heading {
+  margin: 0;
   text-transform: none;
   letter-spacing: 0;
   font-size: 13px;

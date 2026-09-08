@@ -9,7 +9,7 @@ Plein ships as a **Homebrew formula** so Arran (or anyone on Apple Silicon) can 
 | Homebrew formula (`Formula/plein.rb`) | **Supported** — tap this repo, `brew install plein` |
 | Signed `.pkg` | **Skipped** — no Apple Developer signing identity in this project |
 | Standalone `darwin-arm64` binary | **Not produced here** — this builder is Linux; a Node/Bun SEA would be tens of MB and needs a macOS host or a GitHub Release to distribute |
-| GUI | **Tauri app** — open a `.plein` and render one named viewpoint as SVG. [app/README.md](../../app/README.md). Apple Silicon `.app`; Intel unsupported |
+| GUI | **Tauri app** — open a `.plein` and browse named viewpoints as SVG. [app/README.md](../../app/README.md). Apple Silicon `.app`; Intel unsupported |
 
 Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The user only runs `brew` and `plein`. The Mac app is a separate Tauri `.app` (not installed by Homebrew).
 
@@ -70,4 +70,4 @@ The script checks:
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
 
-The Mac app has its own Open → view and reload smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`.
+The Mac app has its own Open → view, switch, and reload smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.

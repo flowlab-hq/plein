@@ -25,7 +25,7 @@ test("checkPlein loads view name, title, and include list from valid-basic.plein
 
 test("checkPlein loads viewpoint include/exclude from valid-views.plein", () => {
   const model = checkPlein(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
-  assert.equal(model.views.length, 1);
+  assert.equal(model.views.length, 2);
   const view = model.views[0]!;
   assert.equal(view.name, "applicationStructure");
   assert.equal(view.viewpoint, "applicationStructure");
@@ -39,6 +39,12 @@ test("checkPlein loads viewpoint include/exclude from valid-views.plein", () => 
   ]);
   assert.deepEqual(view.excludes, ["* -> legacyBatch"]);
   assert.equal(view.autoLayout, "lr");
+  const cooperation = model.views[1]!;
+  assert.equal(cooperation.name, "applicationCooperation");
+  assert.equal(cooperation.viewpoint, "applicationCooperation");
+  assert.equal(cooperation.title, "Application Cooperation");
+  assert.deepEqual(cooperation.includes, ["tms", "bookingApi"]);
+  assert.equal(cooperation.autoLayout, "lr");
 });
 
 test("checkPlein still loads views from fixtures/basic.plein", () => {
