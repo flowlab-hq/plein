@@ -70,4 +70,4 @@ The script checks:
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
 
-The Mac list UI has its own smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`).
+The Mac list UI has its own smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`.

@@ -17,6 +17,21 @@ export {
   type FilteredList,
 } from "./list-model.js";
 export {
+  layoutViewpoint,
+  membershipOf,
+  renderViewpointSvg,
+  svgMembership,
+  parseLayoutDirection,
+  edgeId,
+  NODE_WIDTH,
+  NODE_HEIGHT,
+  type LayoutDirection,
+  type LayoutNode,
+  type LayoutEdge,
+  type ViewpointLayout,
+  type LayoutMembership,
+} from "./layout.js";
+export {
   ELEMENT_KEYWORDS,
   RELATIONSHIP_KEYWORDS,
   resolveElementKeyword,

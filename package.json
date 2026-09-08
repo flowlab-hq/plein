@@ -20,6 +20,7 @@
     "check": "node dist/cli.js check",
     "plein": "node dist/cli.js",
     "test": "tsc && node --test dist/*.test.js",
+    "test:layout": "tsc && node --test dist/layout.test.js",
     "smoke": "bash scripts/mac/smoke.sh",
     "app:preview": "npm run build:app && python3 -m http.server 4173 --directory app/ui",
     "app:dev": "npm run build:app && tauri dev --config app/src-tauri/tauri.conf.json",
