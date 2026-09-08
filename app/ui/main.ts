@@ -71,8 +71,7 @@ function renderDiagram(): void {
   }
 
   const view = loaded.model.views.find((candidate) => candidate.name === viewName);
-  const title = view?.title ? `${view.name} — ${view.title}` : viewName;
-  diagramHeading.textContent = title;
+  diagramHeading.textContent = view?.title || viewName;
   const layout = layoutViewpoint(loaded.model, viewName);
   diagram.innerHTML = renderViewpointSvg(layout);
 }

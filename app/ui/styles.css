@@ -176,6 +176,13 @@ h2 {
   color: var(--muted);
 }
 
+#diagram-heading {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
 #view-list,
 .rows {
   list-style: none;
