@@ -38,7 +38,7 @@ Developer ID signing and notarization are a documented follow-up — see [script
 4. Open the broken fixture — clear error in the UI.
 5. Intel: skip.
 
-Deeper Open → view / reload checks stay in [app/README.md](app/README.md) (Moss: Mac Open + error smoke).
+Deeper Open → view / reload and the **This .plein did not load** banner live in [app/README.md](app/README.md) / [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Mac Open + error smoke). Merge that PR with this one; the checklists match (sample → broken → `file:line:column`).
 
 ### Cut a release (first `.dmg`)
 

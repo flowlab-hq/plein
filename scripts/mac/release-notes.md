@@ -19,6 +19,8 @@ Developer ID signing + notarization is a follow-up (see `scripts/mac/README.md`)
 - Broken (banner should show `file:line:column`, no diagram): [fixtures/broken-syntax.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/broken-syntax.plein)
 - Malformed views (same class of UI error): [fixtures/malformed-views.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/malformed-views.plein)
 
+Open + error banner copy (**This .plein did not load**) is [PR #16](https://github.com/flowlab-hq/plein/pull/16).
+
 Clone the repo (or download those raw files) so Open… can reach them.
 
 ## Arran smoke checklist

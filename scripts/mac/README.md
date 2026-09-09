@@ -118,6 +118,6 @@ The script checks:
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
 
-**Arran `.dmg` smoke** (no Node): download → install → open the sample → open broken → see errors. Written in the README and [release-notes.md](release-notes.md).
+**Arran `.dmg` smoke** (no Node): download → install → open the sample → open broken → see errors. Written in the README and [release-notes.md](release-notes.md). Same pair as [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Open + error banner).
 
-The Mac app has a longer Open → view, switch, and reload checklist in [app/README.md](../../app/README.md) (Moss: Mac Open + error smoke). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
+The Mac app has a longer Open → view, switch, and reload checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.

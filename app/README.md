@@ -102,12 +102,12 @@ npm test
 
 ## Smoke checklist (`.app`)
 
-**Release path (Arran, no Node):** download the `.dmg` → install → open [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein) (**Quote to cash** renders) → open [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein) (banner `file:line:column`, no diagram). Checklist: [README](../README.md#arran-smoke-checklist).
+**Release path (Arran, no Node):** [README Arran checklist](../README.md#arran-smoke-checklist) — download `.dmg` → install → open the sample → open broken → see errors. Open + error banner wording is [PR #16](https://github.com/flowlab-hq/plein/pull/16).
 
-On an Apple Silicon Mac, after `npm run app:build` or a Release install:
+On an Apple Silicon Mac, after `npm run app:build`:
 
 1. Launch `Plein.app`. The empty state asks you to open a `.plein` file.
-2. **Open…** `fixtures/samples/value-stream-demo.plein`. The diagram is **Quote to cash** (value stream stages, capabilities, Rate engine, TMS). Then **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Lists match those four elements and four relationships.
+2. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Lists match those four elements and four relationships.
 3. Click **All**. Lists show the whole model. The diagram stays on the named viewpoint **booking-context**.
 4. Open `fixtures/valid-views.plein`. The diagram is **Application Structure**. The `tms -> legacyBatch` relationship is absent (`exclude "* -> legacyBatch"`); typed elements including `legacyBatch` remain. Membership is the golden set in `fixtures/golden-applicationStructure.json` (`npm test` / `./scripts/assert-viewpoint-layout.sh`).
 5. Click **Application Cooperation** on the diagram switcher. The canvas shows TMS and Booking API only (same file, same model). Click **Application Structure** again; golden membership returns.
