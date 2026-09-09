@@ -45,3 +45,25 @@ test("plein check exits non-zero on fixtures/malformed-views.plein with line dia
   assert.match(result.stderr, /malformed-views\.plein:\d+:\d+:/);
   assert.match(result.stderr, /viewpoint keyword/i);
 });
+
+test("plein check exits 0 on fixtures/valid-value-stream-stages.plein", () => {
+  const result = runCheck("fixtures/valid-value-stream-stages.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-value-stream-stages\.plein/);
+  assert.match(result.stdout, /4 elements/);
+  assert.match(result.stdout, /5 relationships/);
+});
+
+test("plein check exits non-zero on invalid value stream nesting with line diagnostic", () => {
+  const result = runCheck("fixtures/invalid-value-stream-nesting.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /invalid-value-stream-nesting\.plein:\d+:\d+:/);
+  assert.match(result.stderr, /valueStreamStage must be nested inside a valueStream/);
+});
+
+test("plein check exits non-zero on unknown value stream step keyword with line diagnostic", () => {
+  const result = runCheck("fixtures/unknown-value-stream-step.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /unknown-value-stream-step\.plein:\d+:\d+:/);
+  assert.match(result.stderr, /unknown step keyword/i);
+});

@@ -1,0 +1,5 @@
+plein {
+  model {
+    value-stream-stage "Capture demand" as capture
+  }
+}

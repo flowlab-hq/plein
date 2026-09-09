@@ -1,0 +1,7 @@
+plein {
+  model {
+    value-stream "Order to cash" as orderToCash {
+      process "Book freight" as bookFreight
+    }
+  }
+}

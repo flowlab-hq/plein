@@ -8,5 +8,9 @@ These small fixtures exercise the `plein check` command:
 - `broken-syntax.plein` — same model shape with an unclosed outer block; expected to fail with line-oriented syntax diagnostics.
 - `malformed-views.plein` — viewpoint missing its keyword; expected to fail with a line-oriented views diagnostic.
 - `unknown-keyword.plein` — valid structure containing the unsupported `legacyBatch` element keyword; expected to fail with an unknown-keyword diagnostic.
+- `valid-value-stream-stages.plein` — one `value-stream` with three nested `value-stream-stage` steps chained by `flow` then `triggering`; expected to pass with exit code 0. Golden parse membership is `golden-value-stream-stages.json`.
+- `golden-value-stream-stages.json` — expected parent id, stage ids, and relationship edges (composition plus the stage chain) for that fixture.
+- `invalid-value-stream-nesting.plein` — `value-stream-stage` at model top level; expected to fail with a line-oriented nesting diagnostic.
+- `unknown-value-stream-step.plein` — a `process` declared inside a `value-stream` body; expected to fail with an unknown-step-keyword diagnostic.
 
 The fixtures are intentionally compact so parser and validator behavior is easy to inspect in review.

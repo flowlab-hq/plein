@@ -41,6 +41,20 @@ Element keywords are kebab-case ArchiMate concepts grouped by domain. Implementa
 
 `resource`, `capability`, `value-stream`, `course-of-action`
 
+A `value-stream` may declare stages in a nested body. Use `value-stream-stage` (alias `valueStreamStage`) for each step. Stages are Value Stream elements; nesting records composition (`composedOf`) from the parent stream to each stage. Chain stages with `flow` / `flowsTo` or `triggering` / `triggers`.
+
+```plein
+value-stream "Order to cash" as orderToCash {
+  value-stream-stage "Capture demand" as capture
+  value-stream-stage "Fulfill order" as fulfill
+  value-stream-stage "Collect payment" as collect
+  capture -> fulfill: flow
+  fulfill -> collect: triggering
+}
+```
+
+`value-stream-stage` is valid only inside a `value-stream` body. Other element keywords there are unknown step keywords and fail with a line diagnostic. Stages cannot contain a nested body. A `value-stream` without a body remains a single strategy element.
+
 ### Motivation
 
 `stakeholder`, `driver`, `assessment`, `goal`, `outcome`, `principle`, `requirement`, `constraint`, `meaning`, `value`
@@ -152,6 +166,7 @@ A validator should check, at minimum:
 3. Each relationship uses one of the eleven supported types and has exactly one source and target.
 4. Element keywords are valid ArchiMate 4 concepts, labels are present, and IDs follow the identifier rules.
 5. Each view has a unique name; conflicting membership is resolved with `exclude` precedence.
-6. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
+6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
+7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
 
 Validation should be deterministic and should not mutate the source. A future `plein check` command will provide the same checks in CI; until then, keep examples small and run the repository's available parser or renderer before merging.

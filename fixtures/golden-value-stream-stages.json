@@ -1,0 +1,12 @@
+{
+  "file": "fixtures/valid-value-stream-stages.plein",
+  "valueStream": "orderToCash",
+  "stages": ["capture", "fulfill", "collect"],
+  "edges": [
+    "orderToCash->capture:composedOf",
+    "orderToCash->fulfill:composedOf",
+    "orderToCash->collect:composedOf",
+    "capture->fulfill:flowsTo",
+    "fulfill->collect:triggers"
+  ]
+}

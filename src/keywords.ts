@@ -147,3 +147,17 @@ export function isElementKeyword(name: string): boolean {
 export function isRelationshipKeyword(name: string): boolean {
   return relationshipLookup.has(name);
 }
+
+/** Nested authoring keyword for a value stream stage (maps to a Value Stream). */
+export function isValueStreamStageKeyword(name: string): boolean {
+  return name === "valueStreamStage" || name === "value-stream-stage";
+}
+
+export function isValueStreamKeyword(name: string): boolean {
+  return resolveElementKeyword(name) === "valueStream";
+}
+
+/** Dynamic relationships allowed between stages inside a valueStream body. */
+export function isValueStreamStageLink(name: RelationshipKeyword): boolean {
+  return name === "flowsTo" || name === "triggers";
+}

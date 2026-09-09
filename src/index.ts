@@ -49,4 +49,7 @@ export {
   resolveRelationshipKeyword,
   isElementKeyword,
   isRelationshipKeyword,
+  isValueStreamStageKeyword,
+  isValueStreamKeyword,
+  isValueStreamStageLink,
 } from "./keywords.js";
