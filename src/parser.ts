@@ -1,5 +1,7 @@
 import {
   isRelationshipKeyword,
+  isValueStreamStageKeyword,
+  isValueStreamStageLink,
   resolveElementKeyword,
   resolveRelationshipKeyword,
   type ElementKeyword,
@@ -231,10 +233,33 @@ class Parser {
 
   private parseModelStatement(): void {
     const first = this.expect("ident", "expected element keyword or relationship source");
+    if (isValueStreamStageKeyword(first.value)) {
+      throw new ParseError(
+        "valueStreamStage must be nested inside a valueStream",
+        this.file,
+        first.line,
+        first.column,
+      );
+    }
+    this.parseElementOrRelationship(first, { valueStreamBody: false });
+  }
+
+  private parseElementOrRelationship(
+    first: Token,
+    options: { valueStreamBody: boolean; parentId?: string },
+  ): void {
     const elementKeyword = resolveElementKeyword(first.value);
 
     if (this.check("string")) {
-      if (!elementKeyword) {
+      if (options.valueStreamBody && !isValueStreamStageKeyword(first.value)) {
+        throw new ParseError(
+          `unknown step keyword '${first.value}'`,
+          this.file,
+          first.line,
+          first.column,
+        );
+      }
+      if (!options.valueStreamBody && !elementKeyword) {
         throw new ParseError(
           `unknown keyword '${first.value}'`,
           this.file,
@@ -249,13 +274,41 @@ class Parser {
       }
       this.advance();
       const id = this.expect("ident", "expected identifier after 'as'");
+      if (options.valueStreamBody && this.check("{")) {
+        throw new ParseError(
+          "valueStreamStage cannot nest a body",
+          this.file,
+          this.peek().line,
+          this.peek().column,
+        );
+      }
       this.elements.push({
-        keyword: elementKeyword,
+        keyword: options.valueStreamBody ? "valueStream" : elementKeyword!,
         label,
         id: id.value,
         line: first.line,
       });
+      if (options.valueStreamBody && options.parentId) {
+        this.relationships.push({
+          type: "composedOf",
+          source: options.parentId,
+          target: id.value,
+          line: first.line,
+        });
+      }
+      if (!options.valueStreamBody && elementKeyword === "valueStream" && this.check("{")) {
+        this.parseValueStreamBody(id.value);
+      }
       return;
+    }
+
+    if (options.valueStreamBody && isValueStreamStageKeyword(first.value)) {
+      throw new ParseError(
+        `expected '"label" as <identifier>' after ${first.value}`,
+        this.file,
+        first.line,
+        first.column,
+      );
     }
 
     if (this.check("->")) {
@@ -272,28 +325,28 @@ class Parser {
           typeToken.column,
         );
       }
-      this.relationships.push({
-        type,
-        source: first.value,
-        target: target.value,
-        line: first.line,
-      });
+      this.pushRelationship(first, target, type, typeToken, options.valueStreamBody);
       return;
     }
 
     if (this.check("ident") && isRelationshipKeyword(this.peek().value)) {
-      const type = resolveRelationshipKeyword(this.advance().value);
+      const typeToken = this.advance();
+      const type = resolveRelationshipKeyword(typeToken.value);
       if (!type) {
         throw new ParseError("unknown relationship type", this.file, first.line, first.column);
       }
       const target = this.expect("ident", "expected relationship target");
-      this.relationships.push({
-        type,
-        source: first.value,
-        target: target.value,
-        line: first.line,
-      });
+      this.pushRelationship(first, target, type, typeToken, options.valueStreamBody);
       return;
+    }
+
+    if (options.valueStreamBody) {
+      throw new ParseError(
+        `expected valueStreamStage, '->', or flowsTo/triggers after '${first.value}'`,
+        this.file,
+        first.line,
+        first.column,
+      );
     }
 
     if (elementKeyword) {
@@ -311,6 +364,38 @@ class Parser {
       first.line,
       first.column,
     );
+  }
+
+  private parseValueStreamBody(parentId: string): void {
+    this.expect("{", "expected '{' after valueStream");
+    while (!this.check("}") && !this.check("eof")) {
+      const first = this.expect("ident", "expected valueStreamStage or relationship source");
+      this.parseElementOrRelationship(first, { valueStreamBody: true, parentId });
+    }
+    this.expect("}", "expected '}' to close valueStream");
+  }
+
+  private pushRelationship(
+    source: Token,
+    target: Token,
+    type: RelationshipKeyword,
+    typeToken: Token,
+    valueStreamBody: boolean,
+  ): void {
+    if (valueStreamBody && !isValueStreamStageLink(type)) {
+      throw new ParseError(
+        `value stream stages may only use flowsTo or triggers (got '${type}')`,
+        this.file,
+        typeToken.line,
+        typeToken.column,
+      );
+    }
+    this.relationships.push({
+      type,
+      source: source.value,
+      target: target.value,
+      line: source.line,
+    });
   }
 
   private parseViews(): void {

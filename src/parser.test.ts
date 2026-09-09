@@ -136,3 +136,142 @@ test("parsePlein keeps styles skipped and views structured", () => {
   const model = parsePlein(readFixture("basic.plein"), "fixtures/basic.plein");
   assert.equal(model.views[0]!.title, "NordFreight booking context");
 });
+
+type GoldenValueStreamStages = {
+  file: string;
+  valueStream: string;
+  stages: string[];
+  edges: string[];
+};
+
+function readGoldenValueStreamStages(): GoldenValueStreamStages {
+  return JSON.parse(readFixture("golden-value-stream-stages.json")) as GoldenValueStreamStages;
+}
+
+function relationshipKey(rel: { source: string; target: string; type: string }): string {
+  return `${rel.source}->${rel.target}:${rel.type}`;
+}
+
+test("golden fixture parses one value stream with chained stages", () => {
+  const golden = readGoldenValueStreamStages();
+  const model = checkPlein(readFixture("valid-value-stream-stages.plein"), golden.file);
+  const parent = model.elements.find((element) => element.id === golden.valueStream);
+  assert.ok(parent);
+  assert.equal(parent.keyword, "valueStream");
+  assert.deepEqual(
+    model.elements.filter((element) => element.id !== golden.valueStream).map((element) => element.id),
+    golden.stages,
+  );
+  assert.ok(model.elements.every((element) => element.keyword === "valueStream"));
+  assert.deepEqual(model.relationships.map(relationshipKey), golden.edges);
+  assert.equal(model.views[0]!.name, "order-to-cash");
+});
+
+test("valueStream body accepts camelCase stages linked with flowsTo and triggers", () => {
+  const source = `model {
+  valueStream "Quote to cash" as qtc {
+    valueStreamStage "Quote" as quote
+    valueStreamStage "Book" as book
+    valueStreamStage "Invoice" as invoice
+    quote flowsTo book
+    book triggers invoice
+  }
+}
+`;
+  const model = checkPlein(source, "camel-stages.plein");
+  assert.deepEqual(
+    model.elements.map((element) => `${element.keyword}:${element.id}`),
+    ["valueStream:qtc", "valueStream:quote", "valueStream:book", "valueStream:invoice"],
+  );
+  assert.deepEqual(model.relationships.map(relationshipKey), [
+    "qtc->quote:composedOf",
+    "qtc->book:composedOf",
+    "qtc->invoice:composedOf",
+    "quote->book:flowsTo",
+    "book->invoice:triggers",
+  ]);
+});
+
+test("valueStream without a body still parses as a strategy element", () => {
+  const source = `model {
+  value-stream "Network planning" as planning
+}
+`;
+  const model = checkPlein(source, "bare-value-stream.plein");
+  assert.equal(model.elements.length, 1);
+  assert.equal(model.elements[0]!.keyword, "valueStream");
+  assert.equal(model.relationships.length, 0);
+});
+
+test("top-level valueStreamStage is invalid nesting with a line diagnostic", () => {
+  assert.throws(
+    () => checkPlein(readFixture("invalid-value-stream-nesting.plein"), "fixtures/invalid-value-stream-nesting.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(
+        error.message,
+        /fixtures\/invalid-value-stream-nesting\.plein:\d+:\d+: valueStreamStage must be nested inside a valueStream/,
+      );
+      assert.ok(error.line >= 1);
+      assert.ok(error.column >= 1);
+      return true;
+    },
+  );
+});
+
+test("nested body on a valueStreamStage is invalid nesting with a line diagnostic", () => {
+  const source = `model {
+  valueStream "Order to cash" as orderToCash {
+    valueStreamStage "Capture demand" as capture {
+      valueStreamStage "Nested" as nested
+    }
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(source, "nested-stage.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /nested-stage\.plein:\d+:\d+: valueStreamStage cannot nest a body/);
+      assert.ok(error.line >= 1);
+      return true;
+    },
+  );
+});
+
+test("unknown step keyword inside valueStream is a line diagnostic", () => {
+  assert.throws(
+    () => checkPlein(readFixture("unknown-value-stream-step.plein"), "fixtures/unknown-value-stream-step.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(
+        error.message,
+        /fixtures\/unknown-value-stream-step\.plein:\d+:\d+: unknown step keyword 'process'/,
+      );
+      assert.ok(error.line >= 1);
+      return true;
+    },
+  );
+});
+
+test("non-flow relationship inside a valueStream body is a diagnostic", () => {
+  const source = `model {
+  valueStream "Order to cash" as orderToCash {
+    valueStreamStage "Capture" as capture
+    valueStreamStage "Fulfill" as fulfill
+    capture serves fulfill
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(source, "stage-serves.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(
+        error.message,
+        /stage-serves\.plein:\d+:\d+: value stream stages may only use flowsTo or triggers \(got 'serves'\)/,
+      );
+      return true;
+    },
+  );
+});

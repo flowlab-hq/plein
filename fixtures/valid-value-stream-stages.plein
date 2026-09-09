@@ -1,0 +1,18 @@
+plein {
+  model {
+    value-stream "Order to cash" as orderToCash {
+      value-stream-stage "Capture demand" as capture
+      value-stream-stage "Fulfill order" as fulfill
+      value-stream-stage "Collect payment" as collect
+      capture -> fulfill: flow
+      fulfill -> collect: triggering
+    }
+  }
+
+  views {
+    view order-to-cash {
+      title "Order to cash"
+      include orderToCash, capture, fulfill, collect
+    }
+  }
+}

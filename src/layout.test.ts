@@ -164,6 +164,26 @@ views {
   );
 });
 
+test("value stream stages layout as ordinary valueStream nodes", () => {
+  const result = loadPleinSource(
+    readFixture("valid-value-stream-stages.plein"),
+    "fixtures/valid-value-stream-stages.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = layoutViewpoint(result.model, "order-to-cash");
+  assert.deepEqual(
+    layout.nodes.map((node) => node.id).slice().sort(),
+    ["capture", "collect", "fulfill", "orderToCash"],
+  );
+  assert.ok(layout.nodes.every((node) => node.keyword === "valueStream"));
+  assert.ok(layout.edges.some((edge) => edge.id === "capture->fulfill:flowsTo"));
+  assert.ok(layout.edges.some((edge) => edge.id === "fulfill->collect:triggers"));
+});
+
 test("unknown view name is an error", () => {
   const result = loadPleinSource(
     readFixture("valid-basic.plein"),
