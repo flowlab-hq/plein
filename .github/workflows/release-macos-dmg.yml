@@ -1,0 +1,144 @@
+# Build an Apple Silicon .dmg and attach it to a GitHub Release.
+#
+# Triggers:
+#   - push of a version tag (v0.1.0, v0.1.0-rc.1, …)
+#   - workflow_dispatch (always uploads the artifact; optionally publishes a Release)
+#
+# No Apple signing secrets are required. The bundle is ad-hoc signed
+# (tauri.conf.json signingIdentity "-"). When a Developer ID exists, set
+# APPLE_CERTIFICATE / APPLE_SIGNING_IDENTITY / notary secrets and drop the
+# hardcoded "-" — see scripts/mac/README.md.
+name: Release macOS .dmg
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create or update a GitHub Release and attach the .dmg"
+        type: boolean
+        default: false
+      tag:
+        description: "Release tag (e.g. v0.1.0). Required when create_release is true."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-macos-dmg-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dmg:
+    name: Apple Silicon .dmg
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+          shared-key: plein-macos-arm64
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build .app + .dmg (arm64, ad-hoc signed)
+        run: npm run app:build
+
+      - name: Stage Release-named .dmg
+        id: stage
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            VERSION="${{ inputs.tag }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          export VERSION
+          dest="$(./scripts/mac/stage-dmg.sh)"
+          echo "dmg=${dest}" >> "${GITHUB_OUTPUT}"
+          echo "Staged ${dest}"
+          ls -lh "${dest}"
+
+      - name: Confirm arm64 binary
+        run: |
+          set -euo pipefail
+          app="${GITHUB_WORKSPACE}/app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Plein.app"
+          if [[ ! -d "${app}" ]]; then
+            app="${GITHUB_WORKSPACE}/app/src-tauri/target/release/bundle/macos/Plein.app"
+          fi
+          bin="$(find "${app}/Contents/MacOS" -type f -perm +111 | head -n 1)"
+          file "${bin}"
+          lipo -info "${bin}"
+          file "${bin}" | grep -qi arm64
+          lipo -info "${bin}" | grep -qi arm64
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Plein-${{ steps.stage.outputs.version }}-macos-arm64
+          path: ${{ steps.stage.outputs.dmg }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: ${{ github.ref_type == 'tag' || inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ inputs.tag }}"
+          fi
+          if [[ -z "${tag}" ]]; then
+            echo "error: workflow_dispatch create_release requires a tag (e.g. v0.1.0)" >&2
+            exit 1
+          fi
+          if [[ "${tag}" != v* ]]; then
+            tag="v${tag}"
+          fi
+          version="${tag#v}"
+          notes="$(mktemp)"
+          sed "s/__VERSION__/${version}/g" scripts/mac/release-notes.md > "${notes}"
+          dmg="${{ steps.stage.outputs.dmg }}"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" "${dmg}" --clobber
+            gh release edit "${tag}" --notes-file "${notes}" --title "Plein ${version}"
+          else
+            extra=()
+            if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+              extra+=(--target "${GITHUB_SHA}")
+            fi
+            gh release create "${tag}" "${dmg}" \
+              --title "Plein ${version}" \
+              --notes-file "${notes}" \
+              "${extra[@]}"
+          fi
+          echo "Release ${tag}: ${dmg}"

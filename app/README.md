@@ -18,10 +18,10 @@ diagramPane.innerHTML = cooperation.svg;
 
 ## Supported Macs
 
-- **Apple Silicon (arm64)** — supported target for the `.app`
+- **Apple Silicon (arm64)** — supported target for the `.app` / `.dmg`
 - **Intel (x86_64)** — unsupported. This app is not built or tested for Intel Macs. Use the CLI (`plein check`) there if you need a model listing.
 
-A signed `.pkg` / notarized build is not published (no Apple signing identity). Build the `.app` locally on an Apple Silicon Mac.
+Prefer the GitHub Release **`.dmg`** ([README](../README.md#download-the-mac-app-apple-silicon-dmg)) if you only want to run the app — no Node/npm. A signed / notarized build is not published (no Apple signing identity). Ad-hoc local/CI builds: `./scripts/mac/build-dmg.sh` or `npm run app:build` on an Apple Silicon Mac.
 
 ## Run the UI without a `.app`
 
@@ -46,7 +46,12 @@ npm install
 npm run app:build
 ```
 
-The bundle is written to `app/src-tauri/target/release/bundle/macos/Plein.app`.
+Bundles land under `app/src-tauri/target/aarch64-apple-darwin/release/bundle/`:
+
+- `macos/Plein.app`
+- `dmg/Plein_<version>_aarch64.dmg`
+
+`./scripts/mac/stage-dmg.sh` copies the disk image to `dist/macos/Plein-<version>-macos-arm64.dmg` for GitHub Releases.
 
 Dev loop on a Mac:
 
@@ -105,6 +110,8 @@ After installing from the GitHub Release `.dmg` (when published) or a local `Ple
 `.dmg` packaging is out of scope here (Gilfoyle).
 
 ## Smoke checklist (`.app`)
+
+**Release path (Arran, no Node):** [README Arran checklist](../README.md#arran-smoke-checklist) — download `.dmg` → install → open the sample → open broken → see errors. Open + error banner wording is [PR #16](https://github.com/flowlab-hq/plein/pull/16).
 
 On an Apple Silicon Mac, after `npm run app:build`:
 
