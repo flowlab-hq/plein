@@ -70,4 +70,6 @@ The script checks:
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
 
-The Mac app has its own Open → view, switch, and reload smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
+The Mac app has its own Open → view, switch, and reload smoke checklist in [app/README.md](../../app/README.md). **Arran `.dmg` Open + errors** (sample then broken file): open [fixtures/samples/value-stream-demo.plein](../../fixtures/samples/value-stream-demo.plein) (success), then [fixtures/broken-syntax.plein](../../fixtures/broken-syntax.plein) or [fixtures/malformed-views.plein](../../fixtures/malformed-views.plein) (line-level banner). That checklist is also in the [root README](../../README.md#arran-smoke--mac-open--errors). `.dmg` packaging is not produced here.
+
+Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
