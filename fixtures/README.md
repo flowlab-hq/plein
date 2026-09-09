@@ -12,6 +12,6 @@ These small fixtures exercise the `plein check` command:
 - `golden-value-stream-stages.json` — expected parent id, stage ids, and relationship edges (composition plus the stage chain) for that fixture.
 - `invalid-value-stream-nesting.plein` — `value-stream-stage` at model top level; expected to fail with a line-oriented nesting diagnostic.
 - `unknown-value-stream-step.plein` — a `process` declared inside a `value-stream` body; expected to fail with an unknown-step-keyword diagnostic.
-- `samples/value-stream-demo.plein` — Mac / README demo: one `value-stream` with three nested stages, two capabilities that `serves` stages, and two application components that `realizes` those capabilities; expected to pass with exit code 0.
+- `samples/value-stream-demo.plein` — Mac / README demo and **Arran Open smoke (success)**: one `value-stream` with three nested stages, two capabilities that `serves` stages, and two application components that `realizes` those capabilities; expected to pass with exit code 0. Pair with `broken-syntax.plein`, `malformed-views.plein`, or `invalid-value-stream-nesting.plein` for the error half of that checklist.
 
 The fixtures are intentionally compact so parser and validator behavior is easy to inspect in review.

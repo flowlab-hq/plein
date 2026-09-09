@@ -61,6 +61,18 @@ Expected walkthrough:
 
 Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](scripts/mac/README.md).
 
+### Arran smoke — Mac Open + errors
+
+Checklist for the upcoming GitHub Release `.dmg` (Gilfoyle owns packaging; this repo does not produce the disk image yet). After install, no Node/npm:
+
+1. Launch Plein. **Open** [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint loads. No error banner.
+2. **Open** a broken fixture. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram.
+   - [fixtures/broken-syntax.plein](fixtures/broken-syntax.plein)
+   - [fixtures/malformed-views.plein](fixtures/malformed-views.plein)
+   - [fixtures/invalid-value-stream-nesting.plein](fixtures/invalid-value-stream-nesting.plein)
+
+Until the `.dmg` is published, the same two steps work from a local `Plein.app` (`npm run app:build`) or [app preview](app/README.md). Extended Open → view / switch / reload steps are in [app/README.md](app/README.md).
+
 ## CLI
 
 Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. `styles` are ignored for now.

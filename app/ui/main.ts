@@ -1,6 +1,7 @@
 import {
   filterModel,
   firstNamedView,
+  formatLoadError,
   loadPleinSource,
   reloadPleinSource,
   viewAfterReload,
@@ -27,6 +28,7 @@ const reloadButton = document.querySelector("#reload-button") as HTMLButtonEleme
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
 const fileLabel = document.querySelector("#file-label") as HTMLElement;
 const errorBox = document.querySelector("#error") as HTMLElement;
+const errorDetail = document.querySelector("#error-detail") as HTMLElement;
 const workspace = document.querySelector("#workspace") as HTMLElement;
 const emptyHint = document.querySelector("#empty-hint") as HTMLElement;
 const viewList = document.querySelector("#view-list") as HTMLElement;
@@ -54,11 +56,19 @@ function isFilesystemPath(file: string): boolean {
 function showError(message: string | null): void {
   if (!message) {
     errorBox.hidden = true;
-    errorBox.textContent = "";
+    errorDetail.textContent = "";
     return;
   }
   errorBox.hidden = false;
-  errorBox.textContent = message;
+  errorDetail.textContent = message;
+}
+
+/** Open/read failures use the same banner as `checkPlein` / `plein check`. */
+function failOpen(file: string, error: unknown): void {
+  lastSource = null;
+  loaded = { ok: false, file, error: formatLoadError(error) };
+  selectedView = null;
+  render();
 }
 
 function namedViewForDiagram(): string | null {
@@ -236,9 +246,13 @@ async function openFromTauriDialog(): Promise<void> {
     fileInput.click();
     return;
   }
-  const opened = await api.core.invoke<OpenedFile | null>("open_plein_dialog");
-  if (opened) {
-    openSource(opened.contents, opened.path);
+  try {
+    const opened = await api.core.invoke<OpenedFile | null>("open_plein_dialog");
+    if (opened) {
+      openSource(opened.contents, opened.path);
+    }
+  } catch (error) {
+    failOpen("Open…", error);
   }
 }
 
@@ -247,8 +261,12 @@ async function openPath(path: string): Promise<void> {
   if (!api) {
     return;
   }
-  const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path });
-  openSource(opened.contents, opened.path);
+  try {
+    const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path });
+    openSource(opened.contents, opened.path);
+  } catch (error) {
+    failOpen(path, error);
+  }
 }
 
 async function reloadOpen(): Promise<void> {
@@ -261,7 +279,7 @@ async function reloadOpen(): Promise<void> {
       const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path: loaded.file });
       applyReload(opened.contents, opened.path);
     } catch (error) {
-      showError(error instanceof Error ? error.message : String(error));
+      showError(formatLoadError(error));
     }
     return;
   }
@@ -283,7 +301,11 @@ fileInput.addEventListener("change", async () => {
   if (!file) {
     return;
   }
-  openSource(await file.text(), file.name);
+  try {
+    openSource(await file.text(), file.name);
+  } catch (error) {
+    failOpen(file.name, error);
+  }
   fileInput.value = "";
 });
 
@@ -323,7 +345,11 @@ window.addEventListener("drop", async (event) => {
   if (!file) {
     return;
   }
-  openSource(await file.text(), file.name);
+  try {
+    openSource(await file.text(), file.name);
+  } catch (error) {
+    failOpen(file.name, error);
+  }
 });
 
 async function boot(): Promise<void> {

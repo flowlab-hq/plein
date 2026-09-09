@@ -4,7 +4,14 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { filterModel, firstNamedView, loadPleinSource, viewAfterReload } from "./list-model.js";
+import {
+  filterModel,
+  firstNamedView,
+  formatLoadError,
+  loadPleinSource,
+  viewAfterReload,
+} from "./list-model.js";
+import { ParseError } from "./parser.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -202,4 +209,31 @@ test("broken-syntax.plein surfaces a line-oriented ParseError", () => {
     return;
   }
   assert.match(result.error, /fixtures\/broken-syntax\.plein:\d+:\d+:/);
+});
+
+test("formatLoadError keeps ParseError text and stringifies Open/read failures", () => {
+  const parse = new ParseError("expected '}' to close plein", "fixtures/broken-syntax.plein", 21, 1);
+  assert.equal(
+    formatLoadError(parse),
+    "fixtures/broken-syntax.plein:21:1: expected '}' to close plein",
+  );
+  assert.equal(formatLoadError("No such file or directory"), "No such file or directory");
+});
+
+test("Mac Open broken fixtures surface the same file:line:column class as plein check", () => {
+  const fixtures = [
+    { name: "unknown-keyword.plein", message: /unknown keyword/i },
+    { name: "invalid-value-stream-nesting.plein", message: /valueStreamStage must be nested/ },
+    { name: "unknown-value-stream-step.plein", message: /unknown step keyword/i },
+  ];
+  for (const fixture of fixtures) {
+    const file = `fixtures/${fixture.name}`;
+    const result = loadPleinSource(readFixture(fixture.name), file);
+    assert.equal(result.ok, false, file);
+    if (result.ok) {
+      continue;
+    }
+    assert.match(result.error, new RegExp(`${file.replaceAll(".", "\\.")}:\\d+:\\d+:`));
+    assert.match(result.error, fixture.message);
+  }
 });
