@@ -18,11 +18,48 @@ Plein source files use the `.plein` extension.
 plein check fixtures/samples/value-stream-demo.plein
 ```
 
-## Mac install (Apple Silicon)
+## Download the Mac app (Apple Silicon `.dmg`)
 
-The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested; the `.app` is Apple Silicon only). A signed `.pkg` is not published (no Apple signing identity).
+The GUI ships as an **Apple Silicon** `.dmg` on [GitHub Releases](https://github.com/flowlab-hq/plein/releases). Install and launch **without Node or npm**. Intel Macs are out of scope (untested; no x64 `.dmg`).
 
-**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`); the switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md).
+1. Download **`Plein-*-macos-arm64.dmg`** from the [latest Release](https://github.com/flowlab-hq/plein/releases/latest).
+2. Open the disk image and drag **Plein** into Applications.
+3. First launch: this build is **ad-hoc signed and not notarized** (no Apple Developer ID in CI). Right-click **Plein** → **Open** → **Open**, or System Settings → Privacy & Security → **Open Anyway**.
+4. **Open…** the sample [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint should render (value stream stages, capabilities, applications).
+5. **Open…** the broken fixture [fixtures/broken-syntax.plein](fixtures/broken-syntax.plein). The banner should show a `file:line:column` diagnostic (same class as `plein check`); no diagram. [fixtures/malformed-views.plein](fixtures/malformed-views.plein) is the same error class for a bad `views` block.
+
+Developer ID signing and notarization are a documented follow-up — see [scripts/mac/README.md](scripts/mac/README.md).
+
+### Arran smoke checklist
+
+1. Download the `.dmg` from the GitHub Release.
+2. Install (drag to Applications) and launch — no Node/npm.
+3. Open the sample — diagram renders.
+4. Open the broken fixture — clear error in the UI.
+5. Intel: skip.
+
+Deeper Open → view / reload checks stay in [app/README.md](app/README.md) (Moss: Mac Open + error smoke).
+
+### Cut a release (first `.dmg`)
+
+This Linux / cloud environment cannot produce a Mac bundle. After this lands on `main`, Arran (or anyone with push) publishes the first artifact once:
+
+```bash
+git checkout main
+git pull
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions (**Release macOS .dmg**, `macos-14` arm64) builds the unsigned `.dmg` and attaches it to the `v0.1.0` Release with the notes in `scripts/mac/release-notes.md`. Or run that workflow from the Actions tab (`workflow_dispatch`, tick **create_release**, tag `v0.1.0`).
+
+On an Apple Silicon Mac, `./scripts/mac/build-dmg.sh` writes `dist/macos/Plein-<version>-macos-arm64.dmg` if you need a local artifact before CI.
+
+## Mac install (CLI + source)
+
+The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested). A signed `.pkg` is not published (no Apple signing identity).
+
+**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`); the switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md). Prefer the [`.dmg` download](#download-the-mac-app-apple-silicon-dmg) if you only want the GUI.
 
 ```bash
 npm install
@@ -30,7 +67,7 @@ npm test
 npm run app:preview
 ```
 
-On an Apple Silicon Mac, `npm run app:build` writes `Plein.app`.
+On an Apple Silicon Mac, `npm run app:build` writes `Plein.app` and `Plein_*.dmg`.
 
 **1. Install Homebrew** (skip if `brew --version` already works):
 

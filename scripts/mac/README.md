@@ -1,24 +1,81 @@
 # Mac packaging
 
-Plein ships as a **Homebrew formula** so Arran (or anyone on Apple Silicon) can run `plein check` without setting up Node or npm by hand.
+Plein ships two Apple Silicon channels:
+
+1. **Mac app `.dmg`** — open a `.plein` and browse named viewpoints. No Node/npm at runtime.
+2. **Homebrew formula** — `plein check` on the CLI. Homebrew provides Node.
 
 ## What we ship
 
 | Channel | Status |
 | --- | --- |
+| GitHub Release `.dmg` (arm64) | **Supported** — tag `v0.x.x` or run **Release macOS .dmg**. Asset: `Plein-<version>-macos-arm64.dmg` |
 | Homebrew formula (`Formula/plein.rb`) | **Supported** — tap this repo, `brew install plein` |
-| Signed `.pkg` | **Skipped** — no Apple Developer signing identity in this project |
-| Standalone `darwin-arm64` binary | **Not produced here** — this builder is Linux; a Node/Bun SEA would be tens of MB and needs a macOS host or a GitHub Release to distribute |
-| GUI | **Tauri app** — open a `.plein` and browse named viewpoints as SVG. [app/README.md](../../app/README.md). Apple Silicon `.app`; Intel unsupported |
+| Signed / notarized `.dmg` or `.pkg` | **Follow-up** — no Apple Developer signing identity in this project |
+| Intel (x86_64) `.dmg` / `.app` | **Out of scope** — not built or tested |
+| Standalone `darwin-arm64` CLI binary | **Not produced here** — Homebrew wraps `dist/cli.js` |
 
-Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The user only runs `brew` and `plein`. The Mac app is a separate Tauri `.app` (not installed by Homebrew).
+The `.dmg` is produced by the **Tauri bundler** (`bundle.targets`: `app` + `dmg` in `app/src-tauri/tauri.conf.json`). `create-dmg` is not required.
 
-## Supported Macs
+## Download and install (GUI)
 
-- **Apple Silicon (arm64)** — supported target for Homebrew `plein check` and the Tauri `.app`
-- **Intel (x86_64)** — out of scope. The formula does not block Intel (may work via Homebrew + Node, untested). The `.app` is **not** built for Intel.
+Same steps as the [README](../../README.md#download-the-mac-app-apple-silicon-dmg):
 
-## Install (same 3 steps as the README)
+1. Download `Plein-*-macos-arm64.dmg` from [GitHub Releases](https://github.com/flowlab-hq/plein/releases).
+2. Drag **Plein** into Applications.
+3. First launch is Gatekeeper-blocked (unsigned). Right-click → **Open** → **Open**.
+4. Open [fixtures/samples/value-stream-demo.plein](../../fixtures/samples/value-stream-demo.plein).
+5. Open [fixtures/broken-syntax.plein](../../fixtures/broken-syntax.plein) and confirm the UI banner shows a `file:line:column` error.
+
+## Cut a Release
+
+Push a version tag after this workflow is on `main`:
+
+```bash
+git checkout main
+git pull
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Or **Actions → Release macOS .dmg → Run workflow** with `create_release` and tag `v0.1.0`.
+
+The job runs on `macos-14` (Apple Silicon), builds `--target aarch64-apple-darwin --bundles app,dmg`, stages the stable name via `scripts/mac/stage-dmg.sh`, and attaches the file plus [release-notes.md](release-notes.md).
+
+## Local `.dmg` (Apple Silicon Mac)
+
+Needs Xcode CLT, Node 18+, Rust stable **1.88+**.
+
+```bash
+git clone https://github.com/flowlab-hq/plein.git
+cd plein
+./scripts/mac/build-dmg.sh
+# → dist/macos/Plein-0.1.0-macos-arm64.dmg
+```
+
+Equivalent: `npm ci && npm run app:build` then `./scripts/mac/stage-dmg.sh`.
+
+This Linux checkout cannot produce a `.dmg` (no macOS SDK).
+
+`signingIdentity` is `"-"` (ad-hoc) so CI and local builds succeed without a keychain identity. Override later with `APPLE_SIGNING_IDENTITY` when a Developer ID exists.
+
+## Gatekeeper and notarization follow-up
+
+Unsigned / ad-hoc builds downloaded from the internet are quarantined. That is expected until notarization lands.
+
+To ship a Developer ID–signed, notarized `.dmg` later:
+
+1. Enroll in the Apple Developer Program and create a **Developer ID Application** certificate.
+2. Add repo secrets (do not commit them): `APPLE_CERTIFICATE` (base64 `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific), `APPLE_TEAM_ID`.
+3. Import the cert in the workflow, set `APPLE_SIGNING_IDENTITY`, and drop or override `bundle.macOS.signingIdentity: "-"`.
+4. Notarize with `xcrun notarytool` / Tauri’s notarization env (`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) and staple the `.dmg`.
+5. Confirm Gatekeeper opens without the right-click bypass.
+
+Until those secrets exist, keep shipping unsigned and keep this note in Release notes.
+
+## Homebrew CLI
+
+Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The user only runs `brew` and `plein`. The Mac app is **not** installed by Homebrew.
 
 ```bash
 # 1. Homebrew, if needed
@@ -35,18 +92,6 @@ plein check path/to/file.plein
 There is no separate `homebrew-plein` tap repo. `brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein` uses this repository’s `Formula/plein.rb`.
 
 Until a version tag exists, the formula installs from `main`. After the first tag, pin `url` + `sha256` in `Formula/plein.rb`.
-
-To exercise the formula from this PR before it is on `main` (Apple Silicon, Homebrew installed):
-
-```bash
-git clone -b cursor/mac-install-packaging-1bc5 https://github.com/flowlab-hq/plein.git
-cd plein
-brew install --formula ./Formula/plein.rb
-plein check fixtures/valid-basic.plein
-brew test plein
-```
-
-The local formula file still fetches CLI source from `main` (already has `plein check`). After merge, the tap path in the README is enough.
 
 ## Smoke
 
@@ -65,9 +110,14 @@ PLEIN_BIN=plein ./scripts/mac/smoke.sh
 The script checks:
 
 1. `fixtures/valid-basic.plein` — exit 0
-2. `fixtures/broken-syntax.plein` — non-zero + line-oriented diagnostics (already emitted by the TypeScript CLI)
-3. `fixtures/unknown-keyword.plein` — non-zero + diagnostics (currently a parse error on `legacyBatch`; a dedicated unknown-keyword message may land from Moss later)
+2. `fixtures/valid-views.plein` — exit 0
+3. `fixtures/samples/value-stream-demo.plein` — exit 0 (Release sample)
+4. `fixtures/broken-syntax.plein` — non-zero + line-oriented diagnostics
+5. `fixtures/unknown-keyword.plein` — non-zero + diagnostics
+6. `fixtures/malformed-views.plein` — non-zero + diagnostics
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula.
 
-The Mac app has its own Open → view, switch, and reload smoke checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
+**Arran `.dmg` smoke** (no Node): download → install → open the sample → open broken → see errors. Written in the README and [release-notes.md](release-notes.md).
+
+The Mac app has a longer Open → view, switch, and reload checklist in [app/README.md](../../app/README.md) (Moss: Mac Open + error smoke). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
