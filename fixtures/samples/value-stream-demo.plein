@@ -1,0 +1,30 @@
+plein {
+  model {
+    value-stream "Quote to cash" as quoteToCash {
+      value-stream-stage "Quote freight" as quote
+      value-stream-stage "Book shipment" as book
+      value-stream-stage "Collect payment" as collect
+      quote -> book: flow
+      book -> collect: triggering
+    }
+
+    capability "Rate and quote" as rateQuote
+    capability "Order execution" as orderExecution
+
+    application-component "Rate engine" as rateEngine
+    application-component "TMS" as tms
+
+    rateEngine -> rateQuote: realization
+    tms -> orderExecution: realization
+    rateQuote -> quote: serving
+    orderExecution -> book: serving
+  }
+
+  views {
+    viewpoint strategy "Quote to cash" {
+      title "Quote to cash — value stream, capabilities, applications"
+      include quoteToCash, quote, book, collect, rateQuote, orderExecution, rateEngine, tms
+      autoLayout lr
+    }
+  }
+}

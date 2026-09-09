@@ -33,7 +33,7 @@ npm test
 npm run app:preview
 ```
 
-Then open http://127.0.0.1:4173 and follow the Open → view path below.
+Then open http://127.0.0.1:4173 and follow the Open → view path below. A ready-made file is [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein) (value stream stages, capabilities, and applications).
 
 ## Build the Mac app (Apple Silicon)
 

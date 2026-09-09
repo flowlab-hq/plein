@@ -150,6 +150,35 @@ views {
   );
 });
 
+test("loadPleinSource succeeds on fixtures/samples/value-stream-demo.plein", () => {
+  const result = loadPleinSource(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) {
+    return;
+  }
+  assert.equal(firstNamedView(result.model), "strategy");
+  const keywords = new Map(result.model.elements.map((element) => [element.id, element.keyword]));
+  assert.equal(keywords.get("quoteToCash"), "valueStream");
+  assert.equal(keywords.get("quote"), "valueStream");
+  assert.equal(keywords.get("book"), "valueStream");
+  assert.equal(keywords.get("rateQuote"), "capability");
+  assert.equal(keywords.get("orderExecution"), "capability");
+  assert.equal(keywords.get("rateEngine"), "applicationComponent");
+  assert.equal(keywords.get("tms"), "applicationComponent");
+  const edges = new Set(
+    result.model.relationships.map((rel) => `${rel.source}->${rel.target}:${rel.type}`),
+  );
+  assert.ok(edges.has("quote->book:flowsTo"));
+  assert.ok(edges.has("book->collect:triggers"));
+  assert.ok(edges.has("rateEngine->rateQuote:realizes"));
+  assert.ok(edges.has("tms->orderExecution:realizes"));
+  assert.ok(edges.has("rateQuote->quote:serves"));
+  assert.ok(edges.has("orderExecution->book:serves"));
+});
+
 test("malformed-views.plein surfaces the same class of diagnostic as plein check", () => {
   const result = loadPleinSource(
     readFixture("malformed-views.plein"),
