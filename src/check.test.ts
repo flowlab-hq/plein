@@ -46,6 +46,12 @@ test("plein check exits non-zero on fixtures/malformed-views.plein with line dia
   assert.match(result.stderr, /viewpoint keyword/i);
 });
 
+test("plein check exits 0 on fixtures/samples/value-stream-demo.plein", () => {
+  const result = runCheck("fixtures/samples/value-stream-demo.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/samples\/value-stream-demo\.plein/);
+});
+
 test("plein check exits 0 on fixtures/valid-value-stream-stages.plein", () => {
   const result = runCheck("fixtures/valid-value-stream-stages.plein");
   assert.equal(result.status, 0, result.stderr);

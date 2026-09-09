@@ -10,6 +10,14 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 
 Plein source files use the `.plein` extension.
 
+## Sample model
+
+[fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein) is a NordFreight **quote-to-cash** demo: one `value-stream` with nested stages that `flowsTo` / `triggers` each other, two `capability` elements that `serves` those stages, and two `application-component` elements that `realizes` the capabilities. Open it in the Mac app or check it:
+
+```bash
+plein check fixtures/samples/value-stream-demo.plein
+```
+
 ## Mac install (Apple Silicon)
 
 The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested; the `.app` is Apple Silicon only). A signed `.pkg` is not published (no Apple signing identity).
@@ -47,6 +55,7 @@ plein check fixtures/valid-basic.plein
 
 Expected walkthrough:
 
+* `plein check fixtures/samples/value-stream-demo.plein` prints `ok fixtures/samples/value-stream-demo.plein (...)` and exits 0.
 * `plein check fixtures/valid-basic.plein` prints `ok fixtures/valid-basic.plein (...)` and exits 0.
 * `plein check fixtures/broken-syntax.plein` prints a line-oriented diagnostic (for example `expected '}' to close plein`) and exits non-zero.
 
@@ -61,6 +70,7 @@ Mac users should prefer the Homebrew steps above. From a source checkout (any OS
 ```bash
 npm install
 npm run build
+npx plein check fixtures/samples/value-stream-demo.plein
 npx plein check fixtures/valid-basic.plein
 npm test
 ```
