@@ -2,7 +2,7 @@
 
 A Tauri 2 app that opens a `.plein` file and browses **named viewpoints** from the `views` block on one SVG canvas. Each view is a diagram of the **same loaded model**. The list UI (elements, relationships, views) stays beside it.
 
-The TypeScript `checkPlein` path from the CLI is reused. Malformed files show the same `file:line:column` diagnostics as `plein check`.
+The TypeScript `checkPlein` path from the CLI is reused. Malformed or invalid files show the same `file:line:column` diagnostics as `plein check` in a banner (Open, Finder Open With, drop, or Reload). Read/open failures use that same banner so they do not fail silently.
 
 Membership for a named view is the markup `include` / `exclude` set (`filterModel`). Placement is `layoutViewpoint` in `src/layout.ts`; the pane draws `renderViewpointSvg(layout)` via `browseNamedView` / `switchNamedView` in `src/browser.ts`. **Reload** re-reads the open `.plein` and redraws the current viewpoint; a new view added in markup appears in the switcher after reload (no app code change). Open selects the first named viewpoint.
 
@@ -33,7 +33,7 @@ npm test
 npm run app:preview
 ```
 
-Then open http://127.0.0.1:4173 and follow the Open → view path below. A ready-made file is [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein) (value stream stages, capabilities, and applications).
+Then open http://127.0.0.1:4173 and follow the Open → view path below. Arran smoke files: [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein) (success) and [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein) / [fixtures/malformed-views.plein](../fixtures/malformed-views.plein) (line-level errors).
 
 ## Build the Mac app (Apple Silicon)
 
@@ -100,6 +100,15 @@ npm test
 ./scripts/assert-multi-view-browser.sh
 ```
 
+## Arran smoke (`.dmg` / Open + errors)
+
+After installing from the GitHub Release `.dmg` (when published) or a local `Plein.app`:
+
+1. **Open** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). The diagram is **Quote to cash — value stream, capabilities, applications**. No error banner.
+2. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein) (or [malformed-views.plein](../fixtures/malformed-views.plein) / [invalid-value-stream-nesting.plein](../fixtures/invalid-value-stream-nesting.plein)). The banner reads **This .plein did not load** plus a `file:line:column` diagnostic — the same class as `plein check`. Diagram and lists stay hidden.
+
+`.dmg` packaging is out of scope here (Gilfoyle).
+
 ## Smoke checklist (`.app`)
 
 **Release path (Arran, no Node):** [README Arran checklist](../README.md#arran-smoke-checklist) — download `.dmg` → install → open the sample → open broken → see errors. Open + error banner wording is [PR #16](https://github.com/flowlab-hq/plein/pull/16).
@@ -107,13 +116,14 @@ npm test
 On an Apple Silicon Mac, after `npm run app:build`:
 
 1. Launch `Plein.app`. The empty state asks you to open a `.plein` file.
-2. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Lists match those four elements and four relationships.
-3. Click **All**. Lists show the whole model. The diagram stays on the named viewpoint **booking-context**.
-4. Open `fixtures/valid-views.plein`. The diagram is **Application Structure**. The `tms -> legacyBatch` relationship is absent (`exclude "* -> legacyBatch"`); typed elements including `legacyBatch` remain. Membership is the golden set in `fixtures/golden-applicationStructure.json` (`npm test` / `./scripts/assert-viewpoint-layout.sh`).
-5. Click **Application Cooperation** on the diagram switcher. The canvas shows TMS and Booking API only (same file, same model). Click **Application Structure** again; golden membership returns.
-6. Open `fixtures/malformed-views.plein`. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram.
-7. Open `fixtures/broken-syntax.plein`. Same class of line-oriented error; diagram and lists stay hidden.
-8. From Finder, Open With `Plein.app` on `fixtures/valid-basic.plein`. The file loads and **Booking context** renders without using **Open…**.
-9. Keep `valid-views.plein` open. In a text editor, add a new view under `views` (for example `view legacy-flow { title "Legacy flow" include tms legacyBatch }`) and save. Click **Reload** (or **⌘R** / **File → Reload**). **Legacy flow** appears in the switcher. Click it: TMS and Legacy batch, with the flow edge. No app rebuild.
-10. Still on that file, add `exclude shipment` under `applicationStructure` (or change an element label) and save. Reload. The **Application Structure** diagram matches the saved markup without restarting the app.
-11. Intel Mac: skip. Documented as unsupported.
+2. **Open…** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). The diagram pane shows **Quote to cash** (value stream stages, capabilities, applications). No error banner.
+3. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Lists match those four elements and four relationships.
+4. Click **All**. Lists show the whole model. The diagram stays on the named viewpoint **booking-context**.
+5. Open `fixtures/valid-views.plein`. The diagram is **Application Structure**. The `tms -> legacyBatch` relationship is absent (`exclude "* -> legacyBatch"`); typed elements including `legacyBatch` remain. Membership is the golden set in `fixtures/golden-applicationStructure.json` (`npm test` / `./scripts/assert-viewpoint-layout.sh`).
+6. Click **Application Cooperation** on the diagram switcher. The canvas shows TMS and Booking API only (same file, same model). Click **Application Structure** again; golden membership returns.
+7. Open `fixtures/malformed-views.plein`. The banner shows **This .plein did not load** and a `file:line:column` diagnostic (same class as `plein check`). No diagram.
+8. Open `fixtures/broken-syntax.plein`. Same class of line-oriented error; diagram and lists stay hidden.
+9. From Finder, Open With `Plein.app` on `fixtures/samples/value-stream-demo.plein`. The file loads and **Quote to cash** renders without using **Open…**.
+10. Keep `valid-views.plein` open. In a text editor, add a new view under `views` (for example `view legacy-flow { title "Legacy flow" include tms legacyBatch }`) and save. Click **Reload** (or **⌘R** / **File → Reload**). **Legacy flow** appears in the switcher. Click it: TMS and Legacy batch, with the flow edge. No app rebuild.
+11. Still on that file, add `exclude shipment` under `applicationStructure` (or change an element label) and save. Reload. The **Application Structure** diagram matches the saved markup without restarting the app.
+12. Intel Mac: skip. Documented as unsupported.

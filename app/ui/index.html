@@ -26,7 +26,10 @@
         <p id="file-label" class="file-label">No file open</p>
       </header>
 
-      <p id="error" class="error" hidden></p>
+      <div id="error" class="error" hidden role="alert">
+        <p class="error-lead">This .plein did not load</p>
+        <pre id="error-detail" class="error-detail"></pre>
+      </div>
 
       <main id="workspace" class="workspace empty">
         <aside class="sidebar">
