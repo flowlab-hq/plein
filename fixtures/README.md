@@ -4,6 +4,8 @@ Checked-in `.plein` sources for this repo. Layout, how to add files, and how PRs
 
 These compact fixtures exercise `plein check`, `npm test`, and Mac smoke. They are intentionally small so parser and validator behavior is easy to inspect in review.
 
+CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run check:fixtures` against this catalogue: golden files must exit 0; expected-fail files must exit non-zero. Keep those lists in `scripts/check-fixtures.sh` aligned with the bullets below.
+
 ## Golden (expect exit 0)
 
 - `valid-basic.plein` — minimal NordFreight-style model with typed relationships and a `view`; expected to pass with exit code 0. Canonical golden for `plein check`.
@@ -30,7 +32,7 @@ Pair `samples/value-stream-demo.plein` with `broken-syntax.plein`, `malformed-vi
 
 1. Drop a compact `.plein` here (or under `samples/` for a demo).
 2. Name `valid-*` / `samples/` for golden, or `broken-*` / `malformed-*` / `unknown-*` / `invalid-*` for expected-fail.
-3. Cover it in `src/check.test.ts` (and `scripts/mac/smoke.sh` if it belongs in CLI smoke).
+3. Cover it in `src/check.test.ts` and `scripts/check-fixtures.sh` (Mac smoke delegates there).
 4. If membership is pinned, add `golden-*.json` and assert it from `src/*.test.ts`.
 5. Add a one-line entry to this README.
 
