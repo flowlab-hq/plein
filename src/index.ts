@@ -44,6 +44,7 @@ export {
 } from "./browser.js";
 export {
   ELEMENT_KEYWORDS,
+  COMPOSITE_ELEMENT_KEYWORDS,
   RELATIONSHIP_KEYWORDS,
   resolveElementKeyword,
   resolveRelationshipKeyword,
@@ -52,4 +53,6 @@ export {
   isValueStreamStageKeyword,
   isValueStreamKeyword,
   isValueStreamStageLink,
+  toKebabCaseKeyword,
+  languageReferenceElementKeywords,
 } from "./keywords.js";

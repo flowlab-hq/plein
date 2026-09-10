@@ -29,7 +29,7 @@ test("plein check exits non-zero on fixtures/broken-syntax.plein with line diagn
 test("plein check exits non-zero on fixtures/unknown-keyword.plein mentioning unknown keyword", () => {
   const result = runCheck("fixtures/unknown-keyword.plein");
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /unknown keyword/i);
+  assert.match(result.stderr, /unknown-keyword\.plein:\d+:\d+: unknown keyword 'legacyBatch'/);
 });
 
 test("plein check exits 0 on fixtures/valid-views.plein and reports a view count", () => {
