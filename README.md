@@ -7,8 +7,23 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 ## Documentation
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
+* [Repo layout — models, fixtures, and PR review](docs/repo-layout.md) — where `.plein` files live, how to add golden/fail fixtures, and how pull requests review them (Mac-friendly).
 
 Plein source files use the `.plein` extension.
+
+## Models and PR review
+
+Checked-in `.plein` sources live under [`fixtures/`](fixtures/) (no separate `models/` tree). Contributors add compact **golden** files (`valid-*.plein`, `samples/`) that must pass `plein check`, and **expected-fail** files (`broken-*`, `malformed-*`, `unknown-*`, `invalid-*`) that must exit non-zero with `file:line:column` diagnostics. Canonical pair: [`fixtures/valid-basic.plein`](fixtures/valid-basic.plein) (golden) and [`fixtures/broken-syntax.plein`](fixtures/broken-syntax.plein) (fail).
+
+Review a model PR as text: identifiers, relationship types, and `views` membership. Then from the repo root (macOS Terminal or Linux; POSIX `/` paths):
+
+```bash
+npm test
+npx plein check fixtures/valid-basic.plein
+npx plein check fixtures/broken-syntax.plein
+```
+
+How to add a fixture, golden JSON pins, Homebrew/`./scripts/mac/smoke.sh`, and the review checklist: [docs/repo-layout.md](docs/repo-layout.md). Catalogue: [fixtures/README.md](fixtures/README.md).
 
 ## Sample model
 

@@ -169,4 +169,4 @@ A validator should check, at minimum:
 6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
 7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
 
-Validation should be deterministic and should not mutate the source. A future `plein check` command will provide the same checks in CI; until then, keep examples small and run the repository's available parser or renderer before merging.
+Validation should be deterministic and should not mutate the source. Run `plein check` on the file before merging; checked-in golden and expected-fail models live under `fixtures/` — see [repo layout](repo-layout.md). Keep examples small so a pull request can review the markup as architecture.
