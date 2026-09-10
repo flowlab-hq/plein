@@ -1,0 +1,24 @@
+// Per-layer catalogue sample: one representative element per ArchiMate layer.
+// Full 58-keyword coverage is generated in src/keywords.test.ts (not this file).
+plein {
+  model {
+    capability "Network planning" as planning
+    goal "On-time delivery" as onTime
+    business-actor "Shipper" as shipper
+    application-component "Rate engine" as rates
+    node "NordFreight cloud" as cloud
+    facility "Rotterdam DC" as rotterdam
+    work-package "Booking rollout" as rollout
+
+    planning -> onTime: realization
+    rates -> shipper: serving
+    rollout -> planning: realization
+  }
+
+  views {
+    view catalogue-layers {
+      title "ArchiMate layers sample"
+      include planning, onTime, shipper, rates, cloud, rotterdam, rollout
+    }
+  }
+}

@@ -31,7 +31,7 @@ Canonical golden / fail pair for `plein check`:
 | Golden | [`fixtures/valid-basic.plein`](../fixtures/valid-basic.plein) | exit 0, `ok fixtures/valid-basic.plein (...)` |
 | Expected-fail | [`fixtures/broken-syntax.plein`](../fixtures/broken-syntax.plein) | non-zero, `file:line:column` diagnostic on stderr |
 
-Other golden files (`valid-views.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md).
+Other golden files (`valid-views.plein`, `valid-catalogue-layers.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md).
 
 `.plein` files are UTF-8 text with `/` paths. Use those relative paths from the repo root on macOS and Linux. Do not use Windows `\` paths or `C:\` prefixes.
 
@@ -41,7 +41,7 @@ Keep fixtures compact so a PR can review the markup as architecture, not as a du
 
 1. Add a `.plein` under `fixtures/` (check cases) or `fixtures/samples/` (demo the Mac app / README would open).
 2. Name by contract: `valid-*` or `samples/` must pass `plein check`; `broken-*` / `malformed-*` / `unknown-*` / `invalid-*` must fail with a line-oriented diagnostic.
-3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-value-stream-stages.json`) and assert it from a `src/*.test.ts` file.
+3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-value-stream-stages.json`) and assert it from a `src/*.test.ts` file.
 4. Wire `plein check` coverage in `src/check.test.ts`. If it is part of the Mac CLI smoke pair, add it to `scripts/mac/smoke.sh`.
 5. List the file in [`fixtures/README.md`](../fixtures/README.md) with the expected exit and diagnostic class.
 6. Do not change existing golden JSON or fail diagnostics unless the PR is intentionally changing that contract.
