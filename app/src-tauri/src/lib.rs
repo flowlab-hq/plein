@@ -23,13 +23,19 @@ fn read_plein_file(path: String) -> Result<OpenedFile, String> {
     read_opened(PathBuf::from(path))
 }
 
+/// Native Open dialog. Must not run on the macOS UI thread: a sync command
+/// plus `blocking_pick_file` deadlocks NSOpenPanel (window spins until force
+/// quit). Async + `spawn_blocking` keeps the event loop free for the panel.
 #[tauri::command]
-fn open_plein_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String> {
-    let picked = app
-        .dialog()
-        .file()
-        .add_filter("Plein model", &["plein"])
-        .blocking_pick_file();
+async fn open_plein_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter("Plein model", &["plein"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|error| error.to_string())?;
     let Some(file) = picked else {
         return Ok(None);
     };
