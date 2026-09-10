@@ -1,0 +1,13 @@
+{
+  "file": "fixtures/valid-catalogue-layers.plein",
+  "choice": "per-layer sample — one representative keyword per ArchiMate layer. Technology and Physical are sampled separately even though docs/plein-dsl-archimate-4.md groups them in one section. The full 58 language-reference keywords are asserted in src/keywords.test.ts (PR #19), not duplicated here.",
+  "layers": [
+    { "layer": "Strategy", "id": "planning", "keyword": "capability", "spelling": "capability" },
+    { "layer": "Motivation", "id": "onTime", "keyword": "goal", "spelling": "goal" },
+    { "layer": "Business", "id": "shipper", "keyword": "businessActor", "spelling": "business-actor" },
+    { "layer": "Application", "id": "rates", "keyword": "applicationComponent", "spelling": "application-component" },
+    { "layer": "Technology", "id": "cloud", "keyword": "node", "spelling": "node" },
+    { "layer": "Physical", "id": "rotterdam", "keyword": "facility", "spelling": "facility" },
+    { "layer": "Implementation and migration", "id": "rollout", "keyword": "workPackage", "spelling": "work-package" }
+  ]
+}

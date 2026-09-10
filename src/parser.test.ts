@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { languageReferenceElementKeywords, resolveElementKeyword } from "./keywords.js";
 import { checkPlein, ParseError, parsePlein } from "./parser.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -144,8 +145,25 @@ type GoldenValueStreamStages = {
   edges: string[];
 };
 
+type GoldenCatalogueLayer = {
+  layer: string;
+  id: string;
+  keyword: string;
+  spelling: string;
+};
+
+type GoldenCatalogueLayers = {
+  file: string;
+  choice: string;
+  layers: GoldenCatalogueLayer[];
+};
+
 function readGoldenValueStreamStages(): GoldenValueStreamStages {
   return JSON.parse(readFixture("golden-value-stream-stages.json")) as GoldenValueStreamStages;
+}
+
+function readGoldenCatalogueLayers(): GoldenCatalogueLayers {
+  return JSON.parse(readFixture("golden-catalogue-layers.json")) as GoldenCatalogueLayers;
 }
 
 function relationshipKey(rel: { source: string; target: string; type: string }): string {
@@ -252,6 +270,37 @@ test("unknown step keyword inside valueStream is a line diagnostic", () => {
       return true;
     },
   );
+});
+
+test("golden fixture covers one language-reference element per ArchiMate layer", () => {
+  const golden = readGoldenCatalogueLayers();
+  const langRef = new Set(languageReferenceElementKeywords());
+  const model = checkPlein(readFixture("valid-catalogue-layers.plein"), golden.file);
+
+  assert.match(golden.choice, /per-layer sample/i);
+  assert.deepEqual(
+    golden.layers.map((entry) => entry.layer),
+    [
+      "Strategy",
+      "Motivation",
+      "Business",
+      "Application",
+      "Technology",
+      "Physical",
+      "Implementation and migration",
+    ],
+  );
+  assert.equal(model.elements.length, golden.layers.length);
+  assert.equal(model.views[0]!.name, "catalogue-layers");
+
+  const byId = new Map(model.elements.map((element) => [element.id, element]));
+  for (const entry of golden.layers) {
+    const element = byId.get(entry.id);
+    assert.ok(element, `missing element '${entry.id}' for ${entry.layer}`);
+    assert.equal(element.keyword, entry.keyword, entry.layer);
+    assert.equal(resolveElementKeyword(entry.spelling), entry.keyword, entry.spelling);
+    assert.ok(langRef.has(entry.spelling), `golden spelling '${entry.spelling}' is not in the language-reference catalogue`);
+  }
 });
 
 test("unknown element type is a line diagnostic", () => {

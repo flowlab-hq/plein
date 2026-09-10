@@ -26,6 +26,13 @@ test("plein check exits non-zero on fixtures/broken-syntax.plein with line diagn
   assert.match(result.stderr, /broken-syntax\.plein:\d+:\d+:/);
 });
 
+test("plein check exits 0 on fixtures/valid-catalogue-layers.plein", () => {
+  const result = runCheck("fixtures/valid-catalogue-layers.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-catalogue-layers\.plein/);
+  assert.match(result.stdout, /7 elements/);
+});
+
 test("plein check exits non-zero on fixtures/unknown-keyword.plein mentioning unknown keyword", () => {
   const result = runCheck("fixtures/unknown-keyword.plein");
   assert.notEqual(result.status, 0);

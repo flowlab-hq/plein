@@ -77,6 +77,21 @@ value-stream "Order to cash" as orderToCash {
 
 An element has a keyword, a label, and an optional identifier. Properties and documentation can be attached using the implementation's supported attribute syntax; unknown attributes should be reported rather than silently discarded.
 
+### Catalogue coverage
+
+The parser accepts every keyword listed above. Layer-specific names stay distinct: `business-process`, `application-process`, and `technology-process` are different types (same for function, event, service, collaboration, and interaction).
+
+Unknown element types fail with a `file:line:column` diagnostic (`unknown keyword '…'`). `fixtures/unknown-keyword.plein` is the reject fixture; `src/keywords.test.ts` generates a model with all 58 language-reference types.
+
+`fixtures/valid-catalogue-layers.plein` is a compact golden sample: one element per ArchiMate layer (Strategy, Motivation, Business, Application, Technology, Physical, Implementation and migration). Technology and Physical are sampled separately even though this reference groups them in one section. That per-layer sample is the documented choice; the generated 58-keyword catalogue is not duplicated as a `.plein` fixture.
+
+**Intentional extras** (parser accepts; not listed as language-reference types):
+
+* ArchiMate composite elements `grouping` and `location`.
+* Short aliases `process`, `function`, `event`, `service`, `role`, and `collaboration` resolve to the Business-layer concrete types (`business-process`, and so on).
+* Nested `value-stream-stage` / `valueStreamStage` inside a `value-stream` body (see Strategy). It is an authoring keyword, not a catalogue element.
+* CamelCase spellings of the canonical types (`businessActor`, `workPackage`, and so on).
+
 ## Relationships
 
 Relationships are directional: the source is on the left and the target on the right. The ArchiMate relationship type follows the colon.
