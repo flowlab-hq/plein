@@ -254,6 +254,22 @@ test("unknown step keyword inside valueStream is a line diagnostic", () => {
   );
 });
 
+test("unknown element type is a line diagnostic", () => {
+  assert.throws(
+    () => checkPlein(readFixture("unknown-keyword.plein"), "fixtures/unknown-keyword.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(
+        error.message,
+        /fixtures\/unknown-keyword\.plein:\d+:\d+: unknown keyword 'legacyBatch'/,
+      );
+      assert.ok(error.line >= 1);
+      assert.ok(error.column >= 1);
+      return true;
+    },
+  );
+});
+
 test("non-flow relationship inside a valueStream body is a diagnostic", () => {
   const source = `model {
   valueStream "Order to cash" as orderToCash {

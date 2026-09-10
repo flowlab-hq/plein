@@ -1,35 +1,17 @@
-/** Canonical element keywords accepted by the happy-path parser. */
+/**
+ * Canonical ArchiMate 4 element keywords (camelCase).
+ *
+ * Language-reference spellings are kebab-case and resolve onto these names.
+ * `grouping` and `location` are ArchiMate composite elements accepted by the
+ * parser but not listed in docs/plein-dsl-archimate-4.md (intentional extra).
+ */
 export const ELEMENT_KEYWORDS = [
-  "process",
-  "function",
-  "event",
-  "service",
-  "role",
-  "collaboration",
-  "path",
-  "grouping",
-  "location",
-  "businessActor",
-  "businessInterface",
-  "businessObject",
-  "product",
-  "applicationComponent",
-  "applicationInterface",
-  "dataObject",
-  "node",
-  "device",
-  "systemSoftware",
-  "technologyInterface",
-  "communicationNetwork",
-  "distributionNetwork",
-  "equipment",
-  "facility",
-  "artifact",
-  "material",
-  "capability",
+  // Strategy
   "resource",
+  "capability",
   "valueStream",
   "courseOfAction",
+  // Motivation
   "stakeholder",
   "driver",
   "assessment",
@@ -37,14 +19,68 @@ export const ELEMENT_KEYWORDS = [
   "outcome",
   "principle",
   "requirement",
+  "constraint",
   "meaning",
   "value",
+  // Business
+  "businessActor",
+  "businessRole",
+  "businessCollaboration",
+  "businessInterface",
+  "businessProcess",
+  "businessFunction",
+  "businessInteraction",
+  "businessEvent",
+  "businessService",
+  "businessObject",
+  "contract",
+  "representation",
+  "product",
+  // Application
+  "applicationComponent",
+  "applicationCollaboration",
+  "applicationInterface",
+  "applicationFunction",
+  "applicationInteraction",
+  "applicationProcess",
+  "applicationEvent",
+  "applicationService",
+  "dataObject",
+  // Technology and physical
+  "node",
+  "device",
+  "systemSoftware",
+  "technologyCollaboration",
+  "technologyInterface",
+  "path",
+  "communicationNetwork",
+  "technologyFunction",
+  "technologyProcess",
+  "technologyInteraction",
+  "technologyEvent",
+  "technologyService",
+  "artifact",
+  "equipment",
+  "facility",
+  "distributionNetwork",
+  "material",
+  // Implementation and migration
   "workPackage",
   "deliverable",
+  "implementationEvent",
   "plateau",
+  "gap",
+  // Composite (ArchiMate 4; omitted from the language reference)
+  "grouping",
+  "location",
 ] as const;
 
 export type ElementKeyword = (typeof ELEMENT_KEYWORDS)[number];
+
+/** Composite extras not listed in the DSL language reference. */
+export const COMPOSITE_ELEMENT_KEYWORDS = ["grouping", "location"] as const;
+
+export type CompositeElementKeyword = (typeof COMPOSITE_ELEMENT_KEYWORDS)[number];
 
 /** Canonical typed relationship keywords. */
 export const RELATIONSHIP_KEYWORDS = [
@@ -63,41 +99,22 @@ export const RELATIONSHIP_KEYWORDS = [
 
 export type RelationshipKeyword = (typeof RELATIONSHIP_KEYWORDS)[number];
 
+export function toKebabCaseKeyword(name: string): string {
+  return name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
 /**
- * Kebab-case and language-reference spellings map onto the canonical keywords
- * so documented examples and peer fixtures stay loadable.
+ * Short layer-omitted spellings map onto the Business (or otherwise obvious)
+ * concrete type so existing models and the language-reference alias note stay
+ * valid. Layer-specific kebab-case names are distinct canonical types.
  */
-const ELEMENT_ALIASES: Record<string, ElementKeyword> = {
-  "business-process": "process",
-  "application-process": "process",
-  "technology-process": "process",
-  "business-function": "function",
-  "application-function": "function",
-  "technology-function": "function",
-  "business-event": "event",
-  "application-event": "event",
-  "technology-event": "event",
-  "implementation-event": "event",
-  "business-service": "service",
-  "application-service": "service",
-  "technology-service": "service",
-  "business-role": "role",
-  "business-collaboration": "collaboration",
-  "application-collaboration": "collaboration",
-  "technology-collaboration": "collaboration",
-  "business-actor": "businessActor",
-  "business-interface": "businessInterface",
-  "business-object": "businessObject",
-  "application-component": "applicationComponent",
-  "application-interface": "applicationInterface",
-  "data-object": "dataObject",
-  "system-software": "systemSoftware",
-  "technology-interface": "technologyInterface",
-  "communication-network": "communicationNetwork",
-  "distribution-network": "distributionNetwork",
-  "value-stream": "valueStream",
-  "course-of-action": "courseOfAction",
-  "work-package": "workPackage",
+const SHORT_ELEMENT_ALIASES: Record<string, ElementKeyword> = {
+  process: "businessProcess",
+  function: "businessFunction",
+  event: "businessEvent",
+  service: "businessService",
+  role: "businessRole",
+  collaboration: "businessCollaboration",
 };
 
 const RELATIONSHIP_ALIASES: Record<string, RelationshipKeyword> = {
@@ -117,8 +134,12 @@ const RELATIONSHIP_ALIASES: Record<string, RelationshipKeyword> = {
 const elementLookup = new Map<string, ElementKeyword>();
 for (const keyword of ELEMENT_KEYWORDS) {
   elementLookup.set(keyword, keyword);
+  const kebab = toKebabCaseKeyword(keyword);
+  if (kebab !== keyword) {
+    elementLookup.set(kebab, keyword);
+  }
 }
-for (const [alias, keyword] of Object.entries(ELEMENT_ALIASES)) {
+for (const [alias, keyword] of Object.entries(SHORT_ELEMENT_ALIASES)) {
   elementLookup.set(alias, keyword);
 }
 
@@ -160,4 +181,10 @@ export function isValueStreamKeyword(name: string): boolean {
 /** Dynamic relationships allowed between stages inside a valueStream body. */
 export function isValueStreamStageLink(name: RelationshipKeyword): boolean {
   return name === "flowsTo" || name === "triggers";
+}
+
+/** Kebab-case spellings listed under Model elements in the language reference. */
+export function languageReferenceElementKeywords(): string[] {
+  const composites = new Set<string>(COMPOSITE_ELEMENT_KEYWORDS);
+  return ELEMENT_KEYWORDS.filter((keyword) => !composites.has(keyword)).map(toKebabCaseKeyword);
 }
