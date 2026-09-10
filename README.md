@@ -136,8 +136,11 @@ npm install
 npm run build
 npx plein check fixtures/samples/value-stream-demo.plein
 npx plein check fixtures/valid-basic.plein
+npm run check:fixtures
 npm test
 ```
+
+GitHub Actions (**Check fixtures**) installs the CLI and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases).
 

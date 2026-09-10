@@ -1,6 +1,6 @@
 # Repo layout — models, fixtures, and PR review
 
-Short Deliverable note: where `.plein` models live in this repository, how contributors add them, and how pull requests review them. Mac-first paths and commands (POSIX `/`, bash/zsh). CI that runs `plein check` on fixtures is a separate Team Task (Gilfoyle) — this note does not add a workflow.
+Short Deliverable note: where `.plein` models live in this repository, how contributors add them, and how pull requests review them. Mac-first paths and commands (POSIX `/`, bash/zsh). CI that runs `plein check` on fixtures is `.github/workflows/check-fixtures.yml` (`npm run check:fixtures`); this note does not duplicate that workflow.
 
 ## Where models live
 
@@ -42,7 +42,7 @@ Keep fixtures compact so a PR can review the markup as architecture, not as a du
 1. Add a `.plein` under `fixtures/` (check cases) or `fixtures/samples/` (demo the Mac app / README would open).
 2. Name by contract: `valid-*` or `samples/` must pass `plein check`; `broken-*` / `malformed-*` / `unknown-*` / `invalid-*` must fail with a line-oriented diagnostic.
 3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-value-stream-stages.json`) and assert it from a `src/*.test.ts` file.
-4. Wire `plein check` coverage in `src/check.test.ts`. If it is part of the Mac CLI smoke pair, add it to `scripts/mac/smoke.sh`.
+4. Wire `plein check` coverage in `src/check.test.ts` and `scripts/check-fixtures.sh` (Mac CLI smoke delegates there).
 5. List the file in [`fixtures/README.md`](../fixtures/README.md) with the expected exit and diagnostic class.
 6. Do not change existing golden JSON or fail diagnostics unless the PR is intentionally changing that contract.
 

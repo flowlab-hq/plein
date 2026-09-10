@@ -107,16 +107,12 @@ After Homebrew install:
 PLEIN_BIN=plein ./scripts/mac/smoke.sh
 ```
 
-The script checks:
+The script delegates to `scripts/check-fixtures.sh` (same catalogue CI uses):
 
-1. `fixtures/valid-basic.plein` — exit 0
-2. `fixtures/valid-views.plein` — exit 0
-3. `fixtures/samples/value-stream-demo.plein` — exit 0 (Release sample)
-4. `fixtures/broken-syntax.plein` — non-zero + line-oriented diagnostics
-5. `fixtures/unknown-keyword.plein` — non-zero + diagnostics
-6. `fixtures/malformed-views.plein` — non-zero + diagnostics
+1. Golden (exit 0): `valid-basic.plein`, `valid-views.plein`, `valid-catalogue-layers.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`
+2. Expected-fail (non-zero + diagnostics): `broken-syntax.plein`, `unknown-keyword.plein`, `malformed-views.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`
 
-`brew test plein` repeats a smaller golden / broken pair inside the formula.
+`brew test plein` repeats a smaller golden / broken pair inside the formula. GitHub Actions **Check fixtures** runs the same script on every push and pull request.
 
 **Arran `.dmg` smoke** (no Node): download → install → open the sample → open broken → see errors. Written in the README and [release-notes.md](release-notes.md). Same pair as [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Open + error banner).
 

@@ -18,6 +18,7 @@
     "build": "tsc",
     "build:app": "esbuild app/ui/main.ts --bundle --format=esm --outfile=app/ui/bundle.js --platform=browser",
     "check": "node dist/cli.js check",
+    "check:fixtures": "bash scripts/check-fixtures.sh",
     "plein": "node dist/cli.js",
     "test": "tsc && node --test dist/*.test.js",
     "test:layout": "tsc && node --test dist/layout.test.js",
