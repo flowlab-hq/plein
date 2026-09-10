@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Write the small Tauri icon set used by the Plein Mac app."""
+"""Write the small Tauri icon set used by the Plein Mac app.
+
+Tauri's generate_context! proc-macro (tauri-codegen) rejects PNG icons that
+are not 8-bit RGBA (IHDR color type 6). RGB-only assets fail the Release
+macOS .dmg workflow with: `icon …/32x32.png is not RGBA`.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ICONS = ROOT / "app" / "src-tauri" / "icons"
+
+# PNG IHDR color type 6 = RGBA. Tauri requires this for every .png icon.
+PNG_COLOR_TYPE_RGBA = 6
 
 
 def chunk(tag: bytes, data: bytes) -> bytes:
@@ -24,14 +32,14 @@ def png(width: int, height: int) -> bytes:
             inset = min(width, height) // 6
             inside = inset <= x < width - inset and inset <= y < height - inset
             if inside:
-                row.extend((10, 132, 255))
+                row.extend((10, 132, 255, 255))
             else:
-                row.extend((29, 29, 31))
+                row.extend((29, 29, 31, 255))
         rows.append(bytes(row))
     raw = b"".join(rows)
     return (
         b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, PNG_COLOR_TYPE_RGBA, 0, 0, 0))
         + chunk(b"IDAT", zlib.compress(raw, 9))
         + chunk(b"IEND", b"")
     )
@@ -50,6 +58,13 @@ def icns(images: dict[bytes, bytes]) -> bytes:
     return b"icns" + struct.pack(">I", 8 + len(body)) + body
 
 
+def png_color_type(data: bytes) -> int:
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    # IHDR: length (4) + tag (4) + width/height (8) + bit depth (1) + color type (1)
+    return data[25]
+
+
 def main() -> None:
     ICONS.mkdir(parents=True, exist_ok=True)
     sizes = {
@@ -58,6 +73,10 @@ def main() -> None:
         256: png(256, 256),
         512: png(512, 512),
     }
+    for payload in sizes.values():
+        color = png_color_type(payload)
+        if color != PNG_COLOR_TYPE_RGBA:
+            raise SystemExit(f"generated PNG color type {color}, expected RGBA ({PNG_COLOR_TYPE_RGBA})")
     (ICONS / "32x32.png").write_bytes(sizes[32])
     (ICONS / "128x128.png").write_bytes(sizes[128])
     (ICONS / "icon.png").write_bytes(sizes[512])
