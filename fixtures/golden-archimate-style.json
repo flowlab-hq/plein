@@ -1,0 +1,464 @@
+{
+  "source": "Archi inbuilt defaults (AbstractArchimateElementUIProvider) plus a safe unknown fallback. The ArchiMate spec does not mandate colours.",
+  "default": {
+    "layer": "unknown",
+    "fill": "#F5F5F7",
+    "stroke": "#8E8E93",
+    "icon": "unknown"
+  },
+  "layers": {
+    "strategy": {
+      "fill": "#F5DEAA",
+      "stroke": "#C4A574"
+    },
+    "motivation": {
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "business": {
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "application": {
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "technology": {
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "physical": {
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "implementation": {
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "composite": {
+      "fill": "#F2F2F7",
+      "stroke": "#8E8E93"
+    },
+    "unknown": {
+      "fill": "#F5F5F7",
+      "stroke": "#8E8E93"
+    }
+  },
+  "keywords": {
+    "resource": {
+      "layer": "strategy",
+      "icon": "resource",
+      "fill": "#F5DEAA",
+      "stroke": "#C4A574"
+    },
+    "capability": {
+      "layer": "strategy",
+      "icon": "function",
+      "fill": "#F5DEAA",
+      "stroke": "#C4A574"
+    },
+    "valueStream": {
+      "layer": "strategy",
+      "icon": "valueStream",
+      "fill": "#F5DEAA",
+      "stroke": "#C4A574"
+    },
+    "courseOfAction": {
+      "layer": "strategy",
+      "icon": "courseOfAction",
+      "fill": "#F5DEAA",
+      "stroke": "#C4A574"
+    },
+    "stakeholder": {
+      "layer": "motivation",
+      "icon": "actor",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "driver": {
+      "layer": "motivation",
+      "icon": "driver",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "assessment": {
+      "layer": "motivation",
+      "icon": "assessment",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "goal": {
+      "layer": "motivation",
+      "icon": "goal",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "outcome": {
+      "layer": "motivation",
+      "icon": "outcome",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "principle": {
+      "layer": "motivation",
+      "icon": "principle",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "requirement": {
+      "layer": "motivation",
+      "icon": "requirement",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "constraint": {
+      "layer": "motivation",
+      "icon": "constraint",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "meaning": {
+      "layer": "motivation",
+      "icon": "meaning",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "value": {
+      "layer": "motivation",
+      "icon": "value",
+      "fill": "#CCCCFF",
+      "stroke": "#7A7AB8"
+    },
+    "businessActor": {
+      "layer": "business",
+      "icon": "actor",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessRole": {
+      "layer": "business",
+      "icon": "role",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessCollaboration": {
+      "layer": "business",
+      "icon": "collaboration",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessInterface": {
+      "layer": "business",
+      "icon": "interface",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessProcess": {
+      "layer": "business",
+      "icon": "process",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessFunction": {
+      "layer": "business",
+      "icon": "function",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessInteraction": {
+      "layer": "business",
+      "icon": "interaction",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessEvent": {
+      "layer": "business",
+      "icon": "event",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessService": {
+      "layer": "business",
+      "icon": "service",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "businessObject": {
+      "layer": "business",
+      "icon": "object",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "contract": {
+      "layer": "business",
+      "icon": "contract",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "representation": {
+      "layer": "business",
+      "icon": "representation",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "product": {
+      "layer": "business",
+      "icon": "product",
+      "fill": "#FFFFB5",
+      "stroke": "#C4C46A"
+    },
+    "applicationComponent": {
+      "layer": "application",
+      "icon": "component",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationCollaboration": {
+      "layer": "application",
+      "icon": "collaboration",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationInterface": {
+      "layer": "application",
+      "icon": "interface",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationFunction": {
+      "layer": "application",
+      "icon": "function",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationInteraction": {
+      "layer": "application",
+      "icon": "interaction",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationProcess": {
+      "layer": "application",
+      "icon": "process",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationEvent": {
+      "layer": "application",
+      "icon": "event",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "applicationService": {
+      "layer": "application",
+      "icon": "service",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "dataObject": {
+      "layer": "application",
+      "icon": "object",
+      "fill": "#B5FFFF",
+      "stroke": "#5AA3A3"
+    },
+    "node": {
+      "layer": "technology",
+      "icon": "node",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "device": {
+      "layer": "technology",
+      "icon": "device",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "systemSoftware": {
+      "layer": "technology",
+      "icon": "systemSoftware",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyCollaboration": {
+      "layer": "technology",
+      "icon": "collaboration",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyInterface": {
+      "layer": "technology",
+      "icon": "interface",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "path": {
+      "layer": "technology",
+      "icon": "path",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "communicationNetwork": {
+      "layer": "technology",
+      "icon": "network",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyFunction": {
+      "layer": "technology",
+      "icon": "function",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyProcess": {
+      "layer": "technology",
+      "icon": "process",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyInteraction": {
+      "layer": "technology",
+      "icon": "interaction",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyEvent": {
+      "layer": "technology",
+      "icon": "event",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "technologyService": {
+      "layer": "technology",
+      "icon": "service",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "artifact": {
+      "layer": "technology",
+      "icon": "artifact",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "equipment": {
+      "layer": "physical",
+      "icon": "equipment",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "facility": {
+      "layer": "physical",
+      "icon": "facility",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "distributionNetwork": {
+      "layer": "physical",
+      "icon": "network",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "material": {
+      "layer": "physical",
+      "icon": "object",
+      "fill": "#C9E7B7",
+      "stroke": "#6F9A5A"
+    },
+    "workPackage": {
+      "layer": "implementation",
+      "icon": "workPackage",
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "deliverable": {
+      "layer": "implementation",
+      "icon": "deliverable",
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "implementationEvent": {
+      "layer": "implementation",
+      "icon": "event",
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "plateau": {
+      "layer": "implementation",
+      "icon": "plateau",
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "gap": {
+      "layer": "implementation",
+      "icon": "gap",
+      "fill": "#FFE0E0",
+      "stroke": "#C47A7A"
+    },
+    "grouping": {
+      "layer": "composite",
+      "icon": "grouping",
+      "fill": "#F2F2F7",
+      "stroke": "#8E8E93"
+    },
+    "location": {
+      "layer": "composite",
+      "icon": "location",
+      "fill": "#F2F2F7",
+      "stroke": "#8E8E93"
+    }
+  },
+  "catalogueLayersView": {
+    "file": "fixtures/valid-catalogue-layers.plein",
+    "view": "catalogue-layers",
+    "nodes": [
+      {
+        "id": "planning",
+        "keyword": "capability",
+        "layer": "strategy",
+        "fill": "#F5DEAA",
+        "icon": "function"
+      },
+      {
+        "id": "onTime",
+        "keyword": "goal",
+        "layer": "motivation",
+        "fill": "#CCCCFF",
+        "icon": "goal"
+      },
+      {
+        "id": "shipper",
+        "keyword": "businessActor",
+        "layer": "business",
+        "fill": "#FFFFB5",
+        "icon": "actor"
+      },
+      {
+        "id": "rates",
+        "keyword": "applicationComponent",
+        "layer": "application",
+        "fill": "#B5FFFF",
+        "icon": "component"
+      },
+      {
+        "id": "cloud",
+        "keyword": "node",
+        "layer": "technology",
+        "fill": "#C9E7B7",
+        "icon": "node"
+      },
+      {
+        "id": "rotterdam",
+        "keyword": "facility",
+        "layer": "physical",
+        "fill": "#C9E7B7",
+        "icon": "facility"
+      },
+      {
+        "id": "rollout",
+        "keyword": "workPackage",
+        "layer": "implementation",
+        "fill": "#FFE0E0",
+        "icon": "workPackage"
+      }
+    ]
+  }
+}
