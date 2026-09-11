@@ -32,9 +32,19 @@
       </div>
 
       <main id="workspace" class="workspace empty">
-        <aside class="sidebar">
-          <h2>Views</h2>
-          <ul id="view-list"></ul>
+        <aside class="sidebar" aria-label="Views, elements, and relationships">
+          <section class="sidebar-section" data-panel="views">
+            <h2>Views</h2>
+            <ul id="view-list"></ul>
+          </section>
+          <section class="sidebar-section" data-panel="elements">
+            <h2 id="elements-heading">Elements</h2>
+            <ul id="element-list" class="rows"></ul>
+          </section>
+          <section class="sidebar-section" data-panel="relationships">
+            <h2 id="relationship-heading">Relationships</h2>
+            <ul id="relationship-list" class="rows"></ul>
+          </section>
         </aside>
         <section class="diagram-pane">
           <div class="diagram-toolbar">
@@ -54,16 +64,6 @@
             ></div>
           </div>
           <div id="diagram" class="diagram"></div>
-        </section>
-        <section class="lists">
-          <article>
-            <h2 id="elements-heading">Elements</h2>
-            <ul id="element-list" class="rows"></ul>
-          </article>
-          <article>
-            <h2 id="relationship-heading">Relationships</h2>
-            <ul id="relationship-list" class="rows"></ul>
-          </article>
         </section>
       </main>
 

@@ -208,7 +208,7 @@ function render(): void {
     ...list.elements.map((element) => {
       const item = document.createElement("li");
       const style = elementStyle(element.keyword);
-      item.innerHTML = `<span class="swatch" style="background:${escapeHtml(style.fill)}" title="${escapeHtml(style.layer)}"></span><span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code><span>${escapeHtml(element.label)}</span>`;
+      item.innerHTML = `<span class="swatch" style="background:${escapeHtml(style.fill)}" title="${escapeHtml(style.layer)}"></span><span class="row-body"><span class="row-title">${escapeHtml(element.label)}</span><span class="row-meta"><span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code></span></span>`;
       return item;
     }),
   );
@@ -218,7 +218,7 @@ function render(): void {
     ...list.relationships.map((rel) => {
       const item = document.createElement("li");
       item.className = "rel";
-      item.innerHTML = `<code>${escapeHtml(rel.source)}</code><span class="meta">→</span><code>${escapeHtml(rel.target)}</code><span class="meta">:</span><span class="kw">${escapeHtml(rel.type)}</span>`;
+      item.innerHTML = `<span class="row-body"><span class="row-title"><code>${escapeHtml(rel.source)}</code><span class="meta">→</span><code>${escapeHtml(rel.target)}</code></span><span class="row-meta"><span class="kw">${escapeHtml(rel.type)}</span></span></span>`;
       return item;
     }),
   );

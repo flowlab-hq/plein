@@ -29,6 +29,7 @@ Clone the repo (or download those raw files) so Open… can reach them.
 1. Download the `.dmg` from this release.
 2. Install (drag to Applications) and launch — no Node/npm.
 3. Open the sample — viewpoint diagram renders (orange value streams / capabilities, cyan applications, type glyphs).
-4. Open the catalogue-layers fixture — seven layer colours (orange / purple / yellow / cyan / green / green / pink).
-5. Open the broken fixture — clear error in the UI.
-6. Intel: skip.
+4. Left sidebar shows **Views**, **Elements (8)**, **Relationships (9)**. Diagram fills the remaining height — no bottom list strip. Scroll lists if needed; counts stay on the headings.
+5. Open the catalogue-layers fixture — seven layer colours (orange / purple / yellow / cyan / green / green / pink). Lists stay on the left.
+6. Open the broken fixture — clear error in the UI. Sidebar and diagram stay hidden.
+7. Intel: skip.

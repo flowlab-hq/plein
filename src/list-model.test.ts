@@ -167,6 +167,8 @@ test("loadPleinSource succeeds on fixtures/samples/value-stream-demo.plein", () 
     return;
   }
   assert.equal(firstNamedView(result.model), "strategy");
+  assert.equal(result.model.elements.length, 8);
+  assert.equal(result.model.relationships.length, 9);
   const keywords = new Map(result.model.elements.map((element) => [element.id, element.keyword]));
   assert.equal(keywords.get("quoteToCash"), "valueStream");
   assert.equal(keywords.get("quote"), "valueStream");
