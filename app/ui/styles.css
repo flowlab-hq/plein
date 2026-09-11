@@ -225,6 +225,23 @@ button:disabled {
   min-height: 100%;
 }
 
+.diagram [data-node-id],
+.diagram [data-edge-id],
+.diagram [data-container-id] {
+  cursor: pointer;
+}
+
+.diagram [data-node-id][data-selected="true"] > rect,
+.diagram [data-container-id][data-selected="true"] {
+  stroke: #0b57d0;
+  stroke-width: 2.5;
+}
+
+.diagram [data-edge-id][data-selected="true"] line:not(.edge-hit) {
+  stroke: #0b57d0;
+  stroke-width: 2.5;
+}
+
 .diagram-empty {
   margin: auto;
   padding: 24px;
@@ -285,6 +302,18 @@ h2 {
   background: var(--row);
   margin-bottom: 4px;
   align-items: start;
+  cursor: pointer;
+}
+
+.rows li:hover,
+.rows li:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.rows li.selected,
+.rows li[aria-selected="true"] {
+  background: #e8f1ff;
+  outline: 1px solid #0b57d0;
 }
 
 .swatch {

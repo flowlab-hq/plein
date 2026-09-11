@@ -6,6 +6,8 @@ The TypeScript `checkPlein` path from the CLI is reused. Malformed or invalid fi
 
 Membership for a named view is the markup `include` / `exclude` set (`filterModel`). Placement is `layoutViewpoint` in `src/layout.ts`; the pane draws `renderViewpointSvg(layout)` via `browseNamedView` / `switchNamedView` in `src/browser.ts`. Boxes use the shared ArchiMate type/layer map (`src/archimate-style.ts`): yellow business, cyan application, green technology/physical, purple motivation, orange strategy, pink implementation. Mapping: [docs/archimate-style.md](../docs/archimate-style.md). Aggregation and composition default to **side-by-side** (same as today). A view may set `nesting nested` so children render inside the parent; that `.plein` clause is the source of truth for PRs. The diagram toolbar **File default / Nested / Beside** control overrides placement for local preview only and is not written back to the file. **Reload** re-reads the open `.plein` and redraws the current viewpoint; a new view added in markup appears in the switcher after reload (no app code change). Open selects the first named viewpoint.
 
+Selection is **bidirectional** and single-item: a diagram box or edge highlights the matching left-list row, and a list row highlights/focuses the matching diagram item (`src/selection.ts`). Nested children select independently of their container. Switching views keeps the highlight when the item is still in that view’s list; otherwise it clears. Empty canvas or Escape clears both. Out of scope: multi-select and editing from the list. Nest `composedOf` edges that are implied by nested layout have a list row but no SVG edge — the list still highlights.
+
 ```ts
 import { browseNamedView, switchNamedView } from "../../src/browser.ts";
 
@@ -25,7 +27,7 @@ Prefer the GitHub Release **`.dmg`** ([README](../README.md#download-the-mac-app
 
 ## Run the UI without a `.app`
 
-Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open dialog is a file picker):
+Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Diagram ↔ list selection (nested containers + multi-view) is `src/selection.test.ts` or `./scripts/assert-selection-sync.sh`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open dialog is a file picker):
 
 ```bash
 npm install
@@ -78,6 +80,12 @@ This Linux checkout cannot produce `Plein.app` (no macOS SDK). `npm test` and `n
 3. Click **Application Structure** again. Membership returns to the golden set. You did not reopen the file.
 4. Click **All** in the Views list. Sidebar lists show the whole model (**5** / **4**). The diagram stays on the last named viewpoint you selected.
 
+## Selection sync (diagram ↔ lists)
+
+Single-item, bidirectional. Click a box or edge on the canvas to highlight the matching left-list row; click a list row to highlight (and scroll to) the matching diagram item. Nested children select on their own; the parent container selects from its header or empty interior. Escape or a click on empty canvas clears both. Switching views keeps the highlight when that item is still in the new list, otherwise it clears. Multi-select and editing from the list are out of scope.
+
+Assert without opening the app: `./scripts/assert-selection-sync.sh` (or `npm test`).
+
 ## Reload after edit
 
 Edit the open `.plein` in any text editor, save, then reload. The app re-reads the file from disk and redraws the **current** viewpoint — you do not quit `Plein.app`.
@@ -99,6 +107,7 @@ npm test
 ./scripts/assert-archimate-style.sh
 ./scripts/assert-reload-diagram.sh
 ./scripts/assert-multi-view-browser.sh
+./scripts/assert-selection-sync.sh
 ```
 
 ## Arran smoke — left sidebar lists
@@ -107,9 +116,10 @@ Release `.dmg` or local `Plein.app` (no Node required on the Release path):
 
 1. **Open** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). **Views**, **Elements (8)**, and **Relationships (9)** are in the **left sidebar**. The diagram fills the remaining height — no bottom list strip.
 2. Scroll Elements and Relationships if the pane is short. Headings keep the counts visible.
-3. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein). Application Structure: **Elements (5)** / **Relationships (3)** (`tms -> legacyBatch` absent). Click **Application Cooperation**: **Elements (2)** / **Relationships (1)**. Click **All**: whole model (**5** / **4**); the diagram stays on the last named view.
-4. Toggle **File default / Nested / Beside**. Lists stay on the left; nested render still works on the canvas.
-5. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein). Banner only — sidebar and diagram stay hidden.
+3. Click **Quote freight** on the diagram (child inside Quote to cash). The Elements row for `quote` highlights — not the parent container. Click the **Quote to cash** header (or empty area inside the container, not on a child) — the parent row highlights. Click **TMS** in the Elements list — the TMS box highlights. Click a visible relationship row — the edge highlights. Click empty canvas or press Escape — both highlights clear.
+4. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein). Application Structure: **Elements (5)** / **Relationships (3)** (`tms -> legacyBatch` absent). Click **Shipment** on the diagram — its list row highlights. Click **Application Cooperation**: **Elements (2)** / **Relationships (1)** and the shipment highlight clears. Click **TMS** in the list — the box highlights. Click **All**: whole model (**5** / **4**); the diagram stays on the last named view and TMS stays selected if it is still listed.
+5. Toggle **File default / Nested / Beside**. Lists stay on the left; nested render still works on the canvas. Selection follows the item across the local nesting preview.
+6. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein). Banner only — sidebar and diagram stay hidden.
 
 ## Arran smoke (`.dmg` / Open + errors)
 
@@ -129,7 +139,7 @@ After installing from the GitHub Release `.dmg` (when published) or a local `Ple
 On an Apple Silicon Mac, after `npm run app:build`:
 
 1. Launch `Plein.app`. The empty state asks you to open a `.plein` file.
-2. **Open…** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). The diagram pane shows **Quote to cash** with Quote, Book, and Collect nested inside the value stream. Orange strategy boxes, cyan application boxes, type glyphs on each. No error banner. Left sidebar lists **Elements (8)** and **Relationships (9)** under Views — no bottom strip. Toggle **File default / Nested / Beside** to preview the other placement locally.
+2. **Open…** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). The diagram pane shows **Quote to cash** with Quote, Book, and Collect nested inside the value stream. Orange strategy boxes, cyan application boxes, type glyphs on each. No error banner. Left sidebar lists **Elements (8)** and **Relationships (9)** under Views — no bottom strip. Toggle **File default / Nested / Beside** to preview the other placement locally. Click a nested stage on the diagram and confirm the matching Elements row highlights; click a list row and confirm the diagram item highlights; click empty canvas to clear.
 3. **Open…** [fixtures/valid-catalogue-layers.plein](../fixtures/valid-catalogue-layers.plein). Seven layer colours as in [docs/archimate-style.md](../docs/archimate-style.md). Hover a box: tooltip is `type — label`. Lists stay on the left.
 4. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Shipper / Booking / Freight order are yellow; Rate engine is cyan. Left sidebar matches those four elements and four relationships.
 5. Click **All**. Sidebar lists show the whole model. The diagram stays on the named viewpoint **booking-context**.

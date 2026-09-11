@@ -25,7 +25,22 @@ test("Mac UI lists Elements and Relationships in the left sidebar, not a bottom 
   assert.match(sidebar, /id="relationship-heading"/);
   assert.match(sidebar, /data-panel="elements"/);
   assert.match(sidebar, /data-panel="relationships"/);
+  assert.match(sidebar, /id="element-list"[^>]*role="listbox"/);
+  assert.match(sidebar, /id="relationship-list"[^>]*role="listbox"/);
   assert.equal(html.includes('class="lists"'), false, "bottom list strip is gone");
+});
+
+test("Mac UI wires bidirectional diagram ↔ list selection", () => {
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+  assert.match(ui, /selectionFromDiagramHit/);
+  assert.match(ui, /retainSelection/);
+  assert.match(ui, /data-element-id/);
+  assert.match(ui, /data-relationship-id/);
+  assert.match(ui, /setSelection\(null\)/);
+  assert.match(ui, /event\.key === "Escape"/);
+  assert.match(css, /\[data-selected="true"\]/);
+  assert.match(css, /\.rows li\.selected/);
 });
 
 test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () => {
