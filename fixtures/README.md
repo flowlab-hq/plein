@@ -15,6 +15,9 @@ CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run che
 - `golden-catalogue-layers.json` — expected id, canonical keyword, language-reference spelling, and layer for that per-layer sample.
 - `golden-archimate-style.json` — expected layer fill and decorator icon for that per-layer sample (Mac SVG render path).
 - `golden-catalogue-layers.svg` — visual pin of that viewpoint (open in a browser). Re-render with `./scripts/render-viewpoint-svg.sh fixtures/valid-catalogue-layers.plein catalogue-layers`.
+- `valid-capability-value-stream.plein` — **glyph pair** golden: one `capability` and one `value-stream` so the staircase vs notched-chevron decorators can be compared. Expected to pass with exit code 0. Style pin: `golden-capability-value-stream.json` / `golden-capability-value-stream.svg` (`src/archimate-style.test.ts`).
+- `golden-capability-value-stream.json` — expected fill and decorator icon for that pair (capability ≠ value-stream).
+- `golden-capability-value-stream.svg` — visual pin of that viewpoint. Re-render with `./scripts/render-viewpoint-svg.sh fixtures/valid-capability-value-stream.plein capability-and-value-stream`.
 - `valid-value-stream-stages.plein` — one `value-stream` with three nested `value-stream-stage` steps chained by `flow` then `triggering`; expected to pass with exit code 0. Golden parse membership is `golden-value-stream-stages.json`.
 - `golden-value-stream-stages.json` — expected parent id, stage ids, and relationship edges (composition plus the stage chain) for that fixture.
 - `samples/value-stream-demo.plein` — Mac / README demo and **Arran Open smoke (success)**: one `value-stream` with three nested stages, two capabilities that `serves` stages, and two application components that `realizes` those capabilities. The viewpoint sets `nesting nested` so Quote, Book, and Collect render **inside** Quote to cash. Expected to pass with exit code 0.

@@ -26,7 +26,7 @@ Physical shares Technology green on purpose (Archi does the same). Distinguish t
 
 ## Type glyphs
 
-Every parser keyword gets a simplified 16×16 decorator in the top-right of the box. Shapes follow ArchiMate’s usual icon families (stick figure for actor/stakeholder, UML component for application-component, chevron for capability / value-stream / work-package, …). They are **not** full-size ArchiMate figures (no 3D node-as-the-box, no actor-as-the-whole-shape).
+Every parser keyword gets a simplified 16×16 decorator in the top-right of the box. Shapes follow ArchiMate’s usual icon families (stick figure for actor/stakeholder, UML component for application-component, staircase of blocks for capability, notched chevron for value-stream, …). They are **not** full-size ArchiMate figures (no 3D node-as-the-box, no actor-as-the-whole-shape).
 
 | Glyph id | Used by |
 | --- | --- |
@@ -53,8 +53,8 @@ Every parser keyword gets a simplified 16×16 decorator in the top-right of the 
 | `facility` | `facility` |
 | `location` | `location` |
 | `resource` | `resource` |
-| `capability` | `capability` |
-| `value-stream` | `value-stream` (including nested stages) |
+| `capability` | `capability` — staircase of blocks (not a chevron) |
+| `value-stream` | `value-stream` (including nested stages) — notched chevron |
 | `course-of-action` | `course-of-action` |
 | `driver` | `driver` |
 | `assessment` | `assessment` |
@@ -74,6 +74,33 @@ Every parser keyword gets a simplified 16×16 decorator in the top-right of the 
 
 Gaps vs a full Archi skin: no alternate figures, no relationship-line styling by type, no label-inside-shape variants, no Open Exchange colours. Layer-omitted aliases (`process`, `service`, …) inherit the Business concrete type they already resolve to.
 
+### Sample-type audit
+
+Types used in the checked-in samples (`valid-catalogue-layers`, `valid-capability-value-stream`, `samples/value-stream-demo`, `valid-views`, `valid-basic`, `valid-value-stream-stages`) were checked against the usual ArchiMate decorator families:
+
+| Type in samples | Glyph | Convention |
+| --- | --- | --- |
+| `capability` | staircase of blocks | matches (was a chevron — same family as value stream) |
+| `value-stream` | notched chevron | matches |
+| `application-component` | UML component | matches |
+| `goal` | concentric circles | matches |
+| `business-actor` | stick figure | matches |
+| `node` | cube | matches (simplified) |
+| `facility` | building | matches |
+| `application-interface` | lollipop | matches |
+| `data-object` / `business-object` | folded document | matches |
+| `business-service` | ellipse | matches |
+| `work-package` | flat-back chevron | **intentional gap** — Archi 3.2 uses a circle-and-arrow |
+
+Other intentional gaps (types not in those samples, or kept simple on purpose):
+
+- `function` uses a capsule, not the official function chevron
+- `course-of-action` is a small arrow plus a corner mark, not a circled arrow
+- `deliverable` and `artifact` reuse the document `object` glyph, not a 3D box
+- `driver` / `assessment` / `meaning` / `value` are compact stand-ins
+- Physical shares Technology green (Archi does the same)
+- Unknown keywords use the `generic` square so a bad keyword cannot crash SVG render
+
 ## Unknown types
 
 `elementStyle("legacyBatch")` (and any other unresolved keyword) returns the unknown palette and the `generic` square. The parser still rejects unknown keywords in `.plein` source; the default is for the renderer so a bad keyword cannot crash the SVG path.
@@ -82,11 +109,14 @@ Gaps vs a full Archi skin: no alternate figures, no relationship-line styling by
 
 [`fixtures/valid-catalogue-layers.plein`](../fixtures/valid-catalogue-layers.plein) is one element per layer. Membership + expected fill/icon: [`fixtures/golden-archimate-style.json`](../fixtures/golden-archimate-style.json). Rendered SVG pin: [`fixtures/golden-catalogue-layers.svg`](../fixtures/golden-catalogue-layers.svg) (open in a browser to review colours).
 
+[`fixtures/valid-capability-value-stream.plein`](../fixtures/valid-capability-value-stream.plein) is the Capability vs Value Stream glyph pair. Expected icons: [`fixtures/golden-capability-value-stream.json`](../fixtures/golden-capability-value-stream.json). Rendered SVG pin: [`fixtures/golden-capability-value-stream.svg`](../fixtures/golden-capability-value-stream.svg).
+
 ```bash
 npm test
 ./scripts/assert-archimate-style.sh
 # dump a viewpoint SVG (no app):
 ./scripts/render-viewpoint-svg.sh fixtures/valid-catalogue-layers.plein catalogue-layers
+./scripts/render-viewpoint-svg.sh fixtures/valid-capability-value-stream.plein capability-and-value-stream
 ```
 
 Mac Release smoke (Arran): open that catalogue file and the value-stream sample; expected colours are in [app/README.md](../app/README.md#arran-smoke-dmg--open--errors).

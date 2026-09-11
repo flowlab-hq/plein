@@ -51,7 +51,7 @@ Developer ID signing and notarization are a documented follow-up — see [script
 1. Download the `.dmg` from the GitHub Release.
 2. Install (drag to Applications) and launch — no Node/npm.
 3. Open the sample — diagram renders. Value-stream / capability boxes are **orange**; application components are **cyan**, each with a type glyph in the top-right.
-4. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability, purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md).
+4. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability (staircase of blocks), purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md). Capability must not use the value-stream chevron — pair: [fixtures/valid-capability-value-stream.plein](fixtures/valid-capability-value-stream.plein).
 5. Open the broken fixture — clear error in the UI.
 6. Intel: skip.
 

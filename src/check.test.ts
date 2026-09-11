@@ -33,6 +33,13 @@ test("plein check exits 0 on fixtures/valid-catalogue-layers.plein", () => {
   assert.match(result.stdout, /7 elements/);
 });
 
+test("plein check exits 0 on fixtures/valid-capability-value-stream.plein", () => {
+  const result = runCheck("fixtures/valid-capability-value-stream.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-capability-value-stream\.plein/);
+  assert.match(result.stdout, /2 elements/);
+});
+
 test("plein check exits non-zero on fixtures/unknown-keyword.plein mentioning unknown keyword", () => {
   const result = runCheck("fixtures/unknown-keyword.plein");
   assert.notEqual(result.status, 0);

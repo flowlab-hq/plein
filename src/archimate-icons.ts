@@ -85,7 +85,10 @@ const ICONS: Record<IconId, string> = {
   location:
     '<path d="M8 14.6 C8 14.6 3.4 9.4 3.4 6.8 A4.6 4.6 0 0 1 12.6 6.8 C12.6 9.4 8 14.6 8 14.6 Z"/><circle cx="8" cy="6.8" r="1.6"/>',
   resource: '<path d="M8 2.6 L13.4 8 L8 13.4 L2.6 8 Z"/>',
-  capability: '<path d="M2.2 4.2 H9.4 L13.8 8 L9.4 11.8 H2.2 Z"/>',
+  // ArchiMate capability decorator: 3-step staircase of blocks (not a chevron).
+  capability:
+    '<path d="M2.2 13.6 H13.8 V2.4 H9.4 V6.4 H5.4 V10.4 H2.2 Z"/><path d="M5.4 13.6 V10.4 M9.4 13.6 V6.4 M5.4 10.4 H13.8 M9.4 6.4 H13.8"/>',
+  // Value stream decorator: notched chevron / double-chevron pointing right.
   "value-stream": '<path d="M1.8 4.4 H9.2 L14.2 8 L9.2 11.6 H1.8 L4.4 8 Z"/>',
   "course-of-action":
     '<path d="M1.8 5.6 H8.8 L12.6 8 L8.8 10.4 H1.8 L3.8 8 Z"/><path d="M10.6 3.2 L14.4 3.2 L14.4 7"/>',

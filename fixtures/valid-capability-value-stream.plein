@@ -1,0 +1,15 @@
+// Compact glyph pair: Capability (staircase) vs Value Stream (notched chevron).
+plein {
+  model {
+    capability "Network planning" as planning
+    value-stream "Quote to cash" as quoteToCash
+  }
+
+  views {
+    view capability-and-value-stream {
+      title "Capability vs value stream glyphs"
+      include planning, quoteToCash
+      autoLayout lr
+    }
+  }
+}

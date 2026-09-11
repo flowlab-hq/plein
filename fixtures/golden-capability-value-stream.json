@@ -1,0 +1,10 @@
+{
+  "file": "fixtures/valid-capability-value-stream.plein",
+  "view": "capability-and-value-stream",
+  "svg": "fixtures/golden-capability-value-stream.svg",
+  "choice": "Capability uses the staircase-of-blocks decorator; value-stream uses the notched chevron. Icons must differ.",
+  "nodes": [
+    { "id": "planning", "keyword": "capability", "layer": "strategy", "fill": "#F5DEAA", "icon": "capability" },
+    { "id": "quoteToCash", "keyword": "valueStream", "layer": "strategy", "fill": "#F5DEAA", "icon": "value-stream" }
+  ]
+}
