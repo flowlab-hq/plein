@@ -24,8 +24,9 @@ Same steps as the [README](../../README.md#download-the-mac-app-apple-silicon-dm
 1. Download `Plein-*-macos-arm64.dmg` from [GitHub Releases](https://github.com/flowlab-hq/plein/releases).
 2. Drag **Plein** into Applications.
 3. First launch is Gatekeeper-blocked (unsigned). Right-click → **Open** → **Open**.
-4. Open [fixtures/samples/value-stream-demo.plein](../../fixtures/samples/value-stream-demo.plein).
-5. Open [fixtures/broken-syntax.plein](../../fixtures/broken-syntax.plein) and confirm the UI banner shows a `file:line:column` error.
+4. Open [fixtures/samples/value-stream-demo.plein](../../fixtures/samples/value-stream-demo.plein). Strategy peach, applications cyan, type glyphs.
+5. Open [fixtures/valid-catalogue-layers.plein](../../fixtures/valid-catalogue-layers.plein). Seven layer colours ([docs/archimate-style.md](../../docs/archimate-style.md)).
+6. Open [fixtures/broken-syntax.plein](../../fixtures/broken-syntax.plein) and confirm the UI banner shows a `file:line:column` error.
 
 ## Cut a Release
 
@@ -116,4 +117,4 @@ The script delegates to `scripts/check-fixtures.sh` (same catalogue CI uses):
 
 **Arran `.dmg` smoke** (no Node): download → install → open the sample → open broken → see errors. Written in the README and [release-notes.md](release-notes.md). Same pair as [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Open + error banner).
 
-The Mac app has a longer Open → view, switch, and reload checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.
+The Mac app has a longer Open → view, switch, and reload checklist in [app/README.md](../../app/README.md). Load→list is covered by `npm test` (`src/list-model.test.ts`). Viewpoint layout membership (golden include/exclude) is `src/layout.test.ts` / `./scripts/assert-viewpoint-layout.sh`. ArchiMate colours and icons are `src/archimate-style.test.ts` / `./scripts/assert-archimate-style.sh` ([docs/archimate-style.md](../../docs/archimate-style.md)). Edit → reload → diagram is `src/reload.test.ts` / `./scripts/assert-reload-diagram.sh`. One model → many views is `src/browser.test.ts` / `./scripts/assert-multi-view-browser.sh`.

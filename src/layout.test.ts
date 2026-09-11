@@ -9,6 +9,7 @@ import {
   membershipOf,
   renderViewpointSvg,
   svgMembership,
+  svgNodeStyles,
 } from "./layout.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
 
@@ -91,6 +92,15 @@ test("golden applicationStructure SVG carries the same include/exclude membershi
     assert.equal(fromSvg.edges.includes(excluded), false);
     assert.equal(svg.includes(excluded), false);
   }
+
+  const styles = svgNodeStyles(svg);
+  assert.ok(styles.length > 0);
+  for (const node of styles) {
+    assert.equal(node.layer, "application", node.id);
+    assert.equal(node.fill, "#B5FFFF", node.id);
+  }
+  const tms = styles.find((node) => node.id === "tms");
+  assert.equal(tms?.icon, "component");
 });
 
 test("lr autoLayout places later ranks further to the right", () => {

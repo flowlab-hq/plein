@@ -77,6 +77,8 @@ value-stream "Order to cash" as orderToCash {
 
 An element has a keyword, a label, and an optional identifier. Properties and documentation can be attached using the implementation's supported attribute syntax; unknown attributes should be reported rather than silently discarded.
 
+The Mac / SVG renderer colours each element by ArchiMate layer and draws a type glyph (shared map in `src/archimate-style.ts`). Layer fills follow the common convention (business yellow, application cyan, technology/physical green, motivation purple, strategy peach, implementation pink). Unknown types use a gray default. Mapping, glyph table, and visual golden: [ArchiMate colours and icons](archimate-style.md). The `styles` block in source is not applied (custom themes are out of scope).
+
 ### Catalogue coverage
 
 The parser accepts every keyword listed above. Layer-specific names stay distinct: `business-process`, `application-process`, and `technology-process` are different types (same for function, event, service, collaboration, and interaction).

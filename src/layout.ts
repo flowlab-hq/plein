@@ -1,3 +1,4 @@
+import { iconInnerSvg, styleForElement } from "./archimate-style.js";
 import { filterModel } from "./list-model.js";
 import type { ElementKeyword, RelationshipKeyword } from "./keywords.js";
 import type { ElementDecl, PleinModel, RelationshipDecl } from "./parser.js";
@@ -160,6 +161,13 @@ export function membershipOf(layout: ViewpointLayout): LayoutMembership {
 export function renderViewpointSvg(layout: ViewpointLayout): string {
   const title = layout.title ?? layout.viewName;
   const markerId = `arrow-${xmlId(layout.viewName)}`;
+  const usedIcons = [...new Set(layout.nodes.map((node) => styleForElement(node.keyword).icon))];
+  const iconDefs = usedIcons
+    .map(
+      (icon) =>
+        `    <g id="${markerId}-icon-${icon}">${iconInnerSvg(icon)}</g>`,
+    )
+    .join("\n");
   const edgeMarkup = layout.edges
     .map(
       (edge) => `    <g data-edge-id="${escapeXml(edge.id)}">
@@ -168,13 +176,19 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
     )
     .join("\n");
   const nodeMarkup = layout.nodes
-    .map(
-      (node) => `    <g data-node-id="${escapeXml(node.id)}" transform="translate(${node.x} ${node.y})">
-      <rect width="${node.width}" height="${node.height}" rx="8" fill="#ffffff" stroke="#d2d2d7" />
-      <text x="12" y="20" fill="#6e6e73" font-size="10" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.keyword)}</text>
-      <text x="12" y="38" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.label)}</text>
-    </g>`,
-    )
+    .map((node) => {
+      const style = styleForElement(node.keyword);
+      const dash = style.icon === "grouping" ? ` stroke-dasharray="4 3"` : "";
+      const clipId = `${markerId}-clip-${xmlId(node.id)}`;
+      const iconX = Math.max(node.width - 20, 120);
+      return `    <g data-node-id="${escapeXml(node.id)}" data-layer="${style.layer}" data-icon="${style.icon}" transform="translate(${node.x} ${node.y})">
+      <clipPath id="${clipId}"><rect x="0" y="0" width="${node.width - 22}" height="${node.height}"/></clipPath>
+      <rect width="${node.width}" height="${node.height}" rx="8" fill="${style.fill}" stroke="${style.stroke}"${dash} />
+      <use href="#${markerId}-icon-${style.icon}" x="${iconX}" y="6" width="16" height="16" />
+      <text x="12" y="20" fill="#6e6e73" font-size="10" font-family="-apple-system, BlinkMacSystemFont, sans-serif" clip-path="url(#${clipId})">${escapeXml(node.keyword)}</text>
+      <text x="12" y="38" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif" clip-path="url(#${clipId})">${escapeXml(node.label)}</text>
+    </g>`;
+    })
     .join("\n");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" role="img" aria-label="${escapeXml(title)}">
@@ -183,6 +197,7 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
     <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" />
     </marker>
+${iconDefs}
   </defs>
   <g class="edges">
 ${edgeMarkup}
@@ -192,6 +207,33 @@ ${nodeMarkup}
   </g>
 </svg>
 `;
+}
+
+export type SvgNodeStyle = {
+  id: string;
+  layer: string;
+  icon: string;
+  fill: string;
+};
+
+/** Layer / icon / fill attributes from a rendered viewpoint SVG. */
+export function svgNodeStyles(svg: string): SvgNodeStyle[] {
+  const nodes: SvgNodeStyle[] = [];
+  const pattern =
+    /<g data-node-id="([^"]+)" data-layer="([^"]+)" data-icon="([^"]+)"[^>]*>([\s\S]*?)<\/g>/g;
+  for (const match of svg.matchAll(pattern)) {
+    const fill = match[4]!.match(/<rect[^>]*fill="([^"]+)"/)?.[1];
+    if (!fill) {
+      continue;
+    }
+    nodes.push({
+      id: unescapeXml(match[1]!),
+      layer: unescapeXml(match[2]!),
+      icon: unescapeXml(match[3]!),
+      fill,
+    });
+  }
+  return nodes.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export function svgMembership(svg: string): { nodes: string[]; edges: string[] } {

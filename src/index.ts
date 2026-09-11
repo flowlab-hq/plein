@@ -24,6 +24,7 @@ export {
   membershipOf,
   renderViewpointSvg,
   svgMembership,
+  svgNodeStyles,
   parseLayoutDirection,
   edgeId,
   NODE_WIDTH,
@@ -33,7 +34,22 @@ export {
   type LayoutEdge,
   type ViewpointLayout,
   type LayoutMembership,
+  type SvgNodeStyle,
 } from "./layout.js";
+export {
+  styleForElement,
+  layerOf,
+  iconInnerSvg,
+  renderArchimateLegendSvg,
+  styleSnapshot,
+  DEFAULT_ARCHIMATE_STYLE,
+  LAYER_PALETTE,
+  ARCHIMATE_LAYERS,
+  ICON_INNER,
+  type ArchiMateLayer,
+  type ArchiMateIconId,
+  type ArchiMateStyle,
+} from "./archimate-style.js";
 export {
   browseNamedView,
   switchNamedView,

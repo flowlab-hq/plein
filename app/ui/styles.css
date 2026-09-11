@@ -251,10 +251,19 @@ h2 {
 
 .rows li {
   display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(80px, 1fr) 2fr;
+  grid-template-columns: 12px minmax(120px, 180px) minmax(80px, 1fr) 2fr;
   gap: 10px;
+  align-items: center;
   background: var(--row);
   margin-bottom: 4px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid;
+  justify-self: center;
 }
 
 .rows li.rel {
