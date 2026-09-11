@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ICON_IDS, isIconId } from "./archimate-icons.js";
+import { ICON_IDS, iconMarkup, isIconId } from "./archimate-icons.js";
 import {
   ELEMENT_KEYWORDS,
   resolveElementKeyword,
@@ -192,4 +192,70 @@ test("icon id catalogue is the set used by the style map plus generic", () => {
   const used = new Set(styleTable().map((row) => row.icon));
   used.add("generic");
   assert.deepEqual([...used].sort(), [...ICON_IDS].slice().sort());
+});
+
+test("each icon id has its own markup", () => {
+  const markups = ICON_IDS.map((id) => iconMarkup(id));
+  assert.equal(new Set(markups).size, ICON_IDS.length);
+});
+
+test("capability and value-stream glyphs differ and match ArchiMate conventions", () => {
+  assert.equal(elementStyle("capability").icon, "capability");
+  assert.equal(elementStyle("value-stream").icon, "value-stream");
+  assert.notEqual(iconMarkup("capability"), iconMarkup("value-stream"));
+
+  // Capability is the staircase of blocks (outer step + inner grid), not a chevron.
+  assert.match(iconMarkup("capability"), /H13\.8 V2\.4 H9\.4 V6\.4 H5\.4 V10\.4/);
+  assert.doesNotMatch(iconMarkup("capability"), /L14\.2 8|L4\.4 8/);
+
+  // Value stream is the notched / double chevron pointing right.
+  assert.match(iconMarkup("value-stream"), /L14\.2 8 L9\.2 11\.6 H1\.8 L4\.4 8/);
+  assert.doesNotMatch(iconMarkup("value-stream"), /H13\.8 V2\.4 H9\.4/);
+});
+
+test("golden capability vs value-stream SVG icons differ and match the style map", () => {
+  const golden = JSON.parse(readFixture("golden-capability-value-stream.json")) as {
+    file: string;
+    view: string;
+    svg: string;
+    nodes: Array<{
+      id: string;
+      keyword: string;
+      layer: string;
+      fill: string;
+      icon: string;
+    }>;
+  };
+  const result = loadPleinSource(readFixture("valid-capability-value-stream.plein"), golden.file);
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const svg = renderViewpointSvg(layoutViewpoint(result.model, golden.view));
+  const fromSvg = svgNodeStyles(svg);
+  const expected = golden.nodes.slice().sort((a, b) => a.id.localeCompare(b.id));
+
+  assert.deepEqual(
+    fromSvg.map((node) => ({
+      id: node.id,
+      keyword: node.keyword,
+      layer: node.layer,
+      fill: node.fill,
+      icon: node.icon,
+    })),
+    expected,
+  );
+
+  const planning = fromSvg.find((node) => node.id === "planning");
+  const quoteToCash = fromSvg.find((node) => node.id === "quoteToCash");
+  assert.equal(planning?.icon, "capability");
+  assert.equal(quoteToCash?.icon, "value-stream");
+  assert.notEqual(planning?.icon, quoteToCash?.icon);
+
+  assert.match(svg, /data-node-id="planning"[\s\S]*?data-icon="capability"[\s\S]*?H13\.8 V2\.4 H9\.4 V6\.4 H5\.4 V10\.4/);
+  assert.match(svg, /data-node-id="quoteToCash"[\s\S]*?data-icon="value-stream"[\s\S]*?L14\.2 8 L9\.2 11\.6 H1\.8 L4\.4 8/);
+
+  const committed = readFileSync(join(repoRoot, golden.svg), "utf8");
+  assert.equal(svg, committed, "fixtures/golden-capability-value-stream.svg is stale; re-render it");
 });
