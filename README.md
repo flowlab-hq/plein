@@ -7,6 +7,7 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 ## Documentation
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
+* [ArchiMate type colours and icons](docs/archimate-style.md) — layer fills and decorator glyphs used by the Mac SVG renderer.
 * [Repo layout — models, fixtures, and PR review](docs/repo-layout.md) — where `.plein` files live, how to add golden/fail fixtures, and how pull requests review them (Mac-friendly).
 
 Plein source files use the `.plein` extension.
@@ -49,9 +50,10 @@ Developer ID signing and notarization are a documented follow-up — see [script
 
 1. Download the `.dmg` from the GitHub Release.
 2. Install (drag to Applications) and launch — no Node/npm.
-3. Open the sample — diagram renders.
-4. Open the broken fixture — clear error in the UI.
-5. Intel: skip.
+3. Open the sample — diagram renders. Value-stream / capability boxes are **orange**; application components are **cyan**, each with a type glyph in the top-right.
+4. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability, purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md).
+5. Open the broken fixture — clear error in the UI.
+6. Intel: skip.
 
 Deeper Open → view / reload and the **This .plein did not load** banner live in [app/README.md](app/README.md) / [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Mac Open + error smoke). Merge that PR with this one; the checklists match (sample → broken → `file:line:column`).
 
@@ -74,7 +76,7 @@ On an Apple Silicon Mac, `./scripts/mac/build-dmg.sh` writes `dist/macos/Plein-<
 
 The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested). A signed `.pkg` is not published (no Apple signing identity).
 
-**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`); the switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md). Prefer the [`.dmg` download](#download-the-mac-app-apple-silicon-dmg) if you only want the GUI.
+**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (golden: `fixtures/golden-applicationStructure.json`); boxes are coloured by ArchiMate layer with type glyphs from `src/archimate-style.ts` (mapping: [docs/archimate-style.md](docs/archimate-style.md); visual pin: `fixtures/golden-catalogue-layers.svg`). The switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md). Prefer the [`.dmg` download](#download-the-mac-app-apple-silicon-dmg) if you only want the GUI.
 
 ```bash
 npm install
@@ -117,17 +119,18 @@ Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](script
 
 Checklist for the upcoming GitHub Release `.dmg` (Gilfoyle owns packaging; this repo does not produce the disk image yet). After install, no Node/npm:
 
-1. Launch Plein. **Open** [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint loads. No error banner.
-2. **Open** a broken fixture. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram.
+1. Launch Plein. **Open** [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint loads. No error banner. Value streams and capabilities are orange; application components are cyan; type glyphs sit in the top-right of each box.
+2. **Open** [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). The **ArchiMate layers sample** view shows the seven-layer rainbow (orange / purple / yellow / cyan / green / green / pink) with distinct glyphs. See [docs/archimate-style.md](docs/archimate-style.md).
+3. **Open** a broken fixture. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram.
    - [fixtures/broken-syntax.plein](fixtures/broken-syntax.plein)
    - [fixtures/malformed-views.plein](fixtures/malformed-views.plein)
    - [fixtures/invalid-value-stream-nesting.plein](fixtures/invalid-value-stream-nesting.plein)
 
-Until the `.dmg` is published, the same two steps work from a local `Plein.app` (`npm run app:build`) or [app preview](app/README.md). Extended Open → view / switch / reload steps are in [app/README.md](app/README.md).
+Until the `.dmg` is published, the same steps work from a local `Plein.app` (`npm run app:build`) or [app preview](app/README.md). Extended Open → view / switch / reload steps are in [app/README.md](app/README.md).
 
 ## CLI
 
-Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. `styles` are ignored for now.
+Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. The `styles` block is still ignored; diagram colours come from the built-in type/layer map ([docs/archimate-style.md](docs/archimate-style.md)).
 
 Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 
@@ -152,6 +155,8 @@ See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document 
 npm test
 # or only the layout assert:
 ./scripts/assert-viewpoint-layout.sh
+# ArchiMate colours + icons on the SVG render path:
+./scripts/assert-archimate-style.sh
 # edit → reload → diagram (no app):
 ./scripts/assert-reload-diagram.sh
 # one model → many views + new view after reload:

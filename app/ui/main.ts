@@ -8,6 +8,7 @@ import {
   type LoadResult,
 } from "../../src/list-model.ts";
 import { browseNamedView, namedViews, viewSwitcherLabel } from "../../src/browser.ts";
+import { elementStyle } from "../../src/archimate-style.ts";
 
 type TauriBridge = {
   core: {
@@ -178,7 +179,8 @@ function render(): void {
   elementList.replaceChildren(
     ...list.elements.map((element) => {
       const item = document.createElement("li");
-      item.innerHTML = `<span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code><span>${escapeHtml(element.label)}</span>`;
+      const style = elementStyle(element.keyword);
+      item.innerHTML = `<span class="swatch" style="background:${escapeHtml(style.fill)}" title="${escapeHtml(style.layer)}"></span><span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code><span>${escapeHtml(element.label)}</span>`;
       return item;
     }),
   );

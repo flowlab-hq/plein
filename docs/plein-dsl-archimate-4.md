@@ -172,6 +172,8 @@ plein {
 
 The example intentionally excludes `rates` from the context view while retaining it in the model. `model` is the source of truth; a view is presentation, not a second model.
 
+File-level `styles { }` blocks are accepted and ignored. The Mac renderer colours boxes by ArchiMate layer and draws a type glyph from a built-in map — see [ArchiMate type colours and icons](archimate-style.md). That map is not overridden by `styles` and is not an Open Exchange or full Archi skin.
+
 ## Validation notes
 
 A validator should check, at minimum:

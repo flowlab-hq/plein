@@ -1,0 +1,30 @@
+{
+  "palette": {
+    "strategy": "#F5DEAA",
+    "motivation": "#CCCCFF",
+    "business": "#FFFFB5",
+    "application": "#B5FFFF",
+    "technology": "#C9E7B7",
+    "physical": "#C9E7B7",
+    "implementation": "#FFE0E0",
+    "composite": "#E8E8ED",
+    "unknown": "#F5F5F7"
+  },
+  "stroke": "#5C5C5C",
+  "unknownStroke": "#8E8E93",
+  "choice": "Archi inbuilt layer fills (rectangle + decorator icon). Physical shares Technology green; distinguish by glyph. Unknown/unsupported types use the unknown grey default. Not full Archi skin parity.",
+  "catalogueLayersView": {
+    "file": "fixtures/valid-catalogue-layers.plein",
+    "view": "catalogue-layers",
+    "svg": "fixtures/golden-catalogue-layers.svg",
+    "nodes": [
+      { "id": "planning", "keyword": "capability", "layer": "strategy", "fill": "#F5DEAA", "icon": "capability" },
+      { "id": "onTime", "keyword": "goal", "layer": "motivation", "fill": "#CCCCFF", "icon": "goal" },
+      { "id": "shipper", "keyword": "businessActor", "layer": "business", "fill": "#FFFFB5", "icon": "stick-figure" },
+      { "id": "rates", "keyword": "applicationComponent", "layer": "application", "fill": "#B5FFFF", "icon": "component" },
+      { "id": "cloud", "keyword": "node", "layer": "technology", "fill": "#C9E7B7", "icon": "node" },
+      { "id": "rotterdam", "keyword": "facility", "layer": "physical", "fill": "#C9E7B7", "icon": "facility" },
+      { "id": "rollout", "keyword": "workPackage", "layer": "implementation", "fill": "#FFE0E0", "icon": "work-package" }
+    ]
+  }
+}

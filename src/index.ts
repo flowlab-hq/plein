@@ -24,6 +24,7 @@ export {
   membershipOf,
   renderViewpointSvg,
   svgMembership,
+  svgNodeStyles,
   parseLayoutDirection,
   edgeId,
   NODE_WIDTH,
@@ -33,6 +34,7 @@ export {
   type LayoutEdge,
   type ViewpointLayout,
   type LayoutMembership,
+  type SvgNodeStyle,
 } from "./layout.js";
 export {
   browseNamedView,
@@ -56,3 +58,17 @@ export {
   toKebabCaseKeyword,
   languageReferenceElementKeywords,
 } from "./keywords.js";
+export {
+  elementStyle,
+  layerOf,
+  iconOf,
+  renderTypeIcon,
+  styleTable,
+  LAYER_PALETTE,
+  UNKNOWN_STYLE,
+  type ArchiMateLayer,
+  type ElementStyle,
+  type LayerPalette,
+  type IconId,
+} from "./archimate-style.js";
+export { ICON_IDS, iconMarkup, isIconId } from "./archimate-icons.js";
