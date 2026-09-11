@@ -167,3 +167,7 @@ npm test
 ## Branding
 
 Product mark: [branding/plein-mark.png](branding/plein-mark.png)
+
+## License
+
+Plein is licensed under the Functional Source License, Version 1.1, Apache 2.0 Future License (FSL-1.1-Apache-2.0); see [LICENSE](LICENSE).

@@ -8,7 +8,8 @@
 class Plein < Formula
   desc "Check Plein ArchiMate model files"
   homepage "https://github.com/flowlab-hq/plein"
-  license "MIT"
+  # SPDX FSL-1.1-ALv2 (FSL-1.1-Apache-2.0). GitHub may show Other / View license.
+  license :cannot_represent
   version "0.1.0"
 
   # No tagged release yet; install latest main. Pin url + sha256 when tagging.
