@@ -51,9 +51,10 @@ Developer ID signing and notarization are a documented follow-up — see [script
 1. Download the `.dmg` from the GitHub Release.
 2. Install (drag to Applications) and launch — no Node/npm.
 3. Open the sample — diagram renders. Value-stream / capability boxes are **orange**; application components are **cyan**, each with a type glyph in the top-right.
-4. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability (staircase of blocks), purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md). Capability must not use the value-stream chevron — pair: [fixtures/valid-capability-value-stream.plein](fixtures/valid-capability-value-stream.plein).
-5. Open the broken fixture — clear error in the UI.
-6. Intel: skip.
+4. Confirm **Views**, **Elements (8)**, and **Relationships (9)** sit in the **left sidebar**. The canvas uses the remaining height — there is **no bottom strip** of lists. Scroll a list if it overflows; counts stay on the headings.
+5. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability (staircase of blocks), purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md). Capability must not use the value-stream chevron — pair: [fixtures/valid-capability-value-stream.plein](fixtures/valid-capability-value-stream.plein). Sidebar lists stay on the left.
+6. Open the broken fixture — clear error in the UI. Sidebar and diagram stay hidden.
+7. Intel: skip.
 
 Deeper Open → view / reload and the **This .plein did not load** banner live in [app/README.md](app/README.md) / [PR #16](https://github.com/flowlab-hq/plein/pull/16) (Moss: Mac Open + error smoke). Merge that PR with this one; the checklists match (sample → broken → `file:line:column`).
 
@@ -76,7 +77,7 @@ On an Apple Silicon Mac, `./scripts/mac/build-dmg.sh` writes `dist/macos/Plein-<
 
 The supported Mac target is **Apple Silicon**. Intel Macs are out of scope for this release (Homebrew + Node may work for the CLI there, but that path is untested). A signed `.pkg` is not published (no Apple signing identity).
 
-**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (goldens: `fixtures/golden-applicationStructure.json`, `fixtures/golden-nested-quote-to-cash.json`). Boxes are coloured by ArchiMate layer with type glyphs from `src/archimate-style.ts` (mapping: [docs/archimate-style.md](docs/archimate-style.md); visual pin: `fixtures/golden-catalogue-layers.svg`). Aggregation/composition default to **side-by-side**; `nesting nested` on the view draws children inside the parent. The Mac toolbar **File default / Nested / Beside** override is local preview only — the `.plein` clause is the source of truth for PRs. The switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md). Prefer the [`.dmg` download](#download-the-mac-app-apple-silicon-dmg) if you only want the GUI.
+**Mac app:** open a `.plein` file and browse **named viewpoints** from the `views` block on one SVG canvas. **Views**, **Elements**, and **Relationships** share the **left sidebar** (counts on the headings; lists scroll). The diagram uses the remaining height — there is no bottom list strip. Each view uses the same loaded model; a new view in markup appears after **Reload**. Open selects the first named view. Layout is `layoutViewpoint` / `renderViewpointSvg` in `src/layout.ts` (goldens: `fixtures/golden-applicationStructure.json`, `fixtures/golden-nested-quote-to-cash.json`). Boxes are coloured by ArchiMate layer with type glyphs from `src/archimate-style.ts` (mapping: [docs/archimate-style.md](docs/archimate-style.md); visual pin: `fixtures/golden-catalogue-layers.svg`). Aggregation/composition default to **side-by-side**; `nesting nested` on the view draws children inside the parent. The Mac toolbar **File default / Nested / Beside** override is local preview only — the `.plein` clause is the source of truth for PRs. The switcher is `browseNamedView` in `src/browser.ts`. **Reload** (toolbar, File → Reload, or ⌘R) re-reads the open file and redraws the current viewpoint. Build, Open → view, switch, reload, and golden-assert notes: [app/README.md](app/README.md). Prefer the [`.dmg` download](#download-the-mac-app-apple-silicon-dmg) if you only want the GUI.
 
 ```bash
 npm install
@@ -119,9 +120,9 @@ Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](script
 
 Checklist for the upcoming GitHub Release `.dmg` (Gilfoyle owns packaging; this repo does not produce the disk image yet). After install, no Node/npm:
 
-1. Launch Plein. **Open** [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint loads with Quote, Book, and Collect nested inside the value stream. No error banner. Value streams and capabilities are orange; application components are cyan; type glyphs sit in the top-right of each box.
-2. **Open** [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). The **ArchiMate layers sample** view shows the seven-layer rainbow (orange / purple / yellow / cyan / green / green / pink) with distinct glyphs. See [docs/archimate-style.md](docs/archimate-style.md).
-3. **Open** a broken fixture. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram.
+1. Launch Plein. **Open** [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein). The **Quote to cash** viewpoint loads with Quote, Book, and Collect nested inside the value stream. No error banner. Value streams and capabilities are orange; application components are cyan; type glyphs sit in the top-right of each box. Left sidebar: **Views**, **Elements (8)**, **Relationships (9)** — no lists under the canvas.
+2. **Open** [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). The **ArchiMate layers sample** view shows the seven-layer rainbow (orange / purple / yellow / cyan / green / green / pink) with distinct glyphs. See [docs/archimate-style.md](docs/archimate-style.md). Lists stay on the left.
+3. **Open** a broken fixture. The banner shows a `file:line:column` diagnostic (same class as `plein check`). No diagram and no sidebar.
    - [fixtures/broken-syntax.plein](fixtures/broken-syntax.plein)
    - [fixtures/malformed-views.plein](fixtures/malformed-views.plein)
    - [fixtures/invalid-value-stream-nesting.plein](fixtures/invalid-value-stream-nesting.plein)
