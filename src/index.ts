@@ -76,3 +76,17 @@ export {
   type IconId,
 } from "./archimate-style.js";
 export { ICON_IDS, iconMarkup, isIconId } from "./archimate-icons.js";
+export {
+  diagramTargetsForSelection,
+  elementSelection,
+  isSameSelection,
+  listRowForSelection,
+  relationshipId,
+  relationshipSelection,
+  retainSelection,
+  selectionFromDiagramHit,
+  svgHasSelectionTarget,
+  type DiagramHit,
+  type DiagramSelection,
+  type ListRowRef,
+} from "./selection.js";

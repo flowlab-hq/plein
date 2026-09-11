@@ -9,7 +9,12 @@ import {
 } from "../../src/list-model.ts";
 import { browseNamedView, namedViews, viewSwitcherLabel } from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
-import type { NestingMode } from "../../src/layout.ts";
+import { edgeId, type NestingMode } from "../../src/layout.ts";
+import {
+  retainSelection,
+  selectionFromDiagramHit,
+  type DiagramSelection,
+} from "../../src/selection.ts";
 
 type TauriBridge = {
   core: {
@@ -47,6 +52,8 @@ let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
 let lastNamedView: string | null = null;
 let lastSource: string | null = null;
+/** Single element or relationship shared by the diagram and left lists. */
+let selectedItem: DiagramSelection | null = null;
 /** `file` follows the `.plein` nesting clause; nested/beside is local preview only. */
 let nestingOverride: "file" | NestingMode = "file";
 
@@ -73,7 +80,85 @@ function failOpen(file: string, error: unknown): void {
   lastSource = null;
   loaded = { ok: false, file, error: formatLoadError(error) };
   selectedView = null;
+  selectedItem = null;
   render();
+}
+
+function currentList() {
+  if (!loaded?.ok) {
+    return null;
+  }
+  return filterModel(loaded.model, selectedView);
+}
+
+function setSelection(next: DiagramSelection | null): void {
+  selectedItem = next;
+  paintSelection();
+}
+
+function findByAttr(root: ParentNode, attr: string, value: string): Element | null {
+  for (const node of root.querySelectorAll(`[${attr}]`)) {
+    if (node.getAttribute(attr) === value) {
+      return node;
+    }
+  }
+  return null;
+}
+
+/** Wide transparent stroke so relationship lines are clickable. */
+function enhanceEdgeHits(svg: SVGElement): void {
+  for (const group of svg.querySelectorAll("[data-edge-id]")) {
+    const line = group.querySelector("line");
+    if (!line || group.querySelector("line.edge-hit")) {
+      continue;
+    }
+    const hit = line.cloneNode() as SVGLineElement;
+    hit.removeAttribute("marker-end");
+    hit.setAttribute("stroke", "transparent");
+    hit.setAttribute("stroke-width", "12");
+    hit.classList.add("edge-hit");
+    group.insertBefore(hit, line);
+  }
+}
+
+function paintListSelection(list: HTMLElement, attr: string, id: string | null): void {
+  for (const row of list.querySelectorAll(`[${attr}]`)) {
+    const on = id !== null && row.getAttribute(attr) === id;
+    row.classList.toggle("selected", on);
+    row.setAttribute("aria-selected", on ? "true" : "false");
+    if (on) {
+      row.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
+}
+
+function paintSelection(): void {
+  const elementId = selectedItem?.kind === "element" ? selectedItem.id : null;
+  const relationshipId = selectedItem?.kind === "relationship" ? selectedItem.id : null;
+  paintListSelection(elementList, "data-element-id", elementId);
+  paintListSelection(relationshipList, "data-relationship-id", relationshipId);
+
+  const svg = diagram.querySelector("svg");
+  if (!svg) {
+    return;
+  }
+  for (const marked of svg.querySelectorAll("[data-selected]")) {
+    marked.removeAttribute("data-selected");
+  }
+  if (!selectedItem) {
+    return;
+  }
+  if (selectedItem.kind === "element") {
+    const node = findByAttr(svg, "data-node-id", selectedItem.id);
+    const container = findByAttr(svg, "data-container-id", selectedItem.id);
+    node?.setAttribute("data-selected", "true");
+    container?.setAttribute("data-selected", "true");
+    (node ?? container)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    return;
+  }
+  const edge = findByAttr(svg, "data-edge-id", selectedItem.id);
+  edge?.setAttribute("data-selected", "true");
+  edge?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function namedViewForDiagram(): string | null {
@@ -89,6 +174,8 @@ function namedViewForDiagram(): string | null {
 function selectNamedView(name: string): void {
   selectedView = name;
   lastNamedView = name;
+  const list = currentList();
+  selectedItem = list ? retainSelection(selectedItem, list) : null;
   render();
 }
 
@@ -160,6 +247,10 @@ function renderDiagram(): void {
   const browsed = browseNamedView(loaded.model, viewName, options);
   diagramHeading.textContent = browsed.title;
   diagram.innerHTML = browsed.svg;
+  const svg = diagram.querySelector("svg");
+  if (svg) {
+    enhanceEdgeHits(svg);
+  }
 }
 
 function render(): void {
@@ -208,7 +299,19 @@ function render(): void {
     ...list.elements.map((element) => {
       const item = document.createElement("li");
       const style = elementStyle(element.keyword);
+      item.setAttribute("role", "option");
+      item.setAttribute("data-element-id", element.id);
+      item.tabIndex = 0;
       item.innerHTML = `<span class="swatch" style="background:${escapeHtml(style.fill)}" title="${escapeHtml(style.layer)}"></span><span class="row-body"><span class="row-title">${escapeHtml(element.label)}</span><span class="row-meta"><span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code></span></span>`;
+      item.addEventListener("click", () => {
+        setSelection({ kind: "element", id: element.id });
+      });
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setSelection({ kind: "element", id: element.id });
+        }
+      });
       return item;
     }),
   );
@@ -217,13 +320,27 @@ function render(): void {
   relationshipList.replaceChildren(
     ...list.relationships.map((rel) => {
       const item = document.createElement("li");
+      const id = edgeId(rel.source, rel.target, rel.type);
       item.className = "rel";
+      item.setAttribute("role", "option");
+      item.setAttribute("data-relationship-id", id);
+      item.tabIndex = 0;
       item.innerHTML = `<span class="row-body"><span class="row-title"><code>${escapeHtml(rel.source)}</code><span class="meta">→</span><code>${escapeHtml(rel.target)}</code></span><span class="row-meta"><span class="kw">${escapeHtml(rel.type)}</span></span></span>`;
+      item.addEventListener("click", () => {
+        setSelection({ kind: "relationship", id });
+      });
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setSelection({ kind: "relationship", id });
+        }
+      });
       return item;
     }),
   );
 
   renderDiagram();
+  paintSelection();
 }
 
 function buttonForView(name: string | null, current: boolean, label: string): HTMLLIElement {
@@ -238,6 +355,9 @@ function buttonForView(name: string | null, current: boolean, label: string): HT
     selectedView = name;
     if (name !== null) {
       lastNamedView = name;
+    }
+    if (loaded?.ok) {
+      selectedItem = retainSelection(selectedItem, filterModel(loaded.model, selectedView));
     }
     render();
   });
@@ -258,6 +378,7 @@ function openSource(source: string, file: string): void {
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
+  selectedItem = null;
   render();
 }
 
@@ -267,6 +388,9 @@ function applyReload(source: string, file: string): void {
   loaded = next.loaded;
   selectedView = next.selectedView;
   lastNamedView = loaded.ok ? viewAfterReload(loaded.model, lastNamedView) : lastNamedView;
+  selectedItem = loaded.ok
+    ? retainSelection(selectedItem, filterModel(loaded.model, selectedView))
+    : null;
   render();
 }
 
@@ -340,6 +464,13 @@ fileInput.addEventListener("change", async () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (selectedItem) {
+      event.preventDefault();
+      setSelection(null);
+    }
+    return;
+  }
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
     return;
   }
@@ -353,6 +484,27 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     void reloadOpen();
   }
+});
+
+diagram.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const svg = target.closest("svg");
+  if (!svg || !diagram.contains(svg)) {
+    if (target === diagram) {
+      setSelection(null);
+    }
+    return;
+  }
+  setSelection(
+    selectionFromDiagramHit({
+      nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
+      edgeId: target.closest("[data-edge-id]")?.getAttribute("data-edge-id"),
+      containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
+    }),
+  );
 });
 
 window.addEventListener("dragover", (event) => {
