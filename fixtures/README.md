@@ -17,7 +17,8 @@ CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run che
 - `golden-catalogue-layers.svg` — visual pin of that viewpoint (open in a browser). Re-render with `./scripts/render-viewpoint-svg.sh fixtures/valid-catalogue-layers.plein catalogue-layers`.
 - `valid-value-stream-stages.plein` — one `value-stream` with three nested `value-stream-stage` steps chained by `flow` then `triggering`; expected to pass with exit code 0. Golden parse membership is `golden-value-stream-stages.json`.
 - `golden-value-stream-stages.json` — expected parent id, stage ids, and relationship edges (composition plus the stage chain) for that fixture.
-- `samples/value-stream-demo.plein` — Mac / README demo and **Arran Open smoke (success)**: one `value-stream` with three nested stages, two capabilities that `serves` stages, and two application components that `realizes` those capabilities; expected to pass with exit code 0.
+- `samples/value-stream-demo.plein` — Mac / README demo and **Arran Open smoke (success)**: one `value-stream` with three nested stages, two capabilities that `serves` stages, and two application components that `realizes` those capabilities. The viewpoint sets `nesting nested` so Quote, Book, and Collect render **inside** Quote to cash. Expected to pass with exit code 0.
+- `golden-nested-quote-to-cash.json` — expected membership plus nested children for that sample (`src/layout.test.ts`). Default (omit `nesting`) remains side-by-side; see `valid-value-stream-stages.plein`.
 - `basic.plein` — larger NordFreight-style model still loaded by parser / list tests; expected to parse. Prefer `valid-basic.plein` for new `plein check` coverage.
 
 ## Expected-fail (expect non-zero + `file:line:column`)

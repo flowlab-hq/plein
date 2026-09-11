@@ -117,6 +117,26 @@ test("new view added in markup appears after reload without a code change", () =
   assert.match(added.svg, /data-view="legacy-flow"/);
 });
 
+test("browseNamedView tool override nests without changing the file", () => {
+  const result = loadPleinSource(
+    readFixture("valid-value-stream-stages.plein"),
+    "fixtures/valid-value-stream-stages.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const fileDefault = browseNamedView(result.model, "order-to-cash");
+  const preview = browseNamedView(result.model, "order-to-cash", { nesting: "nested" });
+  assert.equal(fileDefault.layout.nesting, "beside");
+  assert.equal(preview.layout.nesting, "nested");
+  assert.equal(preview.model, result.model);
+  assert.match(preview.svg, /data-nesting="nested"/);
+  assert.match(preview.svg, /data-container-id="orderToCash"/);
+  assert.equal(fileDefault.model.views[0]!.nesting, undefined);
+});
+
 test("reload keeps the current named view selected when it still exists", () => {
   const file = "fixtures/valid-views.plein";
   const original = readFixture("valid-views.plein");

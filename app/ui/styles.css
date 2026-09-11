@@ -167,6 +167,24 @@ button:disabled {
   color: #0b57d0;
 }
 
+.nesting-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.nesting-switcher button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.nesting-switcher button[aria-checked="true"] {
+  background: #e8f1ff;
+  border-color: #0b57d0;
+  color: #0b57d0;
+}
+
 .diagram {
   flex: 1;
   min-height: 0;

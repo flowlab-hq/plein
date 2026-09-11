@@ -1,0 +1,37 @@
+{
+  "file": "fixtures/samples/value-stream-demo.plein",
+  "view": "strategy",
+  "direction": "lr",
+  "nesting": "nested",
+  "container": "quoteToCash",
+  "children": ["book", "collect", "quote"],
+  "nodes": [
+    "book",
+    "collect",
+    "orderExecution",
+    "quote",
+    "quoteToCash",
+    "rateEngine",
+    "rateQuote",
+    "tms"
+  ],
+  "edges": [
+    "book->collect:triggers",
+    "orderExecution->book:serves",
+    "quote->book:flowsTo",
+    "quoteToCash->book:composedOf",
+    "quoteToCash->collect:composedOf",
+    "quoteToCash->quote:composedOf",
+    "rateEngine->rateQuote:realizes",
+    "rateQuote->quote:serves",
+    "tms->orderExecution:realizes"
+  ],
+  "drawnEdges": [
+    "book->collect:triggers",
+    "orderExecution->book:serves",
+    "quote->book:flowsTo",
+    "rateEngine->rateQuote:realizes",
+    "rateQuote->quote:serves",
+    "tms->orderExecution:realizes"
+  ]
+}

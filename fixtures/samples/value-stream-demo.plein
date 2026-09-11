@@ -25,6 +25,7 @@ plein {
       title "Quote to cash — value stream, capabilities, applications"
       include quoteToCash, quote, book, collect, rateQuote, orderExecution, rateEngine, tms
       autoLayout lr
+      nesting nested
     }
   }
 }

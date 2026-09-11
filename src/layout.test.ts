@@ -9,6 +9,7 @@ import {
   membershipOf,
   renderViewpointSvg,
   svgMembership,
+  type LayoutNode,
 } from "./layout.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
 
@@ -182,6 +183,175 @@ test("value stream stages layout as ordinary valueStream nodes", () => {
   assert.ok(layout.nodes.every((node) => node.keyword === "valueStream"));
   assert.ok(layout.edges.some((edge) => edge.id === "capture->fulfill:flowsTo"));
   assert.ok(layout.edges.some((edge) => edge.id === "fulfill->collect:triggers"));
+});
+
+function isInside(child: LayoutNode, parent: LayoutNode): boolean {
+  return (
+    child.x >= parent.x &&
+    child.y >= parent.y &&
+    child.x + child.width <= parent.x + parent.width &&
+    child.y + child.height <= parent.y + parent.height
+  );
+}
+
+type GoldenNested = {
+  file: string;
+  view: string;
+  direction: "tb" | "lr";
+  nesting: "nested" | "beside";
+  container: string;
+  children: string[];
+  nodes: string[];
+  edges: string[];
+  drawnEdges: string[];
+};
+
+function loadNestedGolden(): GoldenNested {
+  return JSON.parse(
+    readFileSync(join(repoRoot, "fixtures", "golden-nested-quote-to-cash.json"), "utf8"),
+  ) as GoldenNested;
+}
+
+test("default nesting is beside so existing samples stay side-by-side", () => {
+  const result = loadPleinSource(
+    readFixture("valid-value-stream-stages.plein"),
+    "fixtures/valid-value-stream-stages.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = layoutViewpoint(result.model, "order-to-cash");
+  const parent = layout.nodes.find((node) => node.id === "orderToCash");
+  const capture = layout.nodes.find((node) => node.id === "capture");
+  assert.ok(parent && capture);
+  assert.equal(layout.nesting, "beside");
+  assert.equal(parent.container, undefined);
+  assert.equal(capture.parentId, undefined);
+  assert.equal(isInside(capture, parent), false);
+  const svg = renderViewpointSvg(layout);
+  assert.match(svg, /data-nesting="beside"/);
+  assert.equal(svg.includes("data-container-id"), false);
+});
+
+test("quote-to-cash demo nests Quote, Book, Collect inside the parent", () => {
+  const golden = loadNestedGolden();
+  const result = loadPleinSource(readFixture("samples/value-stream-demo.plein"), golden.file);
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = layoutViewpoint(result.model, golden.view);
+  const membership = membershipOf(layout);
+  const svg = renderViewpointSvg(layout);
+  const fromSvg = svgMembership(svg);
+  const parent = layout.nodes.find((node) => node.id === golden.container);
+  assert.ok(parent);
+  assert.equal(layout.nesting, "nested");
+  assert.equal(layout.direction, golden.direction);
+  assert.equal(parent.container, true);
+  assert.deepEqual(membership.nodes, golden.nodes);
+  assert.deepEqual(membership.edges, golden.edges);
+  assert.deepEqual(fromSvg.nodes, golden.nodes);
+  assert.deepEqual(fromSvg.edges, golden.drawnEdges);
+
+  for (const childId of golden.children) {
+    const child = layout.nodes.find((node) => node.id === childId);
+    assert.ok(child, `missing child ${childId}`);
+    assert.equal(child.parentId, golden.container);
+    assert.equal(isInside(child, parent), true, `${childId} should sit inside ${golden.container}`);
+  }
+
+  const quote = layout.nodes.find((node) => node.id === "quote");
+  const book = layout.nodes.find((node) => node.id === "book");
+  const collect = layout.nodes.find((node) => node.id === "collect");
+  assert.ok(quote && book && collect);
+  assert.ok(quote.x < book.x);
+  assert.ok(book.x < collect.x);
+
+  assert.match(svg, /data-nesting="nested"/);
+  assert.match(svg, /data-container-id="quoteToCash"/);
+  assert.match(svg, /data-parent-id="quoteToCash"/);
+  assert.match(svg, /data-edge-id="quote->book:flowsTo"/);
+  assert.match(svg, /data-edge-id="book->collect:triggers"/);
+  assert.equal(svg.includes("quoteToCash->quote:composedOf"), false);
+});
+
+test("tool override nests even when the file default is beside", () => {
+  const result = loadPleinSource(
+    readFixture("valid-value-stream-stages.plein"),
+    "fixtures/valid-value-stream-stages.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const nested = layoutViewpoint(result.model, "order-to-cash", { nesting: "nested" });
+  const parent = nested.nodes.find((node) => node.id === "orderToCash");
+  const capture = nested.nodes.find((node) => node.id === "capture");
+  const fulfill = nested.nodes.find((node) => node.id === "fulfill");
+  const collect = nested.nodes.find((node) => node.id === "collect");
+  assert.ok(parent && capture && fulfill && collect);
+  assert.equal(nested.nesting, "nested");
+  assert.equal(isInside(capture, parent), true);
+  assert.equal(isInside(fulfill, parent), true);
+  assert.equal(isInside(collect, parent), true);
+});
+
+test("tool override beside ignores a nested file default", () => {
+  const result = loadPleinSource(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const beside = layoutViewpoint(result.model, "strategy", { nesting: "beside" });
+  const parent = beside.nodes.find((node) => node.id === "quoteToCash");
+  const quote = beside.nodes.find((node) => node.id === "quote");
+  assert.ok(parent && quote);
+  assert.equal(beside.nesting, "beside");
+  assert.equal(quote.parentId, undefined);
+  assert.equal(isInside(quote, parent), false);
+});
+
+test("nested aggregation wraps children the same way as composition", () => {
+  const source = `model {
+  grouping "Platform" as platform
+  application-component "TMS" as tms
+  application-component "Rates" as rates
+  platform -> tms: aggregation
+  platform -> rates: aggregation
+  tms -> rates: flow
+}
+views {
+  view nest {
+    include platform tms rates
+    autoLayout lr
+    nesting nested
+  }
+}
+`;
+  const result = loadPleinSource(source, "nested-aggregation.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = layoutViewpoint(result.model, "nest");
+  const parent = layout.nodes.find((node) => node.id === "platform");
+  const tms = layout.nodes.find((node) => node.id === "tms");
+  const rates = layout.nodes.find((node) => node.id === "rates");
+  assert.ok(parent && tms && rates);
+  assert.equal(parent.container, true);
+  assert.equal(isInside(tms, parent), true);
+  assert.equal(isInside(rates, parent), true);
+  assert.ok(layout.edges.some((edge) => edge.id === "tms->rates:flowsTo" && !edge.impliedByNest));
+  assert.ok(layout.edges.every((edge) => edge.type !== "aggregates" || edge.impliedByNest));
 });
 
 test("unknown view name is an error", () => {

@@ -46,6 +46,53 @@ test("checkPlein loads viewpoint include/exclude from valid-views.plein", () => 
   assert.equal(cooperation.title, "Application Cooperation");
   assert.deepEqual(cooperation.includes, ["tms", "bookingApi"]);
   assert.equal(cooperation.autoLayout, "lr");
+  assert.equal(view.nesting, undefined);
+  assert.equal(cooperation.nesting, undefined);
+});
+
+test("value-stream-demo opts into nested composition via the view directive", () => {
+  const model = checkPlein(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(model.views[0]!.nesting, "nested");
+  assert.equal(model.views[0]!.autoLayout, "lr");
+});
+
+test("unknown nesting mode is a line diagnostic", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    nesting sideways
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(source, "bad-nesting.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /bad-nesting\.plein:\d+:\d+: unknown nesting mode 'sideways'/);
+      return true;
+    },
+  );
+});
+
+test("bare nesting clause means nested", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    nesting
+  }
+}
+`;
+  const model = checkPlein(source, "bare-nesting.plein");
+  assert.equal(model.views[0]!.nesting, "nested");
 });
 
 test("checkPlein still loads views from fixtures/basic.plein", () => {

@@ -133,6 +133,30 @@ views {
 
 Views may include relationships when the implementation supports a relationship selector; otherwise relationships between included elements are rendered automatically. Keep view names stable because they are useful review and documentation anchors.
 
+Direction is optional: `autoLayout lr` (left→right) or `autoLayout tb` (top→bottom, the default).
+
+### Nesting (aggregation / composition)
+
+By default, aggregation and composition are laid out **side-by-side** in the same rank/lane graph as every other relationship. Existing models that omit a `nesting` clause keep that behaviour, so current samples do not change shape.
+
+To draw children **inside** the parent container (view-only; geometry is not drag-editable), set the view directive:
+
+```plein
+view quote-to-cash {
+  include quoteToCash, quote, book, collect
+  autoLayout lr
+  nesting nested
+}
+```
+
+`nesting beside` is equivalent to omitting the clause. Aliases: `inside` → nested; `side-by-side` / `sideBySide` → beside. Bare `nesting` means nested.
+
+This is the **file default**. The `.plein` directive is the source of truth for pull requests. The Mac app may override Nested vs Beside for local preview only; that override is not written back to the file (Flow Team Chat, 11 Sep 2026).
+
+Nested mode applies to `composition` / `composedOf` and `aggregation` / `aggregates` when both ends are in the view. Other relationships (including `flow` / `triggering` between nested children) still draw as edges. Containment stands in for the nested composition/aggregation line.
+
+The Arran smoke sample [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) opts in with `nesting nested`: Quote, Book, and Collect sit inside Quote to cash and flow/trigger each other there. [`fixtures/valid-value-stream-stages.plein`](../fixtures/valid-value-stream-stages.plein) omits the clause and stays side-by-side.
+
 ## Short example: NordFreight
 
 ```plein

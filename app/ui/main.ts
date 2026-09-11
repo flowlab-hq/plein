@@ -9,6 +9,7 @@ import {
 } from "../../src/list-model.ts";
 import { browseNamedView, namedViews, viewSwitcherLabel } from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
+import type { NestingMode } from "../../src/layout.ts";
 
 type TauriBridge = {
   core: {
@@ -40,11 +41,14 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
 const diagramViews = document.querySelector("#diagram-views") as HTMLElement;
+const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
 let lastNamedView: string | null = null;
 let lastSource: string | null = null;
+/** `file` follows the `.plein` nesting clause; nested/beside is local preview only. */
+let nestingOverride: "file" | NestingMode = "file";
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -110,8 +114,31 @@ function renderViewSwitcher(): void {
   );
 }
 
+function renderNestingSwitcher(): void {
+  const choices: Array<{ id: "file" | NestingMode; label: string }> = [
+    { id: "file", label: "File default" },
+    { id: "nested", label: "Nested" },
+    { id: "beside", label: "Beside" },
+  ];
+  nestingSwitcher.replaceChildren(
+    ...choices.map((choice) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "radio");
+      button.textContent = choice.label;
+      button.setAttribute("aria-checked", choice.id === nestingOverride ? "true" : "false");
+      button.addEventListener("click", () => {
+        nestingOverride = choice.id;
+        render();
+      });
+      return button;
+    }),
+  );
+}
+
 function renderDiagram(): void {
   renderViewSwitcher();
+  renderNestingSwitcher();
   if (!loaded?.ok) {
     diagramHeading.textContent = "Viewpoint";
     diagram.replaceChildren();
@@ -129,7 +156,8 @@ function renderDiagram(): void {
     return;
   }
 
-  const browsed = browseNamedView(loaded.model, viewName);
+  const options = nestingOverride === "file" ? undefined : { nesting: nestingOverride };
+  const browsed = browseNamedView(loaded.model, viewName, options);
   diagramHeading.textContent = browsed.title;
   diagram.innerHTML = browsed.svg;
 }

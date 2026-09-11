@@ -3,6 +3,7 @@ import {
   membershipOf,
   renderViewpointSvg,
   type LayoutMembership,
+  type LayoutOptions,
   type ViewpointLayout,
 } from "./layout.js";
 import { filterModel, type FilteredList } from "./list-model.js";
@@ -40,12 +41,16 @@ export function viewSwitcherLabel(view: ViewDecl): string {
  * Render one named viewpoint from a loaded model (M9 layout + SVG).
  * Call this again with a different `viewName` to switch views without reload.
  */
-export function browseNamedView(model: PleinModel, viewName: string): BrowsedView {
+export function browseNamedView(
+  model: PleinModel,
+  viewName: string,
+  options?: LayoutOptions,
+): BrowsedView {
   const view = model.views.find((candidate) => candidate.name === viewName);
   if (!view) {
     throw new Error(`unknown view '${viewName}'`);
   }
-  const layout = layoutViewpoint(model, viewName);
+  const layout = layoutViewpoint(model, viewName, options);
   return {
     model,
     views: model.views,
@@ -62,6 +67,10 @@ export function browseNamedView(model: PleinModel, viewName: string): BrowsedVie
  * Switch the diagram to another named view of the same loaded model.
  * Does not re-parse source; membership still comes from that view’s include/exclude.
  */
-export function switchNamedView(model: PleinModel, viewName: string): BrowsedView {
-  return browseNamedView(model, viewName);
+export function switchNamedView(
+  model: PleinModel,
+  viewName: string,
+  options?: LayoutOptions,
+): BrowsedView {
+  return browseNamedView(model, viewName, options);
 }
