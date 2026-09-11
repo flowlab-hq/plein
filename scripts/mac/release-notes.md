@@ -15,7 +15,7 @@ Developer ID signing + notarization is a follow-up (see `scripts/mac/README.md`)
 
 ## Sample and broken fixtures
 
-- Sample (should render **Quote to cash**, orange strategy / cyan applications + glyphs): [fixtures/samples/value-stream-demo.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/samples/value-stream-demo.plein)
+- Sample (should render **Quote to cash** with Quote/Book/Collect **inside** the parent; orange strategy / cyan applications + glyphs): [fixtures/samples/value-stream-demo.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/samples/value-stream-demo.plein)
 - Catalogue layers (seven-layer rainbow): [fixtures/valid-catalogue-layers.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/valid-catalogue-layers.plein) — mapping in [docs/archimate-style.md](https://github.com/flowlab-hq/plein/blob/main/docs/archimate-style.md)
 - Broken (banner should show `file:line:column`, no diagram): [fixtures/broken-syntax.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/broken-syntax.plein)
 - Malformed views (same class of UI error): [fixtures/malformed-views.plein](https://github.com/flowlab-hq/plein/blob/main/fixtures/malformed-views.plein)

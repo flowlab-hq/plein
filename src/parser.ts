@@ -43,6 +43,12 @@ export type ViewDecl = {
   includes: string[];
   excludes: string[];
   autoLayout?: string;
+  /**
+   * File default for aggregation/composition placement.
+   * Omit or `beside` = today’s side-by-side graph. `nested` draws children
+   * inside the parent. The Mac app may override this for local preview only.
+   */
+  nesting?: string;
   line: number;
 };
 
@@ -63,7 +69,8 @@ type Token = {
 
 const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
-const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "view", "viewpoint"]);
+const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
+const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
 
 function tokenize(source: string, file: string): Token[] {
   const tokens: Token[] = [];
@@ -477,6 +484,24 @@ class Parser {
           view.autoLayout = this.advance().value;
         } else {
           view.autoLayout = "tb";
+        }
+        continue;
+      }
+      if (this.checkIdent("nesting")) {
+        this.advance();
+        if (this.check("ident") && !this.isViewClauseStart()) {
+          const mode = this.advance();
+          if (!NESTING_MODES.has(mode.value)) {
+            throw new ParseError(
+              `unknown nesting mode '${mode.value}' (expected nested or beside)`,
+              this.file,
+              mode.line,
+              mode.column,
+            );
+          }
+          view.nesting = mode.value;
+        } else {
+          view.nesting = "nested";
         }
         continue;
       }

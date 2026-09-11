@@ -41,7 +41,7 @@ Keep fixtures compact so a PR can review the markup as architecture, not as a du
 
 1. Add a `.plein` under `fixtures/` (check cases) or `fixtures/samples/` (demo the Mac app / README would open).
 2. Name by contract: `valid-*` or `samples/` must pass `plein check`; `broken-*` / `malformed-*` / `unknown-*` / `invalid-*` must fail with a line-oriented diagnostic.
-3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-archimate-style.json`, `golden-value-stream-stages.json`) and assert it from a `src/*.test.ts` file.
+3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-archimate-style.json`, `golden-value-stream-stages.json`, `golden-nested-quote-to-cash.json`) and assert it from a `src/*.test.ts` file.
 4. Wire `plein check` coverage in `src/check.test.ts` and `scripts/check-fixtures.sh` (Mac CLI smoke delegates there).
 5. List the file in [`fixtures/README.md`](../fixtures/README.md) with the expected exit and diagnostic class.
 6. Do not change existing golden JSON or fail diagnostics unless the PR is intentionally changing that contract.
