@@ -1,5 +1,6 @@
+import { elementStyle, renderTypeIcon } from "./archimate-style.js";
+import { toKebabCaseKeyword, type ElementKeyword, type RelationshipKeyword } from "./keywords.js";
 import { filterModel } from "./list-model.js";
-import type { ElementKeyword, RelationshipKeyword } from "./keywords.js";
 import type { ElementDecl, PleinModel, RelationshipDecl } from "./parser.js";
 
 /** Box size for one element in the viewpoint diagram. */
@@ -167,15 +168,7 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
     </g>`,
     )
     .join("\n");
-  const nodeMarkup = layout.nodes
-    .map(
-      (node) => `    <g data-node-id="${escapeXml(node.id)}" transform="translate(${node.x} ${node.y})">
-      <rect width="${node.width}" height="${node.height}" rx="8" fill="#ffffff" stroke="#d2d2d7" />
-      <text x="12" y="20" fill="#6e6e73" font-size="10" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.keyword)}</text>
-      <text x="12" y="38" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.label)}</text>
-    </g>`,
-    )
-    .join("\n");
+  const nodeMarkup = layout.nodes.map((node) => renderNode(node)).join("\n");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
@@ -199,6 +192,43 @@ export function svgMembership(svg: string): { nodes: string[]; edges: string[] }
     nodes: collectAttr(svg, "data-node-id"),
     edges: collectAttr(svg, "data-edge-id"),
   };
+}
+
+export type SvgNodeStyle = {
+  id: string;
+  keyword: string;
+  layer: string;
+  icon: string;
+  fill: string;
+};
+
+/** Per-node type style attributes from `renderViewpointSvg`. */
+export function svgNodeStyles(svg: string): SvgNodeStyle[] {
+  const styles: SvgNodeStyle[] = [];
+  const pattern =
+    /<g data-node-id="([^"]+)" data-keyword="([^"]+)" data-layer="([^"]+)" data-icon="([^"]+)"[^>]*>[\s\S]*?<rect[^>]*\sfill="([^"]+)"/g;
+  for (const match of svg.matchAll(pattern)) {
+    styles.push({
+      id: unescapeXml(match[1]!),
+      keyword: unescapeXml(match[2]!),
+      layer: unescapeXml(match[3]!),
+      icon: unescapeXml(match[4]!),
+      fill: match[5]!,
+    });
+  }
+  return styles.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function renderNode(node: LayoutNode): string {
+  const style = elementStyle(node.keyword);
+  const typeName = toKebabCaseKeyword(style.keyword === "unknown" ? node.keyword : style.keyword);
+  const labelY = Math.round(node.height / 2) + 4;
+  return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}" transform="translate(${node.x} ${node.y})">
+      <title>${escapeXml(`${typeName} — ${node.label}`)}</title>
+      <rect width="${node.width}" height="${node.height}" rx="8" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.25" />
+      ${renderTypeIcon(style.icon, style.stroke, node.width - 20, 4)}
+      <text x="12" y="${labelY}" fill="${style.ink}" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.label)}</text>
+    </g>`;
 }
 
 function assignRanks(elements: ElementDecl[], relationships: RelationshipDecl[]): Map<string, number> {

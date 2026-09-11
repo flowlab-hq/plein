@@ -22,6 +22,7 @@
     "plein": "node dist/cli.js",
     "test": "tsc && node --test dist/*.test.js",
     "test:layout": "tsc && node --test dist/layout.test.js",
+    "test:style": "tsc && node --test dist/archimate-style.test.js",
     "test:browser": "tsc && node --test dist/browser.test.js",
     "smoke": "bash scripts/mac/smoke.sh",
     "app:preview": "npm run build:app && python3 -m http.server 4173 --directory app/ui",
