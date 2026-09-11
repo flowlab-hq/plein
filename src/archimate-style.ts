@@ -382,27 +382,40 @@ export function renderArchimateLegendSvg(): string {
   const layers = ARCHIMATE_LAYERS;
   const icons = Object.keys(ICON_INNER) as ArchiMateIconId[];
   const pad = 24;
-  const swatchW = 88;
+  const layerCols = 5;
+  const swatchW = 140;
   const swatchH = 40;
   const swatchGap = 10;
-  const cols = 8;
-  const iconCellW = 92;
-  const iconCellH = 36;
-  const width = pad * 2 + cols * iconCellW;
-  const layerRows = 2;
-  const iconRows = Math.ceil(icons.length / cols);
+  const iconCols = 6;
+  const iconCellW = 124;
+  const iconCellH = 32;
+  const width = pad * 2 + Math.max(layerCols * (swatchW + swatchGap) - swatchGap, iconCols * iconCellW);
+  const layerRows = Math.ceil(layers.length / layerCols);
+  const iconRows = Math.ceil(icons.length / iconCols);
   const height = pad + 28 + layerRows * (swatchH + swatchGap) + 28 + iconRows * iconCellH + pad;
+
+  const layerLabel: Record<ArchiMateLayer, string> = {
+    strategy: "strategy",
+    motivation: "motivation",
+    business: "business",
+    application: "application",
+    technology: "technology",
+    physical: "physical",
+    implementation: "impl / migr",
+    composite: "composite",
+    unknown: "unknown",
+  };
 
   const layerMarkup = layers
     .map((layer, index) => {
       const palette = LAYER_PALETTE[layer];
-      const col = index % cols;
-      const row = Math.floor(index / cols);
+      const col = index % layerCols;
+      const row = Math.floor(index / layerCols);
       const x = pad + col * (swatchW + swatchGap);
       const y = pad + 32 + row * (swatchH + swatchGap);
       return `    <g data-layer="${layer}" transform="translate(${x} ${y})">
       <rect width="${swatchW}" height="${swatchH}" rx="6" fill="${palette.fill}" stroke="${palette.stroke}"/>
-      <text x="8" y="24" fill="#1d1d1f" font-size="11" font-family="${FONT}">${layer}</text>
+      <text x="10" y="24" fill="#1d1d1f" font-size="12" font-family="${FONT}">${layerLabel[layer]}</text>
     </g>`;
     })
     .join("\n");
@@ -410,13 +423,13 @@ export function renderArchimateLegendSvg(): string {
   const iconOriginY = pad + 32 + layerRows * (swatchH + swatchGap) + 20;
   const iconMarkup = icons
     .map((icon, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
+      const col = index % iconCols;
+      const row = Math.floor(index / iconCols);
       const x = pad + col * iconCellW;
       const y = iconOriginY + row * iconCellH;
       return `    <g data-icon="${icon}" transform="translate(${x} ${y})">
-      <g transform="translate(0 8)">${ICON_INNER[icon]}</g>
-      <text x="20" y="20" fill="#3a3a3c" font-size="10" font-family="${FONT}">${icon}</text>
+      <g transform="translate(0 6)">${ICON_INNER[icon]}</g>
+      <text x="22" y="18" fill="#3a3a3c" font-size="11" font-family="${FONT}">${icon}</text>
     </g>`;
     })
     .join("\n");
