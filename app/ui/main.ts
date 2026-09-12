@@ -311,10 +311,10 @@ function render(): void {
       listingThis: selectedView === null,
     }),
     ...list.views.map((view) => {
-      const label = view.title ? `${view.name} — ${view.title}` : view.name;
       return buttonForView({
         name: view.name,
-        label,
+        label: viewSwitcherLabel(view),
+        hint: view.title ? `${view.name} — ${view.title}` : view.name,
         showingOnCanvas: view.name === diagramView,
         listingThis: selectedView === view.name,
       });
@@ -378,12 +378,16 @@ function render(): void {
 function buttonForView(options: {
   name: string | null;
   label: string;
+  hint?: string;
   showingOnCanvas: boolean;
   listingThis: boolean;
 }): HTMLLIElement {
   const item = document.createElement("li");
   const button = document.createElement("button");
   button.type = "button";
+  if (options.hint) {
+    button.title = options.hint;
+  }
   const label = document.createElement("span");
   label.className = "view-label";
   label.textContent = options.label;
