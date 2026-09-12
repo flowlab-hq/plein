@@ -7,7 +7,12 @@ import {
   viewAfterReload,
   type LoadResult,
 } from "../../src/list-model.ts";
-import { browseNamedView, namedViews, viewSwitcherLabel } from "../../src/browser.ts";
+import {
+  browseNamedView,
+  currentViewCaption,
+  namedViews,
+  viewSwitcherLabel,
+} from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
 import { edgeId, type NestingMode } from "../../src/layout.ts";
 import {
@@ -43,6 +48,7 @@ const elementList = document.querySelector("#element-list") as HTMLElement;
 const relationshipList = document.querySelector("#relationship-list") as HTMLElement;
 const elementsHeading = document.querySelector("#elements-heading") as HTMLElement;
 const relationshipHeading = document.querySelector("#relationship-heading") as HTMLElement;
+const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
 const diagramViews = document.querySelector("#diagram-views") as HTMLElement;
@@ -223,11 +229,22 @@ function renderNestingSwitcher(): void {
   );
 }
 
+function setCurrentViewChrome(title: string, viewName: string | null): void {
+  diagramHeading.textContent = title;
+  if (viewName) {
+    currentView.dataset.viewName = viewName;
+    currentView.title = viewName;
+  } else {
+    delete currentView.dataset.viewName;
+    currentView.removeAttribute("title");
+  }
+}
+
 function renderDiagram(): void {
   renderViewSwitcher();
   renderNestingSwitcher();
   if (!loaded?.ok) {
-    diagramHeading.textContent = "Viewpoint";
+    setCurrentViewChrome("Viewpoint", null);
     diagram.replaceChildren();
     return;
   }
@@ -235,7 +252,7 @@ function renderDiagram(): void {
   const viewName = namedViewForDiagram();
   const exists = viewName !== null && loaded.model.views.some((view) => view.name === viewName);
   if (!viewName || !exists) {
-    diagramHeading.textContent = "Viewpoint";
+    setCurrentViewChrome(currentViewCaption(loaded.model, viewName), null);
     const hint = document.createElement("p");
     hint.className = "diagram-empty";
     hint.textContent = "This file has no named viewpoint in the views block.";
@@ -245,7 +262,7 @@ function renderDiagram(): void {
 
   const options = nestingOverride === "file" ? undefined : { nesting: nestingOverride };
   const browsed = browseNamedView(loaded.model, viewName, options);
-  diagramHeading.textContent = browsed.title;
+  setCurrentViewChrome(browsed.title, browsed.viewName);
   diagram.innerHTML = browsed.svg;
   const svg = diagram.querySelector("svg");
   if (svg) {
@@ -285,14 +302,29 @@ function render(): void {
   workspace.classList.remove("empty");
   const list = filterModel(loaded.model, selectedView);
 
+  const diagramView = namedViewForDiagram();
   const views = [
-    buttonForView(null, selectedView === null, "All"),
+    buttonForView({
+      name: null,
+      label: "All",
+      showingOnCanvas: false,
+      listingThis: selectedView === null,
+    }),
     ...list.views.map((view) => {
       const label = view.title ? `${view.name} — ${view.title}` : view.name;
-      return buttonForView(view.name, selectedView === view.name, label);
+      return buttonForView({
+        name: view.name,
+        label,
+        showingOnCanvas: view.name === diagramView,
+        listingThis: selectedView === view.name,
+      });
     }),
   ];
   viewList.replaceChildren(...views);
+  viewList.querySelector("[aria-current='true']")?.scrollIntoView({
+    block: "nearest",
+    inline: "nearest",
+  });
 
   elementsHeading.textContent = `Elements (${list.elements.length})`;
   elementList.replaceChildren(
@@ -343,18 +375,33 @@ function render(): void {
   paintSelection();
 }
 
-function buttonForView(name: string | null, current: boolean, label: string): HTMLLIElement {
+function buttonForView(options: {
+  name: string | null;
+  label: string;
+  showingOnCanvas: boolean;
+  listingThis: boolean;
+}): HTMLLIElement {
   const item = document.createElement("li");
   const button = document.createElement("button");
   button.type = "button";
-  button.textContent = label;
-  if (current) {
+  const label = document.createElement("span");
+  label.className = "view-label";
+  label.textContent = options.label;
+  button.append(label);
+  if (options.showingOnCanvas) {
     button.setAttribute("aria-current", "true");
+    const mark = document.createElement("span");
+    mark.className = "showing-mark";
+    mark.textContent = "Showing";
+    button.append(mark);
+  }
+  if (options.listingThis) {
+    button.setAttribute("aria-pressed", "true");
   }
   button.addEventListener("click", () => {
-    selectedView = name;
-    if (name !== null) {
-      lastNamedView = name;
+    selectedView = options.name;
+    if (options.name !== null) {
+      lastNamedView = options.name;
     }
     if (loaded?.ok) {
       selectedItem = retainSelection(selectedItem, filterModel(loaded.model, selectedView));
