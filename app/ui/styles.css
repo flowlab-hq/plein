@@ -232,7 +232,7 @@ button:disabled {
 }
 
 .diagram [data-node-id][data-selected="true"] > rect,
-.diagram [data-container-id][data-selected="true"] {
+.diagram [data-container-id][data-selected="true"] > rect {
   stroke: #0b57d0;
   stroke-width: 2.5;
 }

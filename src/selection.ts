@@ -9,7 +9,7 @@ export type DiagramSelection =
 
 /**
  * Attributes from the closest SVG hit target.
- * Node groups sit above edges; container backgrounds sit below both.
+ * Node groups sit above edges; nested-parent chrome sits below both.
  */
 export type DiagramHit = {
   nodeId?: string | null;
@@ -92,7 +92,8 @@ export function listRowForSelection(selection: DiagramSelection): ListRowRef {
 
 /**
  * SVG attribute targets to mark `data-selected`.
- * A nested container highlights both its header node and the background rect.
+ * A nested parent is one group (`data-node-id` + `data-container-id` on the
+ * same element), so both keys resolve to a single chrome highlight.
  * Implied-by-nest relationships have no edge group — `edge` is still the id to look for.
  */
 export function diagramTargetsForSelection(selection: DiagramSelection): {

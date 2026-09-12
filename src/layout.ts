@@ -207,12 +207,12 @@ export function membershipOf(layout: ViewpointLayout): LayoutMembership {
 export function renderViewpointSvg(layout: ViewpointLayout): string {
   const title = layout.title ?? layout.viewName;
   const markerId = `arrow-${xmlId(layout.viewName)}`;
+  // Containers draw behind edges so inbound child edges stay visible.
+  // The parent is one group (chrome + title + type icon) — not a header
+  // band stacked on a separate body rect, which selected as two items.
   const containerMarkup = layout.nodes
     .filter((node) => node.container)
-    .map((node) => {
-      const style = elementStyle(node.keyword);
-      return `    <rect data-container-id="${escapeXml(node.id)}" x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="10" fill="${style.fill}" stroke="${style.stroke}" />`;
-    })
+    .map((node) => renderNode(node))
     .join("\n");
   const edgeMarkup = layout.edges
     .filter((edge) => !edge.impliedByNest)
@@ -222,7 +222,10 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
     </g>`,
     )
     .join("\n");
-  const nodeMarkup = layout.nodes.map((node) => renderNode(node)).join("\n");
+  const nodeMarkup = layout.nodes
+    .filter((node) => !node.container)
+    .map((node) => renderNode(node))
+    .join("\n");
   const containersBlock = containerMarkup
     ? `  <g class="containers">
 ${containerMarkup}
@@ -284,11 +287,12 @@ function renderNode(node: LayoutNode): string {
   const typeName = toKebabCaseKeyword(style.keyword === "unknown" ? node.keyword : style.keyword);
   const parentAttr = node.parentId ? ` data-parent-id="${escapeXml(node.parentId)}"` : "";
   const containerAttr = node.container ? ` data-container="true"` : "";
-  const boxHeight = node.container ? NEST_HEADER_HEIGHT : node.height;
+  const containerIdAttr = node.container ? ` data-container-id="${escapeXml(node.id)}"` : "";
   const labelY = node.container ? 28 : Math.round(node.height / 2) + 4;
-  return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr} transform="translate(${node.x} ${node.y})">
+  const rx = node.container ? 10 : 8;
+  return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr}${containerIdAttr} transform="translate(${node.x} ${node.y})">
       <title>${escapeXml(`${typeName} — ${node.label}`)}</title>
-      <rect width="${node.width}" height="${boxHeight}" rx="8" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.25" />
+      <rect width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.25" />
       ${renderTypeIcon(style.icon, style.stroke, node.width - 20, 4)}
       <text x="12" y="${labelY}" fill="${style.ink}" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.label)}</text>
     </g>`;
