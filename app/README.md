@@ -82,7 +82,7 @@ This Linux checkout cannot produce `Plein.app` (no macOS SDK). `npm test` and `n
 
 ## Selection sync (diagram ↔ lists)
 
-Single-item, bidirectional. Click a box or edge on the canvas to highlight the matching left-list row; click a list row to highlight (and scroll to) the matching diagram item. Nested children select on their own; the parent container selects from its header or empty interior. Escape or a click on empty canvas clears both. Switching views keeps the highlight when that item is still in the new list, otherwise it clears. Multi-select and editing from the list are out of scope.
+Single-item, bidirectional. Click a box or edge on the canvas to highlight the matching left-list row; click a list row to highlight (and scroll to) the matching diagram item. Nested children select on their own; the parent container is one chrome (title + type icon) and selects as one item from its title or empty interior. Escape or a click on empty canvas clears both. Switching views keeps the highlight when that item is still in the new list, otherwise it clears. Multi-select and editing from the list are out of scope.
 
 Assert without opening the app: `./scripts/assert-selection-sync.sh` (or `npm test`).
 
@@ -116,7 +116,7 @@ Release `.dmg` or local `Plein.app` (no Node required on the Release path):
 
 1. **Open** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). **Views**, **Elements (8)**, and **Relationships (9)** are in the **left sidebar**. The diagram fills the remaining height — no bottom list strip.
 2. Scroll Elements and Relationships if the pane is short. Headings keep the counts visible.
-3. Click **Quote freight** on the diagram (child inside Quote to cash). The Elements row for `quote` highlights — not the parent container. Click the **Quote to cash** header (or empty area inside the container, not on a child) — the parent row highlights. Click **TMS** in the Elements list — the TMS box highlights. Click a visible relationship row — the edge highlights. Click empty canvas or press Escape — both highlights clear.
+3. Click **Quote freight** on the diagram (child inside Quote to cash). The Elements row for `quote` highlights — not the parent container. Click the **Quote to cash** title or empty interior (not a child) — one parent chrome highlights and the parent Elements row highlights (not two stacked boxes / two list rows). Click **TMS** in the Elements list — the TMS box highlights. Click a visible relationship row — the edge highlights. Click empty canvas or press Escape — both highlights clear.
 4. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein). Application Structure: **Elements (5)** / **Relationships (3)** (`tms -> legacyBatch` absent). Click **Shipment** on the diagram — its list row highlights. Click **Application Cooperation**: **Elements (2)** / **Relationships (1)** and the shipment highlight clears. Click **TMS** in the list — the box highlights. Click **All**: whole model (**5** / **4**); the diagram stays on the last named view and TMS stays selected if it is still listed.
 5. Toggle **File default / Nested / Beside**. Lists stay on the left; nested render still works on the canvas. Selection follows the item across the local nesting preview.
 6. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein). Banner only — sidebar and diagram stay hidden.

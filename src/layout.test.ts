@@ -5,10 +5,12 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  NEST_HEADER_HEIGHT,
   layoutViewpoint,
   membershipOf,
   renderViewpointSvg,
   svgMembership,
+  svgNodeStyles,
   type LayoutNode,
 } from "./layout.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
@@ -277,6 +279,36 @@ test("quote-to-cash demo nests Quote, Book, Collect inside the parent", () => {
   assert.match(svg, /data-edge-id="quote->book:flowsTo"/);
   assert.match(svg, /data-edge-id="book->collect:triggers"/);
   assert.equal(svg.includes("quoteToCash->quote:composedOf"), false);
+
+  assert.equal(
+    (svg.match(/data-node-id="quoteToCash"/g) ?? []).length,
+    1,
+    "nested parent is one node group, not a header band plus a body",
+  );
+  assert.equal(
+    (svg.match(/data-container-id="quoteToCash"/g) ?? []).length,
+    1,
+    "nested parent chrome id appears once",
+  );
+  assert.match(
+    svg,
+    new RegExp(
+      `data-node-id="quoteToCash"[^>]*data-container="true"[^>]*data-container-id="quoteToCash"[\\s\\S]*?<rect width="${parent.width}" height="${parent.height}"`,
+    ),
+    "single chrome uses the full container box, not a title-band height",
+  );
+  assert.ok(parent.height > NEST_HEADER_HEIGHT);
+  assert.doesNotMatch(
+    svg,
+    new RegExp(`data-node-id="quoteToCash"[\\s\\S]*?<rect[^>]*height="${NEST_HEADER_HEIGHT}"`),
+  );
+  assert.match(svg, /data-node-id="quoteToCash"[\s\S]*?data-icon="value-stream"[\s\S]*?Quote to cash/);
+
+  const parentStyle = svgNodeStyles(svg).find((node) => node.id === "quoteToCash");
+  assert.ok(parentStyle);
+  assert.equal(parentStyle.icon, "value-stream");
+  assert.equal(parentStyle.layer, "strategy");
+  assert.equal(parentStyle.fill, "#F5DEAA");
 });
 
 test("tool override nests even when the file default is beside", () => {

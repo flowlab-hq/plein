@@ -75,6 +75,15 @@ test("nested container background selects the parent; child node selects the chi
   assert.match(browsed.svg, /data-node-id="quote"[^>]*data-parent-id="quoteToCash"/);
   assert.match(browsed.svg, /data-container-id="quoteToCash"/);
   assert.match(browsed.svg, /data-node-id="quoteToCash"[^>]*data-container="true"/);
+  assert.equal(
+    (browsed.svg.match(/data-node-id="quoteToCash"/g) ?? []).length,
+    1,
+    "selecting the parent has one diagram target, not header + body",
+  );
+  assert.deepEqual(diagramTargetsForSelection(elementSelection("quoteToCash")), {
+    nodeId: "quoteToCash",
+    containerId: "quoteToCash",
+  });
 
   const child = selectionFromDiagramHit({ nodeId: "quote" });
   const parentFromHeader = selectionFromDiagramHit({ nodeId: "quoteToCash" });
