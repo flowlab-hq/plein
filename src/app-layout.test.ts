@@ -69,6 +69,7 @@ test("Mac UI keeps the current view name visible outside the scrollable canvas",
   assert.match(ui, /showingOnCanvas/);
   assert.match(ui, /Showing/);
   assert.match(ui, /currentViewCaption/);
+  assert.match(ui, /label: viewSwitcherLabel\(view\)/);
 });
 
 test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () => {
