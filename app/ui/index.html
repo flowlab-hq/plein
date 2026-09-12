@@ -47,14 +47,11 @@
           </section>
         </aside>
         <section class="diagram-pane">
-          <div class="diagram-toolbar">
-            <h2 id="diagram-heading">Viewpoint</h2>
-            <div
-              id="diagram-views"
-              class="view-switcher"
-              role="tablist"
-              aria-label="Named viewpoints"
-            ></div>
+          <div class="diagram-chrome">
+            <div id="current-view" class="current-view" aria-live="polite">
+              <span class="current-view-kicker">View</span>
+              <h2 id="diagram-heading">Viewpoint</h2>
+            </div>
             <div
               id="nesting-switcher"
               class="nesting-switcher"
@@ -63,6 +60,12 @@
               title="File default is source of truth for PRs. Nested/Beside override is local preview only."
             ></div>
           </div>
+          <div
+            id="diagram-views"
+            class="view-switcher"
+            role="tablist"
+            aria-label="Named viewpoints"
+          ></div>
           <div id="diagram" class="diagram"></div>
         </section>
       </main>

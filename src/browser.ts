@@ -37,6 +37,18 @@ export function viewSwitcherLabel(view: ViewDecl): string {
   return view.title || view.name;
 }
 
+/** Human-facing name for the always-visible Mac current-view chrome. */
+export function currentViewCaption(model: PleinModel, viewName: string | null): string {
+  if (!viewName) {
+    return "No named view";
+  }
+  const view = model.views.find((candidate) => candidate.name === viewName);
+  if (!view) {
+    return "No named view";
+  }
+  return viewSwitcherLabel(view);
+}
+
 /**
  * Render one named viewpoint from a loaded model (M9 layout + SVG).
  * Call this again with a different `viewName` to switch views without reload.

@@ -46,6 +46,7 @@ export {
   namedViews,
   namedViewNames,
   viewSwitcherLabel,
+  currentViewCaption,
   type BrowsedView,
 } from "./browser.js";
 export {

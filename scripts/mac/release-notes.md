@@ -30,7 +30,7 @@ Clone the repo (or download those raw files) so Open… can reach them.
 2. Install (drag to Applications) and launch — no Node/npm.
 3. Open the sample — viewpoint diagram renders (orange value streams / capabilities, cyan applications, type glyphs).
 4. Left sidebar shows **Views**, **Elements (8)**, **Relationships (9)**. Diagram fills the remaining height — no bottom list strip. Scroll lists if needed; counts stay on the headings.
-5. Click **Quote freight** on the diagram — the Elements row highlights. Click **TMS** in the list — the diagram box highlights. Click empty canvas or press Escape — highlights clear. Open `valid-views.plein`, select **Shipment**, switch to **Application Cooperation** — the highlight clears.
+5. Click **Quote freight** on the diagram — the Elements row highlights. Click **TMS** in the list — the diagram box highlights. Click empty canvas or press Escape — highlights clear. Open `valid-views.plein` — the **View** chrome reads **Application Structure**. Select **Shipment**, switch to **Application Cooperation** — the highlight clears and the **View** name updates without reopening the file.
 6. Open the catalogue-layers fixture — seven layer colours (orange / purple / yellow / cyan / green / green / pink). Lists stay on the left.
 7. Open the broken fixture — clear error in the UI. Sidebar and diagram stay hidden.
 8. Intel: skip.

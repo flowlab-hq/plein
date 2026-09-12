@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   browseNamedView,
+  currentViewCaption,
   namedViewNames,
   namedViews,
   switchNamedView,
@@ -18,6 +19,26 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 function readFixture(name: string): string {
   return readFileSync(join(repoRoot, "fixtures", name), "utf8");
 }
+
+test("current view caption stays the human name while switching ≥2 views", () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  assert.equal(result.model.views.length >= 2, true);
+  assert.equal(currentViewCaption(result.model, "applicationStructure"), "Application Structure");
+  assert.equal(
+    currentViewCaption(result.model, "applicationCooperation"),
+    "Application Cooperation",
+  );
+  assert.equal(currentViewCaption(result.model, null), "No named view");
+  assert.equal(currentViewCaption(result.model, "missing"), "No named view");
+
+  const cooperation = switchNamedView(result.model, "applicationCooperation");
+  assert.equal(cooperation.model, result.model);
+  assert.equal(currentViewCaption(cooperation.model, cooperation.viewName), cooperation.title);
+});
 
 test("valid-views.plein exposes two named viewpoints for the switcher", () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
