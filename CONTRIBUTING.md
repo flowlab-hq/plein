@@ -1,9 +1,10 @@
 # Contributing
 
 By submitting a contribution to this repository (pull request, patch, or
-otherwise) you agree it is licensed under the same Functional Source License,
-Version 1.1, Apache 2.0 Future License (FSL-1.1-Apache-2.0) terms in
-[LICENSE](LICENSE), including the Apache-2.0 future license on the applicable
-Change Date.
+otherwise) you license it to Arran Hartgroves, the copyright holder,
+under the same terms in [LICENSE](LICENSE) (PolyForm Noncommercial
+1.0.0 plus the Competing Use note). This repository does not have a
+separate Contributor License Agreement (CLA); the grant in this
+paragraph is the contribution license.
 
 How to add `.plein` fixtures and review model PRs: [docs/repo-layout.md](docs/repo-layout.md).

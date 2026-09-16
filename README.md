@@ -174,4 +174,4 @@ Product mark: [branding/plein-mark.png](branding/plein-mark.png)
 
 ## License
 
-Plein is licensed under the Functional Source License, Version 1.1, Apache 2.0 Future License (FSL-1.1-Apache-2.0); see [LICENSE](LICENSE).
+Plein is source-available, not OSI open source; commercial or competing use needs written permission. Licensed under PolyForm Noncommercial 1.0.0 plus the Competing Use note in [LICENSE](LICENSE).

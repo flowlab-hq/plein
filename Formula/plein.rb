@@ -8,7 +8,8 @@
 class Plein < Formula
   desc "Check Plein ArchiMate model files"
   homepage "https://github.com/flowlab-hq/plein"
-  # SPDX FSL-1.1-ALv2 (FSL-1.1-Apache-2.0). GitHub may show Other / View license.
+  # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+  # Additional Competing Use terms in LICENSE. GitHub may show Other / View license.
   license :cannot_represent
   version "0.1.0"
 
