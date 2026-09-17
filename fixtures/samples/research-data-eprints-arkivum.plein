@@ -1,0 +1,47 @@
+// Sussex research-data / ePrints / Arkivum demo (Arran S4 named-view jump).
+// Open in Plein v0.1.5+: two named viewpoints; the View chrome above the canvas
+// shows the current title. Parser has no relationship labels — Manual Process
+// is an associatedWith edge (comment only).
+plein {
+  model {
+    business-actor "General Public" as generalPublic
+    business-process "Find published research" as findPublishedResearch
+    business-process "Request access to research data" as requestAccess
+
+    application-component "Research Project" as researchProject
+    application-component "Research Paper / Journal" as researchPaper
+    application-component "Research Data" as researchDataApp
+    application-component "Sussex Research Online – ePrints (Research Data Management)" as eprints
+
+    artifact "Research Data" as researchDataArtifact
+    technology-service "File Storage" as fileStorage
+    technology-service "Archive" as archive
+    node "Research Storage Platform" as researchStoragePlatform
+    system-software "Arkivum" as arkivum
+
+    researchProject -> researchPaper: aggregation
+    researchProject -> researchDataApp: aggregation
+    researchPaper -> eprints: association
+    eprints -> findPublishedResearch: serving
+    findPublishedResearch -> requestAccess: triggering
+    generalPublic -> findPublishedResearch: assignment
+    researchDataArtifact -> researchDataApp: realization
+    fileStorage -> researchDataArtifact: access
+    researchStoragePlatform -> fileStorage: realization
+    arkivum -> archive: realization
+    // Manual Process (diagram association label; Plein has no edge labels)
+    researchDataArtifact -> requestAccess: association
+  }
+
+  views {
+    viewpoint applicationCooperation "Public access / discovery" {
+      include generalPublic, findPublishedResearch, requestAccess, eprints, researchPaper, researchDataArtifact
+      autoLayout lr
+    }
+    viewpoint technology "Research project and storage" {
+      include researchProject, researchPaper, researchDataApp, researchDataArtifact, fileStorage, researchStoragePlatform, archive, arkivum
+      autoLayout lr
+      nesting nested
+    }
+  }
+}

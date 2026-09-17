@@ -66,6 +66,13 @@ test("plein check exits 0 on fixtures/samples/value-stream-demo.plein", () => {
   assert.match(result.stdout, /^ok fixtures\/samples\/value-stream-demo\.plein/);
 });
 
+test("plein check exits 0 on fixtures/samples/research-data-eprints-arkivum.plein", () => {
+  const result = runCheck("fixtures/samples/research-data-eprints-arkivum.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/samples\/research-data-eprints-arkivum\.plein/);
+  assert.match(result.stdout, /2 views/);
+});
+
 test("plein check exits 0 on fixtures/valid-value-stream-stages.plein", () => {
   const result = runCheck("fixtures/valid-value-stream-stages.plein");
   assert.equal(result.status, 0, result.stderr);

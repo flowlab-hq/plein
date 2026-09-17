@@ -56,6 +56,32 @@ test("valid-views.plein exposes two named viewpoints for the switcher", () => {
   );
 });
 
+test("research-data sample exposes two named viewpoints for Arran S4 jump", () => {
+  const result = loadPleinSource(
+    readFixture("samples/research-data-eprints-arkivum.plein"),
+    "fixtures/samples/research-data-eprints-arkivum.plein",
+  );
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) {
+    return;
+  }
+  assert.equal(result.model.views.length >= 2, true);
+  assert.deepEqual(namedViewNames(result.model), ["applicationCooperation", "technology"]);
+  assert.deepEqual(
+    namedViews(result.model).map((view) => viewSwitcherLabel(view)),
+    ["Public access / discovery", "Research project and storage"],
+  );
+  assert.equal(
+    currentViewCaption(result.model, "applicationCooperation"),
+    "Public access / discovery",
+  );
+  const storage = switchNamedView(result.model, "technology");
+  assert.equal(storage.model, result.model);
+  assert.equal(currentViewCaption(storage.model, storage.viewName), "Research project and storage");
+  assert.ok(storage.membership.nodes.includes("researchProject"));
+  assert.equal(storage.membership.nodes.includes("generalPublic"), false);
+});
+
 test("switching named views reuses the same loaded model", () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);

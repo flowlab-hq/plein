@@ -26,12 +26,18 @@ npx plein check fixtures/broken-syntax.plein
 
 How to add a fixture, golden JSON pins, Homebrew/`./scripts/mac/smoke.sh`, and the review checklist: [docs/repo-layout.md](docs/repo-layout.md). Catalogue: [fixtures/README.md](fixtures/README.md).
 
-## Sample model
+## Sample models
 
 [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein) is a NordFreight **quote-to-cash** demo: one `value-stream` with nested stages that `flowsTo` / `triggers` each other **inside** the parent (`nesting nested` on the viewpoint), two `capability` elements that `serves` those stages, and two `application-component` elements that `realizes` the capabilities. Open it in the Mac app or check it:
 
 ```bash
 plein check fixtures/samples/value-stream-demo.plein
+```
+
+[fixtures/samples/research-data-eprints-arkivum.plein](fixtures/samples/research-data-eprints-arkivum.plein) is the Sussex **research-data / ePrints / Arkivum** demo for **Arran S4 named-view jump** (Plein v0.1.5+). Two viewpoints — **Public access / discovery** and **Research project and storage** — over one model (business actor + processes, application components, technology artifact / services / node / system-software). Open it in the Mac app: the View chrome above the canvas names the current view; switch views without reopening the file. Check it:
+
+```bash
+plein check fixtures/samples/research-data-eprints-arkivum.plein
 ```
 
 ## Download the Mac app (Apple Silicon `.dmg`)
@@ -53,7 +59,7 @@ Developer ID signing and notarization are a documented follow-up — see [script
 3. Open the sample — diagram renders. Value-stream / capability boxes are **orange**; application components are **cyan**, each with a type glyph in the top-right.
 4. Confirm **Views**, **Elements (8)**, and **Relationships (9)** sit in the **left sidebar**. The canvas uses the remaining height — there is **no bottom strip** of lists. Scroll a list if it overflows; counts stay on the headings.
 5. Click **Quote freight** on the diagram (nested inside Quote to cash). The **Elements** row for `quote` highlights. Click the empty canvas (or press Escape) — the list highlight clears. Click **TMS** in the Elements list — the TMS box on the diagram highlights. Click a **Relationships** row (for example `rateEngine → rateQuote : realizes`) — that edge highlights. Multi-select and editing from the list are out of scope.
-6. Open [fixtures/valid-views.plein](fixtures/valid-views.plein). The **View** chrome above the diagram reads **Application Structure** (always visible — not only in a scrolled list). On **Application Structure**, click **Shipment** on the diagram — the Elements row highlights. Switch to **Application Cooperation** — the highlight clears (shipment is not in that view) and the **View** name updates without reopening the file. Click **TMS** in the list — the TMS box highlights on both views.
+6. Open [fixtures/valid-views.plein](fixtures/valid-views.plein). The **View** chrome above the diagram reads **Application Structure** (always visible — not only in a scrolled list). On **Application Structure**, click **Shipment** on the diagram — the Elements row highlights. Switch to **Application Cooperation** — the highlight clears (shipment is not in that view) and the **View** name updates without reopening the file. Click **TMS** in the list — the TMS box highlights on both views. Same jump on the research-data demo: [fixtures/samples/research-data-eprints-arkivum.plein](fixtures/samples/research-data-eprints-arkivum.plein) — **Public access / discovery** ↔ **Research project and storage**.
 7. Open [fixtures/valid-catalogue-layers.plein](fixtures/valid-catalogue-layers.plein). Seven boxes, one per layer: orange capability (staircase of blocks), purple goal, yellow actor (stick figure), cyan component, green node (cube), green facility (building), pink work-package. Mapping: [docs/archimate-style.md](docs/archimate-style.md). Capability must not use the value-stream chevron — pair: [fixtures/valid-capability-value-stream.plein](fixtures/valid-capability-value-stream.plein). Sidebar lists stay on the left.
 8. Open the broken fixture — clear error in the UI. Sidebar and diagram stay hidden.
 9. Intel: skip.
@@ -113,6 +119,7 @@ plein check fixtures/valid-basic.plein
 Expected walkthrough:
 
 * `plein check fixtures/samples/value-stream-demo.plein` prints `ok fixtures/samples/value-stream-demo.plein (...)` and exits 0.
+* `plein check fixtures/samples/research-data-eprints-arkivum.plein` prints `ok fixtures/samples/research-data-eprints-arkivum.plein (...)` and exits 0.
 * `plein check fixtures/valid-basic.plein` prints `ok fixtures/valid-basic.plein (...)` and exits 0.
 * `plein check fixtures/broken-syntax.plein` prints a line-oriented diagnostic (for example `expected '}' to close plein`) and exits non-zero.
 
@@ -141,6 +148,7 @@ Mac users should prefer the Homebrew steps above. From a source checkout (any OS
 npm install
 npm run build
 npx plein check fixtures/samples/value-stream-demo.plein
+npx plein check fixtures/samples/research-data-eprints-arkivum.plein
 npx plein check fixtures/valid-basic.plein
 npm run check:fixtures
 npm test
