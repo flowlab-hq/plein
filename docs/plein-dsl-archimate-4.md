@@ -26,16 +26,23 @@ plein {
 
 `model`, `views`, and `styles` may also be accepted as the top-level blocks in a file without an explicit `plein` wrapper. A block may be omitted when it is empty; a useful minimum is a `model` block.
 
+The header is only `plein {`. Do **not** put a name or description after the `plein` keyword.
+
+* **Wrong** (fails: `expected '{' after plein`): `plein "My Model" "A description" {` or `plein MyModel {`
+* **Right:** `plein {`
+
+Put human titles on elements and views instead. Full wrong/right authoring notes, including a copy-paste example: [Mac-app authoring (wrong vs right)](#mac-app-authoring-wrong-vs-right).
+
 ### Identifiers and labels
 
 * An identifier starts with a letter or underscore and may contain letters, digits, `_`, and `-`. Identifiers are unique within a model.
-* Use `as <identifier>` to give an element a stable reference. Put human-readable text in quotes for its label: `business-actor "Shipper" as shipper`.
+* A quoted label **requires** `as <identifier>`: `business-actor "Shipper" as shipper`. Omitting `as id` fails (`expected 'as <identifier>' after element label`).
 * References in relationships and view membership use identifiers, not labels. A quoted label may contain spaces, punctuation, and Unicode.
 * Re-declaring an identifier, referring to an unknown identifier, or declaring a relationship to itself is invalid.
 
 ## Model elements
 
-Element keywords are kebab-case ArchiMate concepts grouped by domain. Implementations should preserve the ArchiMate meaning of each keyword; a tool may provide a shorter alias, but the canonical spelling is preferred in source.
+Element keywords are kebab-case ArchiMate concepts grouped by domain (`value-stream`, not `valueStream`; `application-component`, not `applicationComponent`). Implementations should preserve the ArchiMate meaning of each keyword; a tool may provide a shorter alias, but authors and LLMs should emit the canonical kebab-case spelling.
 
 ### Strategy
 
@@ -75,7 +82,7 @@ value-stream "Order to cash" as orderToCash {
 
 `work-package`, `deliverable`, `implementation-event`, `plateau`, `gap`
 
-An element has a keyword, a label, and an optional identifier. Properties and documentation can be attached using the implementation's supported attribute syntax; unknown attributes should be reported rather than silently discarded.
+An element has a keyword, a quoted label, and an identifier after `as`. The identifier is required when a label is present. Properties and documentation can be attached using the implementation's supported attribute syntax; unknown attributes should be reported rather than silently discarded.
 
 ### Catalogue coverage
 
@@ -101,6 +108,11 @@ shipper -> booking: serving
 booking -> order: access
 ```
 
+Write relationships as `id -> id: type`. Do not use infix verbs (`serves`, `aggregates`) between identifiers.
+
+* **Wrong** (old infix style): `ProductManagement serves SoftwareAndProductServiceLine`
+* **Right:** `productManagement -> softwareAndProductServiceLine: serving`
+
 Plein supports these eleven relationship types:
 
 | Type | Meaning |
@@ -121,15 +133,25 @@ Plein supports these eleven relationship types:
 
 A view gives a model a named, reviewable slice. Use `include` to add identifiers (or supported patterns) and `exclude` to remove them from the rendered view. Exclusion wins when an item matches both clauses. A view with no explicit membership may use the tool's default viewpoint, but explicit membership is more portable.
 
+Mac samples use `viewpoint <uniqueId> "Label" { ... }`. The token immediately after `viewpoint` is the **unique view name**; the quoted string is a human label. Reusing the same id (for example two `viewpoint strategy "…"` blocks) fails with `duplicate view name 'strategy'`. `view <name> { ... }` (no quoted label) remains valid — see [`fixtures/valid-basic.plein`](../fixtures/valid-basic.plein). Prefer `viewpoint` for Mac / LLM output, matching [`fixtures/valid-views.plein`](../fixtures/valid-views.plein) and [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein).
+
 ```plein
 views {
-  view nordfreight-context {
-    title "NordFreight booking context"
-    include shipper, booking, order, tracking
-    exclude internal-ledger
+  viewpoint applicationStructure "Application Structure" {
+    include applicationComponent applicationInterface dataObject
+    include tms customsGateway
+    exclude "* -> legacyBatch"
+    autoLayout lr
+  }
+  viewpoint applicationCooperation "Application Cooperation" {
+    include tms bookingApi
+    autoLayout lr
   }
 }
 ```
+
+* **Wrong:** two blocks both `viewpoint strategy "…"`
+* **Right:** unique ids such as `viewpoint applicationStructure "…"` and `viewpoint applicationCooperation "…"`
 
 Views may include relationships when the implementation supports a relationship selector; otherwise relationships between included elements are rendered automatically. Keep view names stable because they are useful review and documentation anchors.
 
@@ -198,6 +220,119 @@ The example intentionally excludes `rates` from the context view while retaining
 
 File-level `styles { }` blocks are accepted and ignored. The Mac renderer colours boxes by ArchiMate layer and draws a type glyph from a built-in map — see [ArchiMate type colours and icons](archimate-style.md). That map is not overridden by `styles` and is not an Open Exchange or full Archi skin.
 
+## Mac-app authoring (wrong vs right)
+
+Humans and LLMs often generate `.plein` that the Mac app cannot parse. These rules match `plein check` and the golden fixtures [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) and [`fixtures/valid-views.plein`](../fixtures/valid-views.plein).
+
+### Header is only `plein {`
+
+Never `plein "Name" … {`. Put titles on elements and views.
+
+* **Wrong:** `plein "My Model" "A description" {` or `plein MyModel {`
+* **Right:** `plein {`
+
+### Labeled elements use `keyword "Label" as id`
+
+Missing `as id` fails.
+
+```plein
+capability "Product Management" as productManagement
+value-stream "Data & AI Service Line" as dataAndAIServiceLine
+stakeholder "Gemba Advantage" as gembaAdvantage
+```
+
+* **Wrong:** `stakeholder "Gemba Advantage"`
+* **Right:** `stakeholder "Gemba Advantage" as gembaAdvantage`
+* Keywords are kebab-case: `value-stream`, `application-component`, `business-actor` — not camelCase `valueStream` / `applicationComponent`.
+* Identifiers after `as` are unique within the model; use them in relationships and `include` lists. Prefer short camelCase or kebab-case ids (`productManagement`, `quoteToCash`).
+
+### Relationships are `id -> id: serving`
+
+Not infix `serves`.
+
+```plein
+productManagement -> softwareAndProductServiceLine: serving
+dataAndAICapabilities -> dataFoundationsGovernance: aggregation
+gembaAdvantage -> dataAndAIServiceLine: association
+```
+
+Eleven types: `composition`, `aggregation`, `assignment`, `realization`, `serving`, `access`, `influence`, `triggering`, `flow`, `specialization`, `association`.
+
+* **Wrong:** `ProductManagement serves SoftwareAndProductServiceLine`
+* **Right:** `productManagement -> softwareAndProductServiceLine: serving`
+
+### Viewpoint id after `viewpoint` is unique
+
+Never two `viewpoint strategy "…"` blocks. The token after `viewpoint` is the unique view name; the quoted string is a display label. For multi-view jump (S4), ship **≥2** uniquely named viewpoints in one file.
+
+```plein
+views {
+  viewpoint dataAndAI "Data & AI Service Line" {
+    title "Data & AI Service Line — value stream and capabilities"
+    include dataAndAIServiceLine, dataFoundationsGovernance, dataEngineeringPlatforms
+    autoLayout tb
+    nesting nested
+  }
+
+  viewpoint softwareAndProduct "Software & Product Service Line" {
+    title "Software & Product Service Line — value stream and capabilities"
+    include softwareAndProductServiceLine, productManagement, productDesign, productEngineering
+    autoLayout tb
+    nesting nested
+  }
+}
+```
+
+* **Wrong:** two blocks both `viewpoint strategy "…"`
+* **Right:** `viewpoint dataAndAI "…"` and `viewpoint softwareAndProduct "…"`
+
+`viewpoint strategy "Quote to cash"` in [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) is valid because that file has **one** view named `strategy`. A second `viewpoint strategy` in the same file is the failure.
+
+### Minimal LLM copy-paste example (two views)
+
+```plein
+plein {
+  model {
+    value-stream "Software & Product Service Line" as softwareAndProductServiceLine
+    capability "Product Management" as productManagement
+    capability "Product Design" as productDesign
+    capability "Product Engineering" as productEngineering
+    grouping "Software & Product Capabilities" as softwareAndProductCapabilities
+
+    softwareAndProductCapabilities -> productManagement: aggregation
+    softwareAndProductCapabilities -> productDesign: aggregation
+    softwareAndProductCapabilities -> productEngineering: aggregation
+
+    productManagement -> softwareAndProductServiceLine: serving
+    productDesign -> softwareAndProductServiceLine: serving
+    productEngineering -> softwareAndProductServiceLine: serving
+  }
+
+  views {
+    viewpoint softwareAndProduct "Software & Product Service Line" {
+      include softwareAndProductServiceLine, productManagement, productDesign, productEngineering, softwareAndProductCapabilities
+      autoLayout tb
+      nesting nested
+    }
+
+    viewpoint productOnly "Product capabilities" {
+      include productManagement, productDesign, productEngineering
+      autoLayout lr
+    }
+  }
+}
+```
+
+That sample follows the same patterns as the golden fixtures: `plein {`, kebab-case keywords, `keyword "Label" as id`, `id -> id: type`, and two uniquely named `viewpoint` blocks (`softwareAndProduct`, `productOnly`) like [`fixtures/valid-views.plein`](../fixtures/valid-views.plein) (`applicationStructure`, `applicationCooperation`). `nesting nested` matches [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein).
+
+### Checklist before handing a `.plein` to a human
+
+1. Starts with `plein {` (nothing between `plein` and `{`).
+2. Every labeled element uses `keyword "Label" as id`.
+3. Keywords kebab-case; relationships `id -> id: type`.
+4. Every `viewpoint` id unique; ≥2 if the story needs S4 smoke.
+5. Prefer matching patterns in [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) and [`fixtures/valid-views.plein`](../fixtures/valid-views.plein).
+
 ## Validation notes
 
 A validator should check, at minimum:
@@ -205,8 +340,8 @@ A validator should check, at minimum:
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
 3. Each relationship uses one of the eleven supported types and has exactly one source and target.
-4. Element keywords are valid ArchiMate 4 concepts, labels are present, and IDs follow the identifier rules.
-5. Each view has a unique name; conflicting membership is resolved with `exclude` precedence.
+4. Element keywords are valid ArchiMate 4 concepts, labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules.
+5. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.
 6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
 7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
 
