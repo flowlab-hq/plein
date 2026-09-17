@@ -34,6 +34,7 @@ GOLDEN=(
   fixtures/valid-capability-value-stream.plein
   fixtures/valid-value-stream-stages.plein
   fixtures/samples/value-stream-demo.plein
+  fixtures/samples/research-data.plein
 )
 
 # Expected-fail fixtures (non-zero). Matches fixtures/README.md.

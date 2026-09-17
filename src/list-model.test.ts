@@ -188,6 +188,45 @@ test("loadPleinSource succeeds on fixtures/samples/value-stream-demo.plein", () 
   assert.ok(edges.has("orderExecution->book:serves"));
 });
 
+test("loadPleinSource succeeds on fixtures/samples/research-data.plein", () => {
+  const result = loadPleinSource(
+    readFixture("samples/research-data.plein"),
+    "fixtures/samples/research-data.plein",
+  );
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
+  if (!result.ok) {
+    return;
+  }
+  assert.equal(firstNamedView(result.model), "researchDataLandscape");
+  assert.equal(result.model.elements.length, 12);
+  assert.equal(result.model.relationships.length, 11);
+  assert.equal(result.model.views.length, 3);
+  const keywords = new Map(result.model.elements.map((element) => [element.id, element.keyword]));
+  assert.equal(keywords.get("generalPublic"), "businessActor");
+  assert.equal(keywords.get("findPublishedResearch"), "businessProcess");
+  assert.equal(keywords.get("requestAccess"), "businessProcess");
+  assert.equal(keywords.get("researchProject"), "applicationComponent");
+  assert.equal(keywords.get("researchPaper"), "dataObject");
+  assert.equal(keywords.get("researchDataConcept"), "dataObject");
+  assert.equal(keywords.get("eprints"), "applicationComponent");
+  assert.equal(keywords.get("researchDataArtifact"), "artifact");
+  assert.equal(keywords.get("fileStorage"), "technologyService");
+  assert.equal(keywords.get("archive"), "technologyService");
+  assert.equal(keywords.get("researchStoragePlatform"), "node");
+  assert.equal(keywords.get("arkivum"), "systemSoftware");
+  const edges = new Set(
+    result.model.relationships.map((rel) => `${rel.source}->${rel.target}:${rel.type}`),
+  );
+  assert.ok(edges.has("generalPublic->findPublishedResearch:triggers"));
+  assert.ok(edges.has("findPublishedResearch->requestAccess:triggers"));
+  assert.ok(edges.has("researchProject->researchPaper:aggregates"));
+  assert.ok(edges.has("researchProject->researchDataConcept:aggregates"));
+  assert.ok(edges.has("eprints->researchPaper:associatedWith"));
+  assert.ok(edges.has("researchDataArtifact->researchDataConcept:realizes"));
+  assert.ok(edges.has("requestAccess->researchDataArtifact:associatedWith"));
+  assert.ok(edges.has("arkivum->archive:realizes"));
+});
+
 test("malformed-views.plein surfaces the same class of diagnostic as plein check", () => {
   const result = loadPleinSource(
     readFixture("malformed-views.plein"),
