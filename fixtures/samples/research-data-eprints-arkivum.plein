@@ -11,7 +11,8 @@ plein {
     application-component "Research Project" as researchProject
     application-component "Research Paper / Journal" as researchPaper
     application-component "Research Data" as researchDataApp
-    application-component "Sussex Research Online – ePrints (Research Data Management)" as eprints
+    // Box labels are short so they fit NODE_WIDTH; full name is Sussex Research Online – ePrints <<Research Data Management>>.
+    application-component "SRO ePrints" as eprints
 
     artifact "Research Data" as researchDataArtifact
     technology-service "File Storage" as fileStorage
