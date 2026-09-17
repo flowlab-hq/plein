@@ -194,19 +194,46 @@ button:disabled {
   color: var(--muted);
 }
 
+.layout-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.layout-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.layout-kicker {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.layout-switcher,
 .nesting-switcher {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
+.layout-switcher button,
 .nesting-switcher button {
   padding: 4px 10px;
   font-size: 12px;
 }
 
+.layout-switcher button[aria-checked="true"],
 .nesting-switcher button[aria-checked="true"] {
   background: #e8f1ff;
   border-color: #0b57d0;
@@ -239,7 +266,8 @@ button:disabled {
   stroke-width: 2.5;
 }
 
-.diagram [data-edge-id][data-selected="true"] line:not(.edge-hit) {
+.diagram [data-edge-id][data-selected="true"] line:not(.edge-hit),
+.diagram [data-edge-id][data-selected="true"] polyline:not(.edge-hit) {
   stroke: #0b57d0;
   stroke-width: 2.5;
 }

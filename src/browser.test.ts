@@ -20,7 +20,7 @@ function readFixture(name: string): string {
   return readFileSync(join(repoRoot, "fixtures", name), "utf8");
 }
 
-test("current view caption stays the human name while switching ≥2 views", () => {
+test("current view caption stays the human name while switching ≥2 views", async () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);
   if (!result.ok) {
@@ -35,7 +35,7 @@ test("current view caption stays the human name while switching ≥2 views", () 
   assert.equal(currentViewCaption(result.model, null), "No named view");
   assert.equal(currentViewCaption(result.model, "missing"), "No named view");
 
-  const cooperation = switchNamedView(result.model, "applicationCooperation");
+  const cooperation = await switchNamedView(result.model, "applicationCooperation");
   assert.equal(cooperation.model, result.model);
   assert.equal(currentViewCaption(cooperation.model, cooperation.viewName), cooperation.title);
 });
@@ -56,7 +56,7 @@ test("valid-views.plein exposes two named viewpoints for the switcher", () => {
   );
 });
 
-test("research-data sample exposes ≥2 named views with human captions", () => {
+test("research-data sample exposes ≥2 named views with human captions", async () => {
   const result = loadPleinSource(
     readFixture("samples/research-data.plein"),
     "fixtures/samples/research-data.plein",
@@ -79,22 +79,22 @@ test("research-data sample exposes ≥2 named views with human captions", () => 
       "Research storage and archive",
     ],
   );
-  const landscape = browseNamedView(result.model, "researchDataLandscape");
+  const landscape = await browseNamedView(result.model, "researchDataLandscape");
   assert.equal(currentViewCaption(landscape.model, landscape.viewName), "Research data landscape");
-  const storage = switchNamedView(result.model, "researchStorageArchive");
+  const storage = await switchNamedView(result.model, "researchStorageArchive");
   assert.equal(storage.model, result.model);
   assert.equal(currentViewCaption(storage.model, storage.viewName), "Research storage and archive");
 });
 
-test("switching named views reuses the same loaded model", () => {
+test("switching named views reuses the same loaded model", async () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);
   if (!result.ok) {
     return;
   }
 
-  const structure = browseNamedView(result.model, "applicationStructure");
-  const cooperation = switchNamedView(result.model, "applicationCooperation");
+  const structure = await browseNamedView(result.model, "applicationStructure");
+  const cooperation = await switchNamedView(result.model, "applicationCooperation");
 
   assert.equal(structure.model, result.model);
   assert.equal(cooperation.model, result.model);
@@ -122,7 +122,7 @@ test("switching named views reuses the same loaded model", () => {
   assert.notEqual(structure.svg, cooperation.svg);
 });
 
-test("new view added in markup appears after reload without a code change", () => {
+test("new view added in markup appears after reload without a code change", async () => {
   const file = "fixtures/valid-views.plein";
   const original = readFixture("valid-views.plein");
   const opened = loadPleinSource(original, file);
@@ -160,7 +160,7 @@ test("new view added in markup appears after reload without a code change", () =
     "legacy-flow",
   ]);
 
-  const added = switchNamedView(reloaded.loaded.model, "legacy-flow");
+  const added = await switchNamedView(reloaded.loaded.model, "legacy-flow");
   assert.equal(added.model, reloaded.loaded.model);
   assert.equal(added.title, "Legacy flow");
   assert.deepEqual(added.membership.nodes, ["legacyBatch", "tms"]);
@@ -168,7 +168,7 @@ test("new view added in markup appears after reload without a code change", () =
   assert.match(added.svg, /data-view="legacy-flow"/);
 });
 
-test("browseNamedView tool override nests without changing the file", () => {
+test("browseNamedView tool override nests without changing the file", async () => {
   const result = loadPleinSource(
     readFixture("valid-value-stream-stages.plein"),
     "fixtures/valid-value-stream-stages.plein",
@@ -178,8 +178,8 @@ test("browseNamedView tool override nests without changing the file", () => {
     return;
   }
 
-  const fileDefault = browseNamedView(result.model, "order-to-cash");
-  const preview = browseNamedView(result.model, "order-to-cash", { nesting: "nested" });
+  const fileDefault = await browseNamedView(result.model, "order-to-cash");
+  const preview = await browseNamedView(result.model, "order-to-cash", { nesting: "nested" });
   assert.equal(fileDefault.layout.nesting, "beside");
   assert.equal(preview.layout.nesting, "nested");
   assert.equal(preview.model, result.model);
@@ -188,7 +188,24 @@ test("browseNamedView tool override nests without changing the file", () => {
   assert.equal(fileDefault.model.views[0]!.nesting, undefined);
 });
 
-test("reload keeps the current named view selected when it still exists", () => {
+test("browseNamedView tool override changes direction without changing the file", async () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const fileDefault = await browseNamedView(result.model, "applicationStructure");
+  const preview = await browseNamedView(result.model, "applicationStructure", { direction: "tb" });
+  assert.equal(fileDefault.layout.direction, "lr");
+  assert.equal(preview.layout.direction, "tb");
+  assert.equal(preview.model, result.model);
+  assert.match(preview.svg, /data-layout="tb"/);
+  assert.match(preview.svg, /data-layout-engine="elk-layered"/);
+  assert.equal(fileDefault.model.views[0]!.autoLayout, "lr");
+});
+
+test("reload keeps the current named view selected when it still exists", async () => {
   const file = "fixtures/valid-views.plein";
   const original = readFixture("valid-views.plein");
   const reloaded = reloadPleinSource(original, file, "applicationCooperation");
@@ -197,6 +214,6 @@ test("reload keeps the current named view selected when it still exists", () => 
     return;
   }
   assert.equal(reloaded.selectedView, "applicationCooperation");
-  const browsed = browseNamedView(reloaded.loaded.model, reloaded.selectedView!);
+  const browsed = await browseNamedView(reloaded.loaded.model, reloaded.selectedView!);
   assert.equal(browsed.viewName, "applicationCooperation");
 });

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="804" height="316" viewBox="0 0 804 316" data-view="catalogue-layers" data-layout="tb" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
+<svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
   <title>ArchiMate layers sample</title>
   <defs>
     <marker id="arrow-catalogue-layers" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -7,53 +7,53 @@
   </defs>
   <g class="edges">
     <g data-edge-id="planning->onTime:realizes">
-      <line x1="108" y1="184" x2="108" y2="240" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="108,76 108,132" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rates->shipper:serves">
-      <line x1="108" y1="76" x2="304" y2="132" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="332,132 332,76" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rollout->planning:realizes">
-      <line x1="696" y1="76" x2="108" y2="132" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="528,132 528,86 164,86 164,76" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
   </g>
   <g class="nodes">
-    <g data-node-id="planning" data-keyword="capability" data-layer="strategy" data-icon="capability" transform="translate(24 132)">
+    <g data-node-id="planning" data-keyword="capability" data-layer="strategy" data-icon="capability" transform="translate(52 24)">
       <title>capability — Network planning</title>
       <rect width="168" height="52" rx="8" fill="#F5DEAA" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="capability" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 13.6 H13.8 V2.4 H9.4 V6.4 H5.4 V10.4 H2.2 Z"/><path d="M5.4 13.6 V10.4 M9.4 13.6 V6.4 M5.4 10.4 H13.8 M9.4 6.4 H13.8"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Network planning</text>
     </g>
-    <g data-node-id="onTime" data-keyword="goal" data-layer="motivation" data-icon="goal" transform="translate(24 240)">
+    <g data-node-id="onTime" data-keyword="goal" data-layer="motivation" data-icon="goal" transform="translate(24 132)">
       <title>goal — On-time delivery</title>
       <rect width="168" height="52" rx="8" fill="#CCCCFF" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="goal" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.4"/><circle cx="8" cy="8" r="2.4"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">On-time delivery</text>
     </g>
-    <g data-node-id="shipper" data-keyword="businessActor" data-layer="business" data-icon="stick-figure" transform="translate(220 132)">
+    <g data-node-id="shipper" data-keyword="businessActor" data-layer="business" data-icon="stick-figure" transform="translate(248 24)">
       <title>business-actor — Shipper</title>
       <rect width="168" height="52" rx="8" fill="#FFFFB5" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="stick-figure" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.2" r="2.1"/><path d="M8 5.4 V10.4 M4.8 7.8 H11.2 M8 10.4 L5.2 14.6 M8 10.4 L10.8 14.6"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Shipper</text>
     </g>
-    <g data-node-id="rates" data-keyword="applicationComponent" data-layer="application" data-icon="component" transform="translate(24 24)">
+    <g data-node-id="rates" data-keyword="applicationComponent" data-layer="application" data-icon="component" transform="translate(248 132)">
       <title>application-component — Rate engine</title>
       <rect width="168" height="52" rx="8" fill="#B5FFFF" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="component" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="9" height="11" rx="0.5"/><rect x="2" y="4.2" width="5.2" height="2.4"/><rect x="2" y="9.2" width="5.2" height="2.4"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Rate engine</text>
     </g>
-    <g data-node-id="cloud" data-keyword="node" data-layer="technology" data-icon="node" transform="translate(220 24)">
+    <g data-node-id="cloud" data-keyword="node" data-layer="technology" data-icon="node" transform="translate(444 24)">
       <title>node — NordFreight cloud</title>
       <rect width="168" height="52" rx="8" fill="#C9E7B7" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="node" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 6.2 L8 3.4 L12.8 6.2 V12.2 L8 15 L3.2 12.2 Z"/><path d="M3.2 6.2 L8 9 L12.8 6.2 M8 9 V15"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">NordFreight cloud</text>
     </g>
-    <g data-node-id="rotterdam" data-keyword="facility" data-layer="physical" data-icon="facility" transform="translate(416 24)">
+    <g data-node-id="rotterdam" data-keyword="facility" data-layer="physical" data-icon="facility" transform="translate(640 24)">
       <title>facility — Rotterdam DC</title>
       <rect width="168" height="52" rx="8" fill="#C9E7B7" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="facility" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 13.5 H13.4 V7.2 L8 3.2 L2.6 7.2 Z"/><path d="M6.6 13.5 V10.2 H9.4 V13.5"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Rotterdam DC</text>
     </g>
-    <g data-node-id="rollout" data-keyword="workPackage" data-layer="implementation" data-icon="work-package" transform="translate(612 24)">
+    <g data-node-id="rollout" data-keyword="workPackage" data-layer="implementation" data-icon="work-package" transform="translate(444 132)">
       <title>work-package — Booking rollout</title>
       <rect width="168" height="52" rx="8" fill="#FFE0E0" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="work-package" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.4 H9.6 L14 8 L9.6 11.6 H2 Z"/></g>

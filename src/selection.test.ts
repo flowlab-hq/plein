@@ -61,7 +61,7 @@ test("list row selection maps back to the same diagram item", () => {
   assert.equal(relationshipId({ source: "booking", target: "rates", type: "serves" }), fromList.id);
 });
 
-test("nested container background selects the parent; child node selects the child", () => {
+test("nested container background selects the parent; child node selects the child", async () => {
   const result = loadPleinSource(
     readFixture("samples/value-stream-demo.plein"),
     "fixtures/samples/value-stream-demo.plein",
@@ -71,7 +71,7 @@ test("nested container background selects the parent; child node selects the chi
     return;
   }
 
-  const browsed = browseNamedView(result.model, "strategy");
+  const browsed = await browseNamedView(result.model, "strategy");
   assert.match(browsed.svg, /data-node-id="quote"[^>]*data-parent-id="quoteToCash"/);
   assert.match(browsed.svg, /data-container-id="quoteToCash"/);
   assert.match(browsed.svg, /data-node-id="quoteToCash"[^>]*data-container="true"/);
@@ -126,7 +126,7 @@ test("node hit wins over edge or container when several attrs are present", () =
   );
 });
 
-test("multi-view: keep selection when the item stays in the list, drop it otherwise", () => {
+test("multi-view: keep selection when the item stays in the list, drop it otherwise", async () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);
   if (!result.ok) {
@@ -154,8 +154,8 @@ test("multi-view: keep selection when the item stays in the list, drop it otherw
   assert.equal(retainSelection(excluded, structure), null);
   assert.deepEqual(retainSelection(excluded, all), excluded);
 
-  const structureView = browseNamedView(result.model, "applicationStructure");
-  const cooperationView = switchNamedView(result.model, "applicationCooperation");
+  const structureView = await browseNamedView(result.model, "applicationStructure");
+  const cooperationView = await switchNamedView(result.model, "applicationCooperation");
   assert.equal(svgHasSelectionTarget(structureView.svg, shipment), true);
   assert.equal(svgHasSelectionTarget(cooperationView.svg, shipment), false);
   assert.equal(svgHasSelectionTarget(cooperationView.svg, tms), true);

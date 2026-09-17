@@ -13,7 +13,14 @@ import {
   viewSwitcherLabel,
 } from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
-import { edgeId, type NestingMode } from "../../src/layout.ts";
+import {
+  edgeId,
+  LAYOUT_DIRECTIONS,
+  layoutDirectionTitle,
+  type LayoutDirection,
+  type LayoutOptions,
+  type NestingMode,
+} from "../../src/layout.ts";
 import {
   retainSelection,
   selectionFromDiagramHit,
@@ -50,6 +57,7 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
+const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 
 let loaded: LoadResult | null = null;
@@ -60,6 +68,10 @@ let lastSource: string | null = null;
 let selectedItem: DiagramSelection | null = null;
 /** `file` follows the `.plein` nesting clause; nested/beside is local preview only. */
 let nestingOverride: "file" | NestingMode = "file";
+/** `file` follows the view’s `autoLayout`; tb/bt/lr/rl is local preview only. */
+let directionOverride: "file" | LayoutDirection = "file";
+/** Drop stale ELK results when the user switches views mid-layout. */
+let renderSeq = 0;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -85,7 +97,7 @@ function failOpen(file: string, error: unknown): void {
   loaded = { ok: false, file, error: formatLoadError(error) };
   selectedView = null;
   selectedItem = null;
-  render();
+  void render();
 }
 
 function setSelection(next: DiagramSelection | null): void {
@@ -105,16 +117,16 @@ function findByAttr(root: ParentNode, attr: string, value: string): Element | nu
 /** Wide transparent stroke so relationship lines are clickable. */
 function enhanceEdgeHits(svg: SVGElement): void {
   for (const group of svg.querySelectorAll("[data-edge-id]")) {
-    const line = group.querySelector("line");
-    if (!line || group.querySelector("line.edge-hit")) {
+    const stroke = group.querySelector("polyline, line, path");
+    if (!stroke || group.querySelector(".edge-hit")) {
       continue;
     }
-    const hit = line.cloneNode() as SVGLineElement;
+    const hit = stroke.cloneNode() as SVGElement;
     hit.removeAttribute("marker-end");
     hit.setAttribute("stroke", "transparent");
     hit.setAttribute("stroke-width", "12");
     hit.classList.add("edge-hit");
-    group.insertBefore(hit, line);
+    group.insertBefore(hit, stroke);
   }
 }
 
@@ -168,6 +180,52 @@ function namedViewForDiagram(): string | null {
   return lastNamedView ?? firstNamedView(loaded.model);
 }
 
+function previewLayoutOptions(): LayoutOptions | undefined {
+  const options: LayoutOptions = {};
+  if (nestingOverride !== "file") {
+    options.nesting = nestingOverride;
+  }
+  if (directionOverride !== "file") {
+    options.direction = directionOverride;
+  }
+  return options.nesting || options.direction ? options : undefined;
+}
+
+function radioButton(
+  checked: boolean,
+  label: string,
+  title: string,
+  onSelect: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.setAttribute("role", "radio");
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute("aria-checked", checked ? "true" : "false");
+  button.addEventListener("click", onSelect);
+  return button;
+}
+
+function renderDirectionSwitcher(): void {
+  const choices: Array<{ id: "file" | LayoutDirection; label: string; title: string }> = [
+    { id: "file", label: "File", title: "Use autoLayout from the open view" },
+    ...LAYOUT_DIRECTIONS.map((direction) => ({
+      id: direction,
+      label: direction.toUpperCase(),
+      title: layoutDirectionTitle(direction),
+    })),
+  ];
+  directionSwitcher.replaceChildren(
+    ...choices.map((choice) =>
+      radioButton(choice.id === directionOverride, choice.label, choice.title, () => {
+        directionOverride = choice.id;
+        void render();
+      }),
+    ),
+  );
+}
+
 function renderNestingSwitcher(): void {
   const choices: Array<{ id: "file" | NestingMode; label: string }> = [
     { id: "file", label: "File default" },
@@ -175,18 +233,19 @@ function renderNestingSwitcher(): void {
     { id: "beside", label: "Beside" },
   ];
   nestingSwitcher.replaceChildren(
-    ...choices.map((choice) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.setAttribute("role", "radio");
-      button.textContent = choice.label;
-      button.setAttribute("aria-checked", choice.id === nestingOverride ? "true" : "false");
-      button.addEventListener("click", () => {
-        nestingOverride = choice.id;
-        render();
-      });
-      return button;
-    }),
+    ...choices.map((choice) =>
+      radioButton(
+        choice.id === nestingOverride,
+        choice.label,
+        choice.id === "file"
+          ? "Use nesting from the open view"
+          : `${choice.label} preview — not written back to the file`,
+        () => {
+          nestingOverride = choice.id;
+          void render();
+        },
+      ),
+    ),
   );
 }
 
@@ -201,7 +260,8 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
   }
 }
 
-function renderDiagram(): void {
+async function renderDiagram(seq: number): Promise<void> {
+  renderDirectionSwitcher();
   renderNestingSwitcher();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);
@@ -220,17 +280,30 @@ function renderDiagram(): void {
     return;
   }
 
-  const options = nestingOverride === "file" ? undefined : { nesting: nestingOverride };
-  const browsed = browseNamedView(loaded.model, viewName, options);
-  setCurrentViewChrome(browsed.title, browsed.viewName);
-  diagram.innerHTML = browsed.svg;
-  const svg = diagram.querySelector("svg");
-  if (svg) {
-    enhanceEdgeHits(svg);
+  try {
+    const browsed = await browseNamedView(loaded.model, viewName, previewLayoutOptions());
+    if (seq !== renderSeq) {
+      return;
+    }
+    setCurrentViewChrome(browsed.title, browsed.viewName);
+    diagram.innerHTML = browsed.svg;
+    const svg = diagram.querySelector("svg");
+    if (svg) {
+      enhanceEdgeHits(svg);
+    }
+  } catch (error) {
+    if (seq !== renderSeq) {
+      return;
+    }
+    const hint = document.createElement("p");
+    hint.className = "diagram-empty";
+    hint.textContent = error instanceof Error ? error.message : String(error);
+    diagram.replaceChildren(hint);
   }
 }
 
-function render(): void {
+async function render(): Promise<void> {
+  const seq = ++renderSeq;
   reloadButton.disabled = loaded === null;
 
   if (!loaded) {
@@ -241,7 +314,7 @@ function render(): void {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
-    renderDiagram();
+    await renderDiagram(seq);
     return;
   }
 
@@ -254,7 +327,7 @@ function render(): void {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
-    renderDiagram();
+    await renderDiagram(seq);
     return;
   }
 
@@ -331,8 +404,10 @@ function render(): void {
     }),
   );
 
-  renderDiagram();
-  paintSelection();
+  await renderDiagram(seq);
+  if (seq === renderSeq) {
+    paintSelection();
+  }
 }
 
 function buttonForView(options: {
@@ -370,7 +445,7 @@ function buttonForView(options: {
     if (loaded?.ok) {
       selectedItem = retainSelection(selectedItem, filterModel(loaded.model, selectedView));
     }
-    render();
+    void render();
   });
   item.append(button);
   return item;
@@ -390,7 +465,7 @@ function openSource(source: string, file: string): void {
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
   selectedItem = null;
-  render();
+  void render();
 }
 
 function applyReload(source: string, file: string): void {
@@ -402,7 +477,7 @@ function applyReload(source: string, file: string): void {
   selectedItem = loaded.ok
     ? retainSelection(selectedItem, filterModel(loaded.model, selectedView))
     : null;
-  render();
+  void render();
 }
 
 async function openFromTauriDialog(): Promise<void> {
@@ -562,7 +637,7 @@ async function boot(): Promise<void> {
       void reloadOpen();
     });
   }
-  render();
+  void render();
 }
 
 void boot();

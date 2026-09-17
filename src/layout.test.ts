@@ -5,12 +5,17 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  LAYOUT_ENGINE,
   NEST_HEADER_HEIGHT,
   layoutViewpoint,
   membershipOf,
+  parseLayoutDirection,
+  isLayoutDirectionToken,
   renderViewpointSvg,
+  resolveLayoutDirection,
   svgMembership,
   svgNodeStyles,
+  type LayoutDirection,
   type LayoutNode,
 } from "./layout.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
@@ -20,7 +25,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 type GoldenMembership = {
   file: string;
   view: string;
-  direction: "tb" | "lr";
+  direction: "tb" | "bt" | "lr" | "rl";
   nodes: string[];
   edges: string[];
   excludedEdges: string[];
@@ -36,7 +41,7 @@ function loadGolden(): GoldenMembership {
   ) as GoldenMembership;
 }
 
-test("golden applicationStructure layout membership matches include/exclude", () => {
+test("golden applicationStructure layout membership matches include/exclude", async () => {
   const golden = loadGolden();
   const result = loadPleinSource(readFixture("valid-views.plein"), golden.file);
   assert.equal(result.ok, true);
@@ -44,7 +49,7 @@ test("golden applicationStructure layout membership matches include/exclude", ()
     return;
   }
 
-  const layout = layoutViewpoint(result.model, golden.view);
+  const layout = await layoutViewpoint(result.model, golden.view);
   const membership = membershipOf(layout);
   const list = filterModel(result.model, golden.view);
 
@@ -74,7 +79,7 @@ test("golden applicationStructure layout membership matches include/exclude", ()
   );
 });
 
-test("golden applicationStructure SVG carries the same include/exclude membership", () => {
+test("golden applicationStructure SVG carries the same include/exclude membership", async () => {
   const golden = loadGolden();
   const result = loadPleinSource(readFixture("valid-views.plein"), golden.file);
   assert.equal(result.ok, true);
@@ -82,12 +87,13 @@ test("golden applicationStructure SVG carries the same include/exclude membershi
     return;
   }
 
-  const layout = layoutViewpoint(result.model, golden.view);
+  const layout = await layoutViewpoint(result.model, golden.view);
   const svg = renderViewpointSvg(layout);
   const fromSvg = svgMembership(svg);
 
   assert.match(svg, /data-view="applicationStructure"/);
   assert.match(svg, /data-layout="lr"/);
+  assert.match(svg, /data-layout-engine="elk-layered"/);
   assert.deepEqual(fromSvg.nodes, golden.nodes);
   assert.deepEqual(fromSvg.edges, golden.edges);
   for (const excluded of golden.excludedEdges) {
@@ -96,7 +102,7 @@ test("golden applicationStructure SVG carries the same include/exclude membershi
   }
 });
 
-test("lr autoLayout places later ranks further to the right", () => {
+test("lr autoLayout places later ranks further to the right", async () => {
   const result = loadPleinSource(
     readFixture("valid-views.plein"),
     "fixtures/valid-views.plein",
@@ -106,7 +112,7 @@ test("lr autoLayout places later ranks further to the right", () => {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, "applicationStructure");
+  const layout = await layoutViewpoint(result.model, "applicationStructure");
   const tms = layout.nodes.find((node) => node.id === "tms");
   const bookingApi = layout.nodes.find((node) => node.id === "bookingApi");
   const shipment = layout.nodes.find((node) => node.id === "shipment");
@@ -116,7 +122,7 @@ test("lr autoLayout places later ranks further to the right", () => {
   assert.ok(bookingApi.x < shipment.x);
 });
 
-test("booking-context on valid-basic.plein layouts the include list", () => {
+test("booking-context on valid-basic.plein layouts the include list", async () => {
   const result = loadPleinSource(
     readFixture("valid-basic.plein"),
     "fixtures/valid-basic.plein",
@@ -126,13 +132,13 @@ test("booking-context on valid-basic.plein layouts the include list", () => {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, "booking-context");
+  const layout = await layoutViewpoint(result.model, "booking-context");
   assert.deepEqual(membershipOf(layout).nodes, ["booking", "order", "rates", "shipper"]);
   assert.equal(layout.edges.length, 4);
   assert.equal(layout.direction, "tb");
 });
 
-test("exclude wins over include in the layout graph", () => {
+test("exclude wins over include in the layout graph", async () => {
   const source = `model {
   business-actor "Shipper" as shipper
   business-service "Booking service" as booking
@@ -154,7 +160,7 @@ views {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, "context");
+  const layout = await layoutViewpoint(result.model, "context");
   assert.deepEqual(membershipOf(layout), {
     view: "context",
     direction: "tb",
@@ -167,7 +173,7 @@ views {
   );
 });
 
-test("value stream stages layout as ordinary valueStream nodes", () => {
+test("value stream stages layout as ordinary valueStream nodes", async () => {
   const result = loadPleinSource(
     readFixture("valid-value-stream-stages.plein"),
     "fixtures/valid-value-stream-stages.plein",
@@ -177,7 +183,7 @@ test("value stream stages layout as ordinary valueStream nodes", () => {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, "order-to-cash");
+  const layout = await layoutViewpoint(result.model, "order-to-cash");
   assert.deepEqual(
     layout.nodes.map((node) => node.id).slice().sort(),
     ["capture", "collect", "fulfill", "orderToCash"],
@@ -199,7 +205,7 @@ function isInside(child: LayoutNode, parent: LayoutNode): boolean {
 type GoldenNested = {
   file: string;
   view: string;
-  direction: "tb" | "lr";
+  direction: "tb" | "bt" | "lr" | "rl";
   nesting: "nested" | "beside";
   container: string;
   children: string[];
@@ -214,7 +220,7 @@ function loadNestedGolden(): GoldenNested {
   ) as GoldenNested;
 }
 
-test("default nesting is beside so existing samples stay side-by-side", () => {
+test("default nesting is beside so existing samples stay side-by-side", async () => {
   const result = loadPleinSource(
     readFixture("valid-value-stream-stages.plein"),
     "fixtures/valid-value-stream-stages.plein",
@@ -224,7 +230,7 @@ test("default nesting is beside so existing samples stay side-by-side", () => {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, "order-to-cash");
+  const layout = await layoutViewpoint(result.model, "order-to-cash");
   const parent = layout.nodes.find((node) => node.id === "orderToCash");
   const capture = layout.nodes.find((node) => node.id === "capture");
   assert.ok(parent && capture);
@@ -237,7 +243,7 @@ test("default nesting is beside so existing samples stay side-by-side", () => {
   assert.equal(svg.includes("data-container-id"), false);
 });
 
-test("quote-to-cash demo nests Quote, Book, Collect inside the parent", () => {
+test("quote-to-cash demo nests Quote, Book, Collect inside the parent", async () => {
   const golden = loadNestedGolden();
   const result = loadPleinSource(readFixture("samples/value-stream-demo.plein"), golden.file);
   assert.equal(result.ok, true);
@@ -245,7 +251,7 @@ test("quote-to-cash demo nests Quote, Book, Collect inside the parent", () => {
     return;
   }
 
-  const layout = layoutViewpoint(result.model, golden.view);
+  const layout = await layoutViewpoint(result.model, golden.view);
   const membership = membershipOf(layout);
   const svg = renderViewpointSvg(layout);
   const fromSvg = svgMembership(svg);
@@ -311,7 +317,7 @@ test("quote-to-cash demo nests Quote, Book, Collect inside the parent", () => {
   assert.equal(parentStyle.fill, "#F5DEAA");
 });
 
-test("tool override nests even when the file default is beside", () => {
+test("tool override nests even when the file default is beside", async () => {
   const result = loadPleinSource(
     readFixture("valid-value-stream-stages.plein"),
     "fixtures/valid-value-stream-stages.plein",
@@ -321,7 +327,7 @@ test("tool override nests even when the file default is beside", () => {
     return;
   }
 
-  const nested = layoutViewpoint(result.model, "order-to-cash", { nesting: "nested" });
+  const nested = await layoutViewpoint(result.model, "order-to-cash", { nesting: "nested" });
   const parent = nested.nodes.find((node) => node.id === "orderToCash");
   const capture = nested.nodes.find((node) => node.id === "capture");
   const fulfill = nested.nodes.find((node) => node.id === "fulfill");
@@ -333,7 +339,7 @@ test("tool override nests even when the file default is beside", () => {
   assert.equal(isInside(collect, parent), true);
 });
 
-test("tool override beside ignores a nested file default", () => {
+test("tool override beside ignores a nested file default", async () => {
   const result = loadPleinSource(
     readFixture("samples/value-stream-demo.plein"),
     "fixtures/samples/value-stream-demo.plein",
@@ -343,7 +349,7 @@ test("tool override beside ignores a nested file default", () => {
     return;
   }
 
-  const beside = layoutViewpoint(result.model, "strategy", { nesting: "beside" });
+  const beside = await layoutViewpoint(result.model, "strategy", { nesting: "beside" });
   const parent = beside.nodes.find((node) => node.id === "quoteToCash");
   const quote = beside.nodes.find((node) => node.id === "quote");
   assert.ok(parent && quote);
@@ -352,7 +358,7 @@ test("tool override beside ignores a nested file default", () => {
   assert.equal(isInside(quote, parent), false);
 });
 
-test("nested aggregation wraps children the same way as composition", () => {
+test("nested aggregation wraps children the same way as composition", async () => {
   const source = `model {
   grouping "Platform" as platform
   application-component "TMS" as tms
@@ -374,7 +380,7 @@ views {
   if (!result.ok) {
     return;
   }
-  const layout = layoutViewpoint(result.model, "nest");
+  const layout = await layoutViewpoint(result.model, "nest");
   const parent = layout.nodes.find((node) => node.id === "platform");
   const tms = layout.nodes.find((node) => node.id === "tms");
   const rates = layout.nodes.find((node) => node.id === "rates");
@@ -386,7 +392,7 @@ views {
   assert.ok(layout.edges.every((edge) => edge.type !== "aggregates" || edge.impliedByNest));
 });
 
-test("unknown view name is an error", () => {
+test("unknown view name is an error", async () => {
   const result = loadPleinSource(
     readFixture("valid-basic.plein"),
     "fixtures/valid-basic.plein",
@@ -395,8 +401,104 @@ test("unknown view name is an error", () => {
   if (!result.ok) {
     return;
   }
-  assert.throws(
+  await assert.rejects(
     () => layoutViewpoint(result.model, "missing-view"),
     /unknown view 'missing-view'/,
   );
+});
+
+test("parseLayoutDirection honours tb|bt|lr|rl and existing shorthand", () => {
+  assert.equal(parseLayoutDirection(undefined), "tb");
+  assert.equal(parseLayoutDirection("tb"), "tb");
+  assert.equal(parseLayoutDirection("bt"), "bt");
+  assert.equal(parseLayoutDirection("lr"), "lr");
+  assert.equal(parseLayoutDirection("rl"), "rl");
+  assert.equal(parseLayoutDirection("left-right"), "lr");
+  assert.equal(parseLayoutDirection("horizontal"), "lr");
+  assert.equal(parseLayoutDirection("top-bottom"), "tb");
+  assert.equal(parseLayoutDirection("vertical"), "tb");
+  assert.equal(parseLayoutDirection("bottom-top"), "bt");
+  assert.equal(parseLayoutDirection("right-left"), "rl");
+  assert.equal(parseLayoutDirection("LEFT-RIGHT"), "lr");
+  assert.equal(isLayoutDirectionToken("bt"), true);
+  assert.equal(isLayoutDirectionToken("left-right"), true);
+  assert.equal(isLayoutDirectionToken("sideways"), false);
+});
+
+test("autoLayout tb|bt|lr|rl places the target along the declared axis", async () => {
+  const source = `model {
+  application-component "TMS" as tms
+  application-interface "Booking API" as bookingApi
+  tms -> bookingApi: serving
+}
+views {
+  view flow {
+    include tms bookingApi
+    autoLayout tb
+  }
+}
+`;
+  const result = loadPleinSource(source, "direction-axis.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const expected: Record<LayoutDirection, (dx: number, dy: number) => boolean> = {
+    tb: (_dx, dy) => dy > 0,
+    bt: (_dx, dy) => dy < 0,
+    lr: (dx, _dy) => dx > 0,
+    rl: (dx, _dy) => dx < 0,
+  };
+
+  for (const direction of ["tb", "bt", "lr", "rl"] as const) {
+    const layout = await layoutViewpoint(result.model, "flow", { direction });
+    const tms = layout.nodes.find((node) => node.id === "tms");
+    const bookingApi = layout.nodes.find((node) => node.id === "bookingApi");
+    assert.ok(tms && bookingApi, direction);
+    assert.equal(layout.direction, direction);
+    assert.equal(resolveLayoutDirection(result.model.views[0]!, { direction }), direction);
+    const dx = bookingApi.x - tms.x;
+    const dy = bookingApi.y - tms.y;
+    assert.equal(expected[direction](dx, dy), true, `${direction} dx=${dx} dy=${dy}`);
+  }
+});
+
+test("ELK layered layout is deterministic for the same model and view", async () => {
+  const result = loadPleinSource(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const first = await layoutViewpoint(result.model, "strategy");
+  const second = await layoutViewpoint(result.model, "strategy");
+  const snapshot = (layout: typeof first) => ({
+    direction: layout.direction,
+    width: layout.width,
+    height: layout.height,
+    nodes: layout.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      parentId: node.parentId,
+      container: node.container,
+    })),
+    edges: layout.edges.map((edge) => ({
+      id: edge.id,
+      x1: edge.x1,
+      y1: edge.y1,
+      x2: edge.x2,
+      y2: edge.y2,
+      points: edge.points,
+    })),
+  });
+  assert.deepEqual(snapshot(first), snapshot(second));
+  const svg = renderViewpointSvg(first);
+  assert.match(svg, new RegExp(`data-layout-engine="${LAYOUT_ENGINE}"`));
+  assert.match(svg, /<polyline /);
 });
