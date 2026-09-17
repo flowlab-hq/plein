@@ -1,6 +1,6 @@
 import ElkJs from "elkjs/lib/elk.bundled.js";
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPoint } from "elkjs";
-import { elementStyle, renderTypeIcon } from "./archimate-style.js";
+import { elementStyle, layerOf, renderTypeIcon } from "./archimate-style.js";
 import { toKebabCaseKeyword, type ElementKeyword, type RelationshipKeyword } from "./keywords.js";
 import { filterModel } from "./list-model.js";
 import type { ElementDecl, PleinModel, RelationshipDecl, ViewDecl } from "./parser.js";
@@ -26,6 +26,30 @@ export const LAYOUT_DIRECTIONS = ["tb", "bt", "lr", "rl"] as const;
 export type LayoutDirection = (typeof LAYOUT_DIRECTIONS)[number];
 
 /**
+ * `layered` is plain ELK Layered (edge ranks). `layers` still uses ELK Layered
+ * but first partitions root nodes into ArchiMate aspect bands.
+ */
+export const LAYOUT_MODES = ["layered", "layers"] as const;
+
+export type LayoutMode = (typeof LAYOUT_MODES)[number];
+
+/**
+ * ArchiMate aspect bands used by `autoLayout layers`.
+ * Motivation/Strategy share a band; Technology/Physical share a band.
+ * `other` is composite/unknown, and is omitted when nothing maps to it.
+ */
+export const LAYER_BANDS = [
+  "motivation-strategy",
+  "business",
+  "application",
+  "technology-physical",
+  "implementation",
+  "other",
+] as const;
+
+export type LayerBand = (typeof LAYER_BANDS)[number];
+
+/**
  * How aggregation/composition children are placed.
  * Default is `beside` (side-by-side layered graph) so existing samples stay put.
  */
@@ -35,6 +59,7 @@ export type NestingMode = "beside" | "nested";
 export type LayoutOptions = {
   nesting?: NestingMode;
   direction?: LayoutDirection;
+  mode?: LayoutMode;
 };
 
 export type LayoutNode = {
@@ -76,6 +101,7 @@ export type ViewpointLayout = {
   title?: string;
   viewpoint?: string;
   direction: LayoutDirection;
+  mode: LayoutMode;
   nesting: NestingMode;
   width: number;
   height: number;
@@ -99,12 +125,15 @@ export function edgeId(source: string, target: string, type: string): string {
   return `${source}->${target}:${type}`;
 }
 
-/**
- * Canonical `tb|bt|lr|rl`. Existing shorthand (`left-right`, `horizontal`,
- * `top-bottom`, `vertical`) still maps. Unknown values fall back to `tb`.
- */
-export function parseLayoutDirection(value?: string): LayoutDirection {
-  const compact = (value ?? "tb").toLowerCase().replaceAll("_", "").replaceAll("-", "");
+function autoLayoutTokens(value?: string): string[] {
+  return (value ?? "").trim().split(/\s+/).filter((token) => token.length > 0);
+}
+
+function compactAutoLayoutToken(token: string): string {
+  return token.toLowerCase().replaceAll("_", "").replaceAll("-", "");
+}
+
+function directionFromCompact(compact: string): LayoutDirection | undefined {
   if (compact === "lr" || compact === "leftright" || compact === "horizontal") {
     return "lr";
   }
@@ -114,24 +143,59 @@ export function parseLayoutDirection(value?: string): LayoutDirection {
   if (compact === "bt" || compact === "bottomtop") {
     return "bt";
   }
+  if (compact === "tb" || compact === "topbottom" || compact === "vertical") {
+    return "tb";
+  }
+  return undefined;
+}
+
+function modeFromCompact(compact: string): LayoutMode | undefined {
+  if (compact === "layers" || compact === "layer") {
+    return "layers";
+  }
+  if (compact === "layered") {
+    return "layered";
+  }
+  return undefined;
+}
+
+/**
+ * Canonical `tb|bt|lr|rl`. Existing shorthand (`left-right`, `horizontal`,
+ * `top-bottom`, `vertical`) still maps. `autoLayout layers lr` picks `lr`;
+ * a mode-only clause (`layers`) falls back to `tb`.
+ */
+export function parseLayoutDirection(value?: string): LayoutDirection {
+  for (const token of autoLayoutTokens(value)) {
+    const direction = directionFromCompact(compactAutoLayoutToken(token));
+    if (direction) {
+      return direction;
+    }
+  }
   return "tb";
+}
+
+/**
+ * `layers` / `layer` select ArchiMate aspect bands. Anything else, including
+ * a direction-only clause, is plain ELK Layered.
+ */
+export function parseLayoutMode(value?: string): LayoutMode {
+  for (const token of autoLayoutTokens(value)) {
+    const mode = modeFromCompact(compactAutoLayoutToken(token));
+    if (mode === "layers") {
+      return "layers";
+    }
+  }
+  return "layered";
 }
 
 /** True when the DSL token is a supported autoLayout direction or shorthand. */
 export function isLayoutDirectionToken(value: string): boolean {
-  const compact = value.toLowerCase().replaceAll("_", "").replaceAll("-", "");
-  return (
-    compact === "tb" ||
-    compact === "topbottom" ||
-    compact === "vertical" ||
-    compact === "bt" ||
-    compact === "bottomtop" ||
-    compact === "lr" ||
-    compact === "leftright" ||
-    compact === "horizontal" ||
-    compact === "rl" ||
-    compact === "rightleft"
-  );
+  return directionFromCompact(compactAutoLayoutToken(value)) !== undefined;
+}
+
+/** True when the DSL token selects a layout mode (`layers` / `layered`). */
+export function isLayoutModeToken(value: string): boolean {
+  return modeFromCompact(compactAutoLayoutToken(value)) !== undefined;
 }
 
 export function layoutDirectionTitle(direction: LayoutDirection): string {
@@ -144,6 +208,35 @@ export function layoutDirectionTitle(direction: LayoutDirection): string {
       return "Left → right";
     case "rl":
       return "Right → left";
+  }
+}
+
+export function layoutModeTitle(mode: LayoutMode): string {
+  switch (mode) {
+    case "layers":
+      return "ArchiMate layer bands (Motivation/Strategy → Business → Application → Technology → Implementation)";
+    default:
+      return "ELK Layered (edge ranks)";
+  }
+}
+
+/** ArchiMate aspect band for one element keyword. */
+export function layerBandOf(keyword: string): LayerBand {
+  switch (layerOf(keyword)) {
+    case "motivation":
+    case "strategy":
+      return "motivation-strategy";
+    case "business":
+      return "business";
+    case "application":
+      return "application";
+    case "technology":
+    case "physical":
+      return "technology-physical";
+    case "implementation":
+      return "implementation";
+    default:
+      return "other";
   }
 }
 
@@ -175,12 +268,21 @@ export function resolveLayoutDirection(view: ViewDecl, options?: LayoutOptions):
   return parseLayoutDirection(view.autoLayout);
 }
 
+/** Resolve file `autoLayout` mode, then optional tool override (Mac local preview). */
+export function resolveLayoutMode(view: ViewDecl, options?: LayoutOptions): LayoutMode {
+  if (options?.mode) {
+    return options.mode;
+  }
+  return parseLayoutMode(view.autoLayout);
+}
+
 /**
  * Lay out the include/exclude set of one named view with ELK Layered.
  * Unknown view names throw. Membership is the same set `filterModel` uses.
  *
- * `options.nesting` / `options.direction` are Mac/tool overrides. The `.plein`
- * clauses are the source of truth for PRs when the override is omitted.
+ * `options.nesting` / `options.direction` / `options.mode` are Mac/tool
+ * overrides. The `.plein` clauses are the source of truth for PRs when the
+ * override is omitted.
  */
 export async function layoutViewpoint(
   model: PleinModel,
@@ -194,13 +296,21 @@ export async function layoutViewpoint(
 
   const list = filterModel(model, viewName);
   const direction = resolveLayoutDirection(view, options);
+  const mode = resolveLayoutMode(view, options);
   const nesting = resolveNestingMode(view, options);
   const nestForest =
     nesting === "nested" ? buildNestForest(list.elements, list.relationships) : emptyForest();
   const parentOf = invertForest(nestForest);
   const byId = new Map(list.elements.map((element) => [element.id, element]));
 
-  const packed = await layoutWithElk(list.elements, list.relationships, direction, nestForest, parentOf);
+  const packed = await layoutWithElk(
+    list.elements,
+    list.relationships,
+    direction,
+    nestForest,
+    parentOf,
+    mode,
+  );
 
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
@@ -237,6 +347,7 @@ export async function layoutViewpoint(
     title: view.title,
     viewpoint: view.viewpoint,
     direction,
+    mode,
     nesting,
     width: Math.max(packed.width, PADDING * 2 + NODE_WIDTH),
     height: Math.max(packed.height, PADDING * 2 + NODE_HEIGHT),
@@ -280,7 +391,7 @@ ${containerMarkup}
 `
     : "";
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-engine="${LAYOUT_ENGINE}" data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-engine="${LAYOUT_ENGINE}" data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
     <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -442,6 +553,7 @@ async function layoutWithElk(
   direction: LayoutDirection,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
+  mode: LayoutMode,
 ): Promise<PackedLayout> {
   if (elements.length === 0) {
     return {
@@ -453,7 +565,7 @@ async function layoutWithElk(
   }
 
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const graph = buildElkGraph(elements, relationships, direction, nestForest, parentOf);
+  const graph = buildElkGraph(elements, relationships, direction, nestForest, parentOf, mode);
   const laidOut = await elk.layout(graph);
   return flattenElkLayout(laidOut, byId, nestForest, parentOf);
 }
@@ -477,8 +589,10 @@ function buildElkGraph(
   direction: LayoutDirection,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
+  mode: LayoutMode,
 ): ElkNode {
   const rootIds = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
+  const partitions = mode === "layers" ? layerBandPartitions(rootIds, elements, nestForest) : null;
   const edges: ElkExtendedEdge[] = relationships
     .filter((rel) => {
       if (NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source) {
@@ -508,8 +622,13 @@ function buildElkGraph(
       "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
       "elk.separateConnectedComponents": "false",
       "elk.randomSeed": "1",
+      ...(partitions
+        ? {
+            "elk.partitioning.activate": "true",
+          }
+        : {}),
     },
-    children: rootIds.map((id) => buildElkSubtree(id, nestForest)),
+    children: rootIds.map((id) => buildElkSubtree(id, nestForest, partitions?.get(id))),
   };
   if (edges.length > 0) {
     graph.edges = edges;
@@ -517,18 +636,97 @@ function buildElkGraph(
   return graph;
 }
 
-function buildElkSubtree(id: string, nestForest: Map<string, string[]>): ElkNode {
+function buildElkSubtree(id: string, nestForest: Map<string, string[]>, partition?: number): ElkNode {
   const childIds = nestForest.get(id) ?? [];
+  const partitionOptions =
+    partition === undefined ? undefined : { "elk.partitioning.partition": String(partition) };
   if (childIds.length === 0) {
-    return { id, width: NODE_WIDTH, height: NODE_HEIGHT };
+    return {
+      id,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+      ...(partitionOptions ? { layoutOptions: partitionOptions } : {}),
+    };
   }
   return {
     id,
     layoutOptions: {
       "elk.padding": `[top=${NEST_HEADER_HEIGHT},left=${NEST_PAD},bottom=${NEST_PAD},right=${NEST_PAD}]`,
+      ...partitionOptions,
     },
     children: childIds.map((childId) => buildElkSubtree(childId, nestForest)),
   };
+}
+
+/**
+ * Compact 0..n-1 partitions for bands that actually have a **root** member.
+ * Nested children stay inside the parent and are not partitioned on their own.
+ */
+function layerBandPartitions(
+  rootIds: string[],
+  elements: ElementDecl[],
+  nestForest: Map<string, string[]>,
+): Map<string, number> {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const bandOf = new Map<string, LayerBand>();
+  for (const id of rootIds) {
+    bandOf.set(id, resolveRootLayerBand(id, byId, nestForest));
+  }
+  const present = LAYER_BANDS.filter((band) => rootIds.some((id) => bandOf.get(id) === band));
+  const index = new Map(present.map((band, partition) => [band, partition]));
+  const partitions = new Map<string, number>();
+  for (const id of rootIds) {
+    partitions.set(id, index.get(bandOf.get(id)!) ?? 0);
+  }
+  return partitions;
+}
+
+/**
+ * Nested containers are first-class: the parent gets one band, children stay
+ * inside it. Composite/unknown groupings inherit the dominant descendant band
+ * so a grouping of application components sits in Application, not `other`.
+ */
+function resolveRootLayerBand(
+  id: string,
+  byId: Map<string, ElementDecl>,
+  nestForest: Map<string, string[]>,
+): LayerBand {
+  const own = layerBandOf(byId.get(id)?.keyword ?? "unknown");
+  if (own !== "other") {
+    return own;
+  }
+  const descendantBands: LayerBand[] = [];
+  const walk = (nodeId: string): void => {
+    for (const childId of nestForest.get(nodeId) ?? []) {
+      const band = layerBandOf(byId.get(childId)?.keyword ?? "unknown");
+      if (band !== "other") {
+        descendantBands.push(band);
+      }
+      walk(childId);
+    }
+  };
+  walk(id);
+  return dominantLayerBand(descendantBands);
+}
+
+function dominantLayerBand(bands: LayerBand[]): LayerBand {
+  if (bands.length === 0) {
+    return "other";
+  }
+  const counts = new Map<LayerBand, number>();
+  for (const band of bands) {
+    counts.set(band, (counts.get(band) ?? 0) + 1);
+  }
+  let best: LayerBand = "other";
+  let bestCount = 0;
+  for (const band of LAYER_BANDS) {
+    const count = counts.get(band) ?? 0;
+    if (count > bestCount) {
+      best = band;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 function flattenElkLayout(

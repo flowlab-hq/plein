@@ -1,0 +1,36 @@
+// Multi-layer EA sample for `autoLayout layers`.
+// Business → Application → Technology must be visible as successive bands.
+// Nested `grouping` stays one container in the Application band.
+plein {
+  model {
+    goal "On-time delivery" as onTime
+    capability "Network planning" as planning
+    business-actor "Shipper" as shipper
+    business-service "Booking service" as booking
+    grouping "App platform" as platform
+    application-component "TMS" as tms
+    application-component "Rate engine" as rates
+    node "NordFreight cloud" as cloud
+    artifact "Order API" as orderApi
+    work-package "Booking rollout" as rollout
+
+    planning -> onTime: realization
+    shipper -> booking: serving
+    platform -> tms: aggregation
+    platform -> rates: aggregation
+    tms -> rates: flow
+    booking -> tms: serving
+    tms -> shipper: serving
+    cloud -> tms: serving
+    orderApi -> tms: serving
+    rollout -> planning: realization
+  }
+
+  views {
+    viewpoint layerBands "ArchiMate layer bands" {
+      include onTime planning shipper booking platform tms rates cloud orderApi rollout
+      autoLayout layers
+      nesting nested
+    }
+  }
+}

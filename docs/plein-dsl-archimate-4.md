@@ -166,7 +166,34 @@ Direction is optional. The Mac viewer lays the view out with **ELK Layered** and
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
-The Mac diagram chrome (the space left by removing the top view-switcher) can override direction for local preview. That override is not written back; the `.plein` clause is the source of truth for pull requests. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
+The Mac diagram chrome (the space left by removing the top view-switcher) can override **Mode** and **Direction** for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
+
+### Layer bands (`autoLayout layers`)
+
+Plain `autoLayout tb|bt|lr|rl` is ELK Layered ranked by edges. `autoLayout layers` still uses that engine, but first partitions **root** elements into ArchiMate aspect bands, then lays out within each band. Empty bands are omitted.
+
+```plein
+viewpoint bookingContext "Booking context" {
+  include shipper booking rates cloud
+  autoLayout layers
+}
+```
+
+`autoLayout layers lr` (or `autoLayout lr layers`) keeps the same bands and stacks them left→right. Bare `autoLayout layers` is top→bottom.
+
+| Band (in order) | Aspects present in the view |
+| --- | --- |
+| Motivation / Strategy | stakeholder, goal, capability, value-stream, … |
+| Business | business-actor, business-service, business-object, … |
+| Application | application-component, application-service, data-object, … |
+| Technology / Physical | node, artifact, facility, … |
+| Implementation | work-package, deliverable, plateau, … |
+
+Typical multi-layer views therefore show **Business → Application → Technology** as successive bands (top→bottom for `tb`, left→right for `lr`) even when serving/realization arrows point the other way.
+
+Nested containers are assigned **one** band as a whole: children stay inside the parent instead of jumping to their own aspect row. A composite `grouping` / `location` inherits the dominant descendant band (ties keep the earlier ArchiMate aspect) so a grouping of application components sits in Application. See [`fixtures/valid-layer-bands.plein`](../fixtures/valid-layer-bands.plein).
+
+The Mac chrome **Mode** control (File / Layered / Layers) previews this without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout.
 
 ### Nesting (aggregation / composition)
 

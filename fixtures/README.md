@@ -15,6 +15,7 @@ CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run che
 - `golden-catalogue-layers.json` — expected id, canonical keyword, language-reference spelling, and layer for that per-layer sample.
 - `golden-archimate-style.json` — expected layer fill and decorator icon for that per-layer sample (Mac SVG render path).
 - `golden-catalogue-layers.svg` — visual pin of that viewpoint (open in a browser). Re-render with `./scripts/render-viewpoint-svg.sh fixtures/valid-catalogue-layers.plein catalogue-layers`.
+- `valid-layer-bands.plein` — **layer-band layout** golden: Motivation/Strategy, Business, nested Application grouping, Technology, and Implementation with `autoLayout layers` + `nesting nested`. Expected to pass with exit code 0. Asserted by `src/layout.test.ts` (band order + nested container).
 - `valid-capability-value-stream.plein` — **glyph pair** golden: one `capability` and one `value-stream` so the staircase vs notched-chevron decorators can be compared. Expected to pass with exit code 0. Style pin: `golden-capability-value-stream.json` / `golden-capability-value-stream.svg` (`src/archimate-style.test.ts`).
 - `golden-capability-value-stream.json` — expected fill and decorator icon for that pair (capability ≠ value-stream).
 - `golden-capability-value-stream.svg` — visual pin of that viewpoint. Re-render with `./scripts/render-viewpoint-svg.sh fixtures/valid-capability-value-stream.plein capability-and-value-stream`.

@@ -7,12 +7,16 @@ import { fileURLToPath } from "node:url";
 import {
   LAYOUT_ENGINE,
   NEST_HEADER_HEIGHT,
+  layerBandOf,
   layoutViewpoint,
   membershipOf,
   parseLayoutDirection,
+  parseLayoutMode,
   isLayoutDirectionToken,
+  isLayoutModeToken,
   renderViewpointSvg,
   resolveLayoutDirection,
+  resolveLayoutMode,
   svgMembership,
   svgNodeStyles,
   type LayoutDirection,
@@ -94,6 +98,7 @@ test("golden applicationStructure SVG carries the same include/exclude membershi
   assert.match(svg, /data-view="applicationStructure"/);
   assert.match(svg, /data-layout="lr"/);
   assert.match(svg, /data-layout-engine="elk-layered"/);
+  assert.match(svg, /data-layout-mode="layered"/);
   assert.deepEqual(fromSvg.nodes, golden.nodes);
   assert.deepEqual(fromSvg.edges, golden.edges);
   for (const excluded of golden.excludedEdges) {
@@ -423,6 +428,9 @@ test("parseLayoutDirection honours tb|bt|lr|rl and existing shorthand", () => {
   assert.equal(isLayoutDirectionToken("bt"), true);
   assert.equal(isLayoutDirectionToken("left-right"), true);
   assert.equal(isLayoutDirectionToken("sideways"), false);
+  assert.equal(parseLayoutDirection("layers"), "tb");
+  assert.equal(parseLayoutDirection("layers lr"), "lr");
+  assert.equal(parseLayoutDirection("lr layers"), "lr");
 });
 
 test("autoLayout tb|bt|lr|rl places the target along the declared axis", async () => {
@@ -500,5 +508,155 @@ test("ELK layered layout is deterministic for the same model and view", async ()
   assert.deepEqual(snapshot(first), snapshot(second));
   const svg = renderViewpointSvg(first);
   assert.match(svg, new RegExp(`data-layout-engine="${LAYOUT_ENGINE}"`));
+  assert.match(svg, /data-layout-mode="layered"/);
   assert.match(svg, /<polyline /);
+});
+
+test("parseLayoutMode reads layers from autoLayout clauses", () => {
+  assert.equal(parseLayoutMode(undefined), "layered");
+  assert.equal(parseLayoutMode("tb"), "layered");
+  assert.equal(parseLayoutMode("layered"), "layered");
+  assert.equal(parseLayoutMode("layers"), "layers");
+  assert.equal(parseLayoutMode("layer"), "layers");
+  assert.equal(parseLayoutMode("layers lr"), "layers");
+  assert.equal(parseLayoutMode("lr layers"), "layers");
+  assert.equal(isLayoutModeToken("layers"), true);
+  assert.equal(isLayoutModeToken("layered"), true);
+  assert.equal(isLayoutModeToken("tb"), false);
+  assert.equal(layerBandOf("business-actor"), "business");
+  assert.equal(layerBandOf("applicationComponent"), "application");
+  assert.equal(layerBandOf("node"), "technology-physical");
+  assert.equal(layerBandOf("facility"), "technology-physical");
+  assert.equal(layerBandOf("capability"), "motivation-strategy");
+  assert.equal(layerBandOf("goal"), "motivation-strategy");
+  assert.equal(layerBandOf("work-package"), "implementation");
+  assert.equal(layerBandOf("grouping"), "other");
+});
+
+test("autoLayout layers ranks Business above Application above Technology", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-layer-bands.plein"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = await layoutViewpoint(result.model, "layerBands");
+  const svg = renderViewpointSvg(layout);
+  const onTime = layout.nodes.find((node) => node.id === "onTime");
+  const planning = layout.nodes.find((node) => node.id === "planning");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const booking = layout.nodes.find((node) => node.id === "booking");
+  const platform = layout.nodes.find((node) => node.id === "platform");
+  const tms = layout.nodes.find((node) => node.id === "tms");
+  const rates = layout.nodes.find((node) => node.id === "rates");
+  const cloud = layout.nodes.find((node) => node.id === "cloud");
+  const orderApi = layout.nodes.find((node) => node.id === "orderApi");
+  const rollout = layout.nodes.find((node) => node.id === "rollout");
+  assert.ok(onTime && planning && shipper && booking && platform && tms && rates && cloud && orderApi && rollout);
+
+  assert.equal(layout.mode, "layers");
+  assert.equal(layout.direction, "tb");
+  assert.equal(layout.nesting, "nested");
+  assert.match(svg, /data-layout-mode="layers"/);
+  assert.match(svg, /data-layout-engine="elk-layered"/);
+
+  const motivationBottom = Math.max(onTime.y + onTime.height, planning.y + planning.height);
+  const businessTop = Math.min(shipper.y, booking.y);
+  const businessBottom = Math.max(shipper.y + shipper.height, booking.y + booking.height);
+  const applicationTop = platform.y;
+  const applicationBottom = platform.y + platform.height;
+  const technologyTop = Math.min(cloud.y, orderApi.y);
+  const technologyBottom = Math.max(cloud.y + cloud.height, orderApi.y + orderApi.height);
+
+  assert.ok(motivationBottom <= businessTop, "Motivation/Strategy band sits above Business");
+  assert.ok(businessBottom <= applicationTop, "Business band sits above Application");
+  assert.ok(applicationBottom <= technologyTop, "Application band sits above Technology");
+  assert.ok(technologyBottom <= rollout.y, "Technology band sits above Implementation");
+
+  assert.equal(platform.container, true);
+  assert.equal(tms.parentId, "platform");
+  assert.equal(rates.parentId, "platform");
+  assert.equal(isInside(tms, platform), true);
+  assert.equal(isInside(rates, platform), true);
+  assert.ok(tms.y < rollout.y, "nested application child does not jump to Implementation");
+  assert.ok(cloud.y > platform.y, "nested container stays in Application, not Technology");
+});
+
+test("autoLayout layers lr places Business left of Application left of Technology", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-layer-bands.plein"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = await layoutViewpoint(result.model, "layerBands", { direction: "lr" });
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const platform = layout.nodes.find((node) => node.id === "platform");
+  const cloud = layout.nodes.find((node) => node.id === "cloud");
+  assert.ok(shipper && platform && cloud);
+  assert.equal(layout.mode, "layers");
+  assert.equal(layout.direction, "lr");
+  assert.ok(shipper.x + shipper.width <= platform.x, "Business left of Application");
+  assert.ok(platform.x + platform.width <= cloud.x, "Application left of Technology");
+});
+
+test("layers mode keeps a mixed-aspect child inside its nested parent", async () => {
+  const source = `model {
+  business-collaboration "Booking team" as team
+  application-component "TMS" as tms
+  business-actor "Shipper" as shipper
+  node "Cloud" as cloud
+  team -> tms: composition
+  tms -> shipper: serving
+  cloud -> tms: serving
+}
+views {
+  view mixed {
+    include team tms shipper cloud
+    autoLayout layers
+    nesting nested
+  }
+}
+`;
+  const result = loadPleinSource(source, "mixed-nest-bands.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "mixed");
+  const team = layout.nodes.find((node) => node.id === "team");
+  const tms = layout.nodes.find((node) => node.id === "tms");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const cloud = layout.nodes.find((node) => node.id === "cloud");
+  assert.ok(team && tms && shipper && cloud);
+  assert.equal(tms.parentId, "team");
+  assert.equal(isInside(tms, team), true, "application child stays inside the business container");
+  assert.ok(
+    Math.max(team.y + team.height, shipper.y + shipper.height) <= cloud.y,
+    "Business container + sibling stay above Technology",
+  );
+});
+
+test("layers file default is unchanged by a layered tool override", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-layer-bands.plein"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const fileDefault = await layoutViewpoint(result.model, "layerBands");
+  const preview = await layoutViewpoint(result.model, "layerBands", { mode: "layered" });
+  assert.equal(fileDefault.mode, "layers");
+  assert.equal(preview.mode, "layered");
+  assert.equal(result.model.views[0]!.autoLayout, "layers");
+  assert.equal(resolveLayoutMode(result.model.views[0]!), "layers");
+  assert.equal(resolveLayoutMode(result.model.views[0]!, { mode: "layered" }), "layered");
 });

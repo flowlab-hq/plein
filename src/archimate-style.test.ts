@@ -167,6 +167,7 @@ test("renderViewpointSvg paints the unknown default for an unsupported keyword",
   const layout: ViewpointLayout = {
     viewName: "unknown-types",
     direction: "tb",
+    mode: "layered",
     nesting: "beside",
     width: 216,
     height: 100,

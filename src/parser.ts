@@ -71,6 +71,7 @@ const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
 const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
 const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
+const LAYOUT_MODE_TOKENS = new Set(["layers", "layer", "layered"]);
 const LAYOUT_DIRECTION_TOKENS = new Set([
   "tb",
   "bt",
@@ -500,20 +501,11 @@ class Parser {
       }
       if (this.checkIdent("autoLayout")) {
         this.advance();
-        if (this.check("ident") && !this.isViewClauseStart()) {
-          const direction = this.advance();
-          if (!LAYOUT_DIRECTION_TOKENS.has(direction.value)) {
-            throw new ParseError(
-              `unknown autoLayout direction '${direction.value}' (expected tb, bt, lr, or rl)`,
-              this.file,
-              direction.line,
-              direction.column,
-            );
-          }
-          view.autoLayout = direction.value;
-        } else {
-          view.autoLayout = "tb";
+        const tokens: Token[] = [];
+        while (this.check("ident") && !this.isViewClauseStart()) {
+          tokens.push(this.advance());
         }
+        view.autoLayout = this.parseAutoLayoutTokens(tokens);
         continue;
       }
       if (this.checkIdent("nesting")) {
@@ -574,6 +566,61 @@ class Parser {
   private isViewClauseStart(): boolean {
     const token = this.peek();
     return token.kind === "ident" && VIEW_CLAUSES.has(token.value);
+  }
+
+  /**
+   * `autoLayout` tokens are a layout mode (`layers` / `layered`) and/or a
+   * direction (`tb|bt|lr|rl` and shorthand), in either order.
+   * Bare `autoLayout` remains `tb` (plain ELK Layered, top→bottom).
+   */
+  private parseAutoLayoutTokens(tokens: Token[]): string {
+    if (tokens.length === 0) {
+      return "tb";
+    }
+    if (tokens.length > 2) {
+      const extra = tokens[2]!;
+      throw new ParseError(
+        `too many autoLayout tokens '${extra.value}' (expected layers and/or tb, bt, lr, or rl)`,
+        this.file,
+        extra.line,
+        extra.column,
+      );
+    }
+    let mode: Token | undefined;
+    let direction: Token | undefined;
+    for (const token of tokens) {
+      if (LAYOUT_MODE_TOKENS.has(token.value)) {
+        if (mode) {
+          throw new ParseError(
+            `duplicate autoLayout mode '${token.value}'`,
+            this.file,
+            token.line,
+            token.column,
+          );
+        }
+        mode = token;
+        continue;
+      }
+      if (LAYOUT_DIRECTION_TOKENS.has(token.value)) {
+        if (direction) {
+          throw new ParseError(
+            `duplicate autoLayout direction '${token.value}'`,
+            this.file,
+            token.line,
+            token.column,
+          );
+        }
+        direction = token;
+        continue;
+      }
+      throw new ParseError(
+        `unknown autoLayout token '${token.value}' (expected layers, or tb, bt, lr, or rl)`,
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    return tokens.map((token) => token.value).join(" ");
   }
 
   private skipBlock(): void {
