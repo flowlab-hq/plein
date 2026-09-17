@@ -7,6 +7,7 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 ## Documentation
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
+* [Mac-app / LLM formatting pitfalls](docs/plein-dsl-archimate-4.md#mac-app-authoring-wrong-vs-right) — header is only `plein {`; labeled elements need `as id`; kebab-case keywords; `id -> id: serving`; unique `viewpoint` ids; copy-paste example with two views.
 * [ArchiMate type colours and icons](docs/archimate-style.md) — layer fills and decorator glyphs used by the Mac SVG renderer.
 * [Repo layout — models, fixtures, and PR review](docs/repo-layout.md) — where `.plein` files live, how to add golden/fail fixtures, and how pull requests review them (Mac-friendly).
 
@@ -27,6 +28,8 @@ npx plein check fixtures/broken-syntax.plein
 How to add a fixture, golden JSON pins, Homebrew/`./scripts/mac/smoke.sh`, and the review checklist: [docs/repo-layout.md](docs/repo-layout.md). Catalogue: [fixtures/README.md](fixtures/README.md).
 
 ## Sample model
+
+Copy-paste `.plein` for a human or LLM: follow [Mac-app / LLM formatting pitfalls](docs/plein-dsl-archimate-4.md#mac-app-authoring-wrong-vs-right) (`plein {`, `as id`, unique `viewpoint` names). Golden patterns: this sample and [`fixtures/valid-views.plein`](fixtures/valid-views.plein).
 
 [fixtures/samples/value-stream-demo.plein](fixtures/samples/value-stream-demo.plein) is a NordFreight **quote-to-cash** demo: one `value-stream` with nested stages that `flowsTo` / `triggers` each other **inside** the parent (`nesting nested` on the viewpoint), two `capability` elements that `serves` those stages, and two `application-component` elements that `realizes` the capabilities. Open it in the Mac app or check it:
 
