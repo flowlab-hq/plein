@@ -104,7 +104,7 @@ views {
     () => checkPlein(source, "bad-direction.plein"),
     (error: unknown) => {
       assert.ok(error instanceof ParseError);
-      assert.match(error.message, /bad-direction\.plein:\d+:\d+: unknown autoLayout direction 'sideways'/);
+      assert.match(error.message, /bad-direction\.plein:\d+:\d+: unknown autoLayout token 'sideways'/);
       return true;
     },
   );
@@ -123,6 +123,36 @@ views {
 `;
   const model = checkPlein(source, "bare-autolayout.plein");
   assert.equal(model.views[0]!.autoLayout, "tb");
+});
+
+test("autoLayout layers accepts an optional direction in either order", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view bands {
+    include shipper
+    autoLayout layers
+  }
+  view bandsRight {
+    include shipper
+    autoLayout layers lr
+  }
+  view rightBands {
+    include shipper
+    autoLayout left-right layers
+  }
+  view explicit {
+    include shipper
+    autoLayout layered tb
+  }
+}
+`;
+  const model = checkPlein(source, "layer-bands.plein");
+  assert.deepEqual(
+    model.views.map((view) => view.autoLayout),
+    ["layers", "layers lr", "left-right layers", "layered tb"],
+  );
 });
 
 test("unknown nesting mode is a line diagnostic", () => {

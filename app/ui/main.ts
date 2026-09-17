@@ -16,8 +16,11 @@ import { elementStyle } from "../../src/archimate-style.ts";
 import {
   edgeId,
   LAYOUT_DIRECTIONS,
+  LAYOUT_MODES,
   layoutDirectionTitle,
+  layoutModeTitle,
   type LayoutDirection,
+  type LayoutMode,
   type LayoutOptions,
   type NestingMode,
 } from "../../src/layout.ts";
@@ -57,6 +60,7 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
+const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 
@@ -70,6 +74,8 @@ let selectedItem: DiagramSelection | null = null;
 let nestingOverride: "file" | NestingMode = "file";
 /** `file` follows the view’s `autoLayout`; tb/bt/lr/rl is local preview only. */
 let directionOverride: "file" | LayoutDirection = "file";
+/** `file` follows the view’s `autoLayout`; layered/layers is local preview only. */
+let modeOverride: "file" | LayoutMode = "file";
 /** Drop stale ELK results when the user switches views mid-layout. */
 let renderSeq = 0;
 
@@ -188,7 +194,10 @@ function previewLayoutOptions(): LayoutOptions | undefined {
   if (directionOverride !== "file") {
     options.direction = directionOverride;
   }
-  return options.nesting || options.direction ? options : undefined;
+  if (modeOverride !== "file") {
+    options.mode = modeOverride;
+  }
+  return options.nesting || options.direction || options.mode ? options : undefined;
 }
 
 function radioButton(
@@ -205,6 +214,25 @@ function radioButton(
   button.setAttribute("aria-checked", checked ? "true" : "false");
   button.addEventListener("click", onSelect);
   return button;
+}
+
+function renderModeSwitcher(): void {
+  const choices: Array<{ id: "file" | LayoutMode; label: string; title: string }> = [
+    { id: "file", label: "File", title: "Use autoLayout from the open view" },
+    ...LAYOUT_MODES.map((mode) => ({
+      id: mode,
+      label: mode === "layers" ? "Layers" : "Layered",
+      title: layoutModeTitle(mode),
+    })),
+  ];
+  modeSwitcher.replaceChildren(
+    ...choices.map((choice) =>
+      radioButton(choice.id === modeOverride, choice.label, choice.title, () => {
+        modeOverride = choice.id;
+        void render();
+      }),
+    ),
+  );
 }
 
 function renderDirectionSwitcher(): void {
@@ -261,6 +289,7 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
 }
 
 async function renderDiagram(seq: number): Promise<void> {
+  renderModeSwitcher();
   renderDirectionSwitcher();
   renderNestingSwitcher();
   if (!loaded?.ok) {

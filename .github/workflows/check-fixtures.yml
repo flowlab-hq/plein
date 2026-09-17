@@ -6,8 +6,8 @@
 # and must stay aligned with fixtures/README.md (Moss).
 #
 #   golden:        valid-basic, valid-views, valid-catalogue-layers,
-#                  valid-value-stream-stages, samples/value-stream-demo,
-#                  samples/research-data
+#                  valid-layer-bands, valid-value-stream-stages,
+#                  samples/value-stream-demo, samples/research-data
 #   expected-fail: broken-syntax, unknown-keyword, malformed-views,
 #                  invalid-value-stream-nesting, unknown-value-stream-step
 name: Check fixtures

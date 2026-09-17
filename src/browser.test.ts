@@ -202,7 +202,27 @@ test("browseNamedView tool override changes direction without changing the file"
   assert.equal(preview.model, result.model);
   assert.match(preview.svg, /data-layout="tb"/);
   assert.match(preview.svg, /data-layout-engine="elk-layered"/);
+  assert.match(preview.svg, /data-layout-mode="layered"/);
   assert.equal(fileDefault.model.views[0]!.autoLayout, "lr");
+});
+
+test("browseNamedView tool override changes layout mode without changing the file", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-layer-bands.plein"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const fileDefault = await browseNamedView(result.model, "layerBands");
+  const preview = await browseNamedView(result.model, "layerBands", { mode: "layered" });
+  assert.equal(fileDefault.layout.mode, "layers");
+  assert.equal(preview.layout.mode, "layered");
+  assert.match(fileDefault.svg, /data-layout-mode="layers"/);
+  assert.match(preview.svg, /data-layout-mode="layered"/);
+  assert.equal(fileDefault.model.views[0]!.autoLayout, "layers");
 });
 
 test("reload keeps the current named view selected when it still exists", async () => {
