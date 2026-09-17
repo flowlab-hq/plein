@@ -1,0 +1,53 @@
+// Research-data / ePrints / Arkivum sample (Arran ArchiMate reference).
+// Business (yellow), application (cyan), technology (green). Open in the Mac app
+// (v0.1.5+) and switch the named views — the current view name sits above the canvas.
+plein {
+  model {
+    business-actor "General Public" as generalPublic
+    business-process "Find published research" as findPublishedResearch
+    business-process "Request access to research data" as requestAccess
+
+    application-component "Research Project" as researchProject
+    data-object "Research Paper/Journal" as researchPaper
+    data-object "Research Data" as researchDataConcept
+    application-component "Sussex Research Online - ePrints" as eprints
+
+    artifact "Research Data" as researchDataArtifact
+    technology-service "File Storage" as fileStorage
+    technology-service "Archive" as archive
+    node "Research Storage Platform" as researchStoragePlatform
+    system-software "Arkivum" as arkivum
+
+    generalPublic -> findPublishedResearch: triggering
+    findPublishedResearch -> requestAccess: triggering
+
+    researchProject -> researchPaper: aggregation
+    researchProject -> researchDataConcept: aggregation
+    eprints -> researchPaper: association
+    eprints -> findPublishedResearch: serving
+
+    researchDataArtifact -> researchDataConcept: realization
+    researchDataArtifact -> fileStorage: association
+    researchStoragePlatform -> fileStorage: realization
+    arkivum -> archive: realization
+    // Archi relationship name: Manual Process
+    requestAccess -> researchDataArtifact: association
+  }
+
+  views {
+    viewpoint researchDataLandscape "Research data landscape" {
+      include generalPublic, findPublishedResearch, requestAccess, researchProject, researchPaper, researchDataConcept, eprints, researchDataArtifact, fileStorage, archive, researchStoragePlatform, arkivum
+      autoLayout tb
+    }
+
+    viewpoint publishedResearchAccess "Published research access" {
+      include generalPublic, findPublishedResearch, requestAccess, researchProject, researchPaper, researchDataConcept, eprints
+      autoLayout tb
+    }
+
+    viewpoint researchStorageArchive "Research storage and archive" {
+      include researchDataArtifact, fileStorage, archive, researchStoragePlatform, arkivum
+      autoLayout tb
+    }
+  }
+}

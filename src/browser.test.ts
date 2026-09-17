@@ -56,6 +56,36 @@ test("valid-views.plein exposes two named viewpoints for the switcher", () => {
   );
 });
 
+test("research-data sample exposes ≥2 named views with human captions", () => {
+  const result = loadPleinSource(
+    readFixture("samples/research-data.plein"),
+    "fixtures/samples/research-data.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  assert.equal(result.model.views.length >= 2, true);
+  assert.deepEqual(namedViewNames(result.model), [
+    "researchDataLandscape",
+    "publishedResearchAccess",
+    "researchStorageArchive",
+  ]);
+  assert.deepEqual(
+    namedViews(result.model).map((view) => viewSwitcherLabel(view)),
+    [
+      "Research data landscape",
+      "Published research access",
+      "Research storage and archive",
+    ],
+  );
+  const landscape = browseNamedView(result.model, "researchDataLandscape");
+  assert.equal(currentViewCaption(landscape.model, landscape.viewName), "Research data landscape");
+  const storage = switchNamedView(result.model, "researchStorageArchive");
+  assert.equal(storage.model, result.model);
+  assert.equal(currentViewCaption(storage.model, storage.viewName), "Research storage and archive");
+});
+
 test("switching named views reuses the same loaded model", () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);

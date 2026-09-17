@@ -31,7 +31,7 @@ Canonical golden / fail pair for `plein check`:
 | Golden | [`fixtures/valid-basic.plein`](../fixtures/valid-basic.plein) | exit 0, `ok fixtures/valid-basic.plein (...)` |
 | Expected-fail | [`fixtures/broken-syntax.plein`](../fixtures/broken-syntax.plein) | non-zero, `file:line:column` diagnostic on stderr |
 
-Other golden files (`valid-views.plein`, `valid-catalogue-layers.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md). Render colours/icons: [`docs/archimate-style.md`](archimate-style.md).
+Other golden files (`valid-views.plein`, `valid-catalogue-layers.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`, `samples/research-data.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md). Render colours/icons: [`docs/archimate-style.md`](archimate-style.md).
 
 `.plein` files are UTF-8 text with `/` paths. Use those relative paths from the repo root on macOS and Linux. Do not use Windows `\` paths or `C:\` prefixes.
 

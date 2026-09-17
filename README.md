@@ -34,6 +34,12 @@ How to add a fixture, golden JSON pins, Homebrew/`./scripts/mac/smoke.sh`, and t
 plein check fixtures/samples/value-stream-demo.plein
 ```
 
+[fixtures/samples/research-data.plein](fixtures/samples/research-data.plein) is the **research-data / ePrints / Arkivum** sample (business find/request-access, application project and Sussex Research Online – ePrints, technology File Storage / Arkivum). It has three named views (**Research data landscape**, **Published research access**, **Research storage and archive**) so the Mac app can switch viewpoints with the current view name above the canvas:
+
+```bash
+plein check fixtures/samples/research-data.plein
+```
+
 ## Download the Mac app (Apple Silicon `.dmg`)
 
 The GUI ships as an **Apple Silicon** `.dmg` on [GitHub Releases](https://github.com/flowlab-hq/plein/releases). Install and launch **without Node or npm**. Intel Macs are out of scope (untested; no x64 `.dmg`).
