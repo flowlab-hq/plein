@@ -57,6 +57,10 @@ test("Mac UI keeps the current view name visible outside the scrollable canvas",
   assert.ok(currentView < heading && heading < canvas, "view name sits above the canvas, not inside it");
   assert.match(html, /aria-live="polite"/);
   assert.equal(html.includes('class="diagram-toolbar"'), false, "wrapping toolbar no longer hides the name among tabs");
+  assert.equal(html.includes('id="diagram-views"'), false, "top named-view tablist is gone");
+  assert.equal(html.includes('class="view-switcher"'), false, "top view-switcher chrome is gone");
+  assert.equal(html.includes('role="tablist"'), false, "no tablist switcher above the canvas");
+  assert.match(html, /id="view-list"/);
 
   const chrome = css.match(/\.diagram-chrome\s*\{[^}]+\}/);
   assert.ok(chrome, "diagram-chrome rule exists");
@@ -70,6 +74,29 @@ test("Mac UI keeps the current view name visible outside the scrollable canvas",
   assert.match(ui, /Showing/);
   assert.match(ui, /currentViewCaption/);
   assert.match(ui, /label: viewSwitcherLabel\(view\)/);
+  assert.equal(ui.includes("renderViewSwitcher"), false, "top tab renderer is gone");
+  assert.equal(ui.includes("diagramViews"), false, "top tablist element is unused");
+  assert.equal(/\.view-switcher\s*\{/.test(css), false, "top view-switcher CSS is gone");
+});
+
+test("Mac UI switches named views from the left sidebar only", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+
+  const sidebarStart = html.indexOf('<aside class="sidebar"');
+  const sidebarEnd = html.indexOf("</aside>");
+  const diagramStart = html.indexOf('<section class="diagram-pane">');
+  const currentView = html.indexOf('id="current-view"');
+  const sidebar = html.slice(sidebarStart, sidebarEnd);
+  const pane = html.slice(diagramStart);
+
+  assert.match(sidebar, /id="view-list"/, "left Views list remains the switcher");
+  assert.equal(pane.includes('id="view-list"'), false);
+  assert.ok(currentView > diagramStart, "current view name stays above the canvas");
+  assert.match(pane, /id="current-view"/);
+  assert.match(pane, /id="diagram-heading"/);
+  assert.match(ui, /viewList\.replaceChildren/);
+  assert.match(ui, /buttonForView/);
 });
 
 test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () => {

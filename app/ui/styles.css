@@ -194,25 +194,6 @@ button:disabled {
   color: var(--muted);
 }
 
-.view-switcher {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex-shrink: 0;
-  margin-bottom: 8px;
-}
-
-.view-switcher button {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.view-switcher button[aria-selected="true"] {
-  background: #e8f1ff;
-  border-color: #0b57d0;
-  color: #0b57d0;
-}
-
 .nesting-switcher {
   display: flex;
   flex-wrap: wrap;
