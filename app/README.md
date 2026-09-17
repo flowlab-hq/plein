@@ -4,17 +4,17 @@ A Tauri 2 app that opens a `.plein` file and browses **named viewpoints** from t
 
 The TypeScript `checkPlein` path from the CLI is reused. Malformed or invalid files show the same `file:line:column` diagnostics as `plein check` in a banner (Open, Finder Open With, drop, or Reload). Read/open failures use that same banner so they do not fail silently.
 
-Membership for a named view is the markup `include` / `exclude` set (`filterModel`). Placement is `layoutViewpoint` in `src/layout.ts`; the pane draws `renderViewpointSvg(layout)` via `browseNamedView` / `switchNamedView` in `src/browser.ts`. Boxes use the shared ArchiMate type/layer map (`src/archimate-style.ts`): yellow business, cyan application, green technology/physical, purple motivation, orange strategy, pink implementation. Mapping: [docs/archimate-style.md](../docs/archimate-style.md). Aggregation and composition default to **side-by-side** (same as today). A view may set `nesting nested` so children render inside the parent; that `.plein` clause is the source of truth for PRs. The diagram toolbar **File default / Nested / Beside** control overrides placement for local preview only and is not written back to the file. **Reload** re-reads the open `.plein` and redraws the current viewpoint; a new view added in markup appears in the switcher after reload (no app code change). Open selects the first named viewpoint.
+Membership for a named view is the markup `include` / `exclude` set (`filterModel`). Placement is ELK Layered via `layoutViewpoint` in `src/layout.ts` (elkjs); the pane draws `renderViewpointSvg(layout)` via `browseNamedView` / `switchNamedView` in `src/browser.ts`. Boxes use the shared ArchiMate type/layer map (`src/archimate-style.ts`): yellow business, cyan application, green technology/physical, purple motivation, orange strategy, pink implementation. Mapping: [docs/archimate-style.md](../docs/archimate-style.md). `autoLayout tb|bt|lr|rl` sets the layered direction (shorthand `left-right` / `horizontal` still maps to `lr`). Aggregation and composition default to **side-by-side**. A view may set `nesting nested` so children render inside the parent as an ELK compound graph; that `.plein` clause is the source of truth for PRs. The diagram chrome **Direction** (File / TB / BT / LR / RL) and **Nesting** (File default / Nested / Beside) controls override for local preview only and are not written back to the file. **Reload** re-reads the open `.plein` and redraws the current viewpoint; a new view added in markup appears in the sidebar after reload (no app code change). Open selects the first named viewpoint.
 
 Selection is **bidirectional** and single-item: a diagram box or edge highlights the matching left-list row, and a list row highlights/focuses the matching diagram item (`src/selection.ts`). Nested children select independently of their container. Switching views keeps the highlight when the item is still in that view’s list; otherwise it clears. Empty canvas or Escape clears both. Out of scope: multi-select and editing from the list. Nest `composedOf` edges that are implied by nested layout have a list row but no SVG edge — the list still highlights.
 
 ```ts
 import { browseNamedView, switchNamedView } from "../../src/browser.ts";
 
-const structure = browseNamedView(model, "applicationStructure");
+const structure = await browseNamedView(model, "applicationStructure");
 diagramPane.innerHTML = structure.svg;
 
-const cooperation = switchNamedView(model, "applicationCooperation");
+const cooperation = await switchNamedView(model, "applicationCooperation");
 diagramPane.innerHTML = cooperation.svg;
 ```
 

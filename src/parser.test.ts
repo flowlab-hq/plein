@@ -59,6 +59,72 @@ test("value-stream-demo opts into nested composition via the view directive", ()
   assert.equal(model.views[0]!.autoLayout, "lr");
 });
 
+test("autoLayout accepts tb, bt, lr, rl and existing shorthand", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view topDown {
+    include shipper
+    autoLayout tb
+  }
+  view bottomUp {
+    include shipper
+    autoLayout bt
+  }
+  view leftRight {
+    include shipper
+    autoLayout left-right
+  }
+  view rightLeft {
+    include shipper
+    autoLayout rl
+  }
+}
+`;
+  const model = checkPlein(source, "directions.plein");
+  assert.deepEqual(
+    model.views.map((view) => view.autoLayout),
+    ["tb", "bt", "left-right", "rl"],
+  );
+});
+
+test("unknown autoLayout direction is a line diagnostic", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout sideways
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(source, "bad-direction.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /bad-direction\.plein:\d+:\d+: unknown autoLayout direction 'sideways'/);
+      return true;
+    },
+  );
+});
+
+test("bare autoLayout clause means tb", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout
+  }
+}
+`;
+  const model = checkPlein(source, "bare-autolayout.plein");
+  assert.equal(model.views[0]!.autoLayout, "tb");
+});
+
 test("unknown nesting mode is a line diagnostic", () => {
   const source = `model {
   business-actor "Shipper" as shipper

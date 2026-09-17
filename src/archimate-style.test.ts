@@ -95,7 +95,7 @@ test("physical shares technology green and keeps a distinct icon", () => {
   assert.notEqual(node.icon, facility.icon);
 });
 
-test("golden catalogue-layers SVG colours and icons match the style map", () => {
+test("golden catalogue-layers SVG colours and icons match the style map", async () => {
   const golden = loadGoldenStyle();
   const result = loadPleinSource(
     readFixture("valid-catalogue-layers.plein"),
@@ -106,7 +106,7 @@ test("golden catalogue-layers SVG colours and icons match the style map", () => 
     return;
   }
 
-  const layout = layoutViewpoint(result.model, golden.catalogueLayersView.view);
+  const layout = await layoutViewpoint(result.model, golden.catalogueLayersView.view);
   const svg = renderViewpointSvg(layout);
   const fromSvg = svgNodeStyles(svg);
   const expected = golden.catalogueLayersView.nodes.slice().sort((a, b) => a.id.localeCompare(b.id));
@@ -134,13 +134,13 @@ test("golden catalogue-layers SVG colours and icons match the style map", () => 
   assert.equal(svg, committed, "fixtures/golden-catalogue-layers.svg is stale; re-render it");
 });
 
-test("applicationStructure boxes use application cyan plus type icons", () => {
+test("applicationStructure boxes use application cyan plus type icons", async () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);
   if (!result.ok) {
     return;
   }
-  const svg = renderViewpointSvg(layoutViewpoint(result.model, "applicationStructure"));
+  const svg = renderViewpointSvg(await layoutViewpoint(result.model, "applicationStructure"));
   const styles = svgNodeStyles(svg);
   assert.ok(styles.length > 0);
   for (const node of styles) {
@@ -213,7 +213,7 @@ test("capability and value-stream glyphs differ and match ArchiMate conventions"
   assert.doesNotMatch(iconMarkup("value-stream"), /H13\.8 V2\.4 H9\.4/);
 });
 
-test("golden capability vs value-stream SVG icons differ and match the style map", () => {
+test("golden capability vs value-stream SVG icons differ and match the style map", async () => {
   const golden = JSON.parse(readFixture("golden-capability-value-stream.json")) as {
     file: string;
     view: string;
@@ -232,7 +232,7 @@ test("golden capability vs value-stream SVG icons differ and match the style map
     return;
   }
 
-  const svg = renderViewpointSvg(layoutViewpoint(result.model, golden.view));
+  const svg = renderViewpointSvg(await layoutViewpoint(result.model, golden.view));
   const fromSvg = svgNodeStyles(svg);
   const expected = golden.nodes.slice().sort((a, b) => a.id.localeCompare(b.id));
 

@@ -155,11 +155,22 @@ views {
 
 Views may include relationships when the implementation supports a relationship selector; otherwise relationships between included elements are rendered automatically. Keep view names stable because they are useful review and documentation anchors.
 
-Direction is optional: `autoLayout lr` (left→right) or `autoLayout tb` (top→bottom, the default).
+Direction is optional. The Mac viewer lays the view out with **ELK Layered** and honours `autoLayout` with one of:
+
+| Token | Meaning |
+| --- | --- |
+| `tb` | top → bottom (default; also bare `autoLayout`) |
+| `bt` | bottom → top |
+| `lr` | left → right |
+| `rl` | right → left |
+
+Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
+
+The Mac diagram chrome (the space left by removing the top view-switcher) can override direction for local preview. That override is not written back; the `.plein` clause is the source of truth for pull requests. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
 
 ### Nesting (aggregation / composition)
 
-By default, aggregation and composition are laid out **side-by-side** in the same rank/lane graph as every other relationship. Existing models that omit a `nesting` clause keep that behaviour, so current samples do not change shape.
+By default, aggregation and composition are laid out **side-by-side** in the same layered graph as every other relationship. Existing models that omit a `nesting` clause keep that behaviour, so current samples do not change shape.
 
 To draw children **inside** the parent container (view-only; geometry is not drag-editable), set the view directive:
 

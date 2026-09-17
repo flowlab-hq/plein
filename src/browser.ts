@@ -50,19 +50,19 @@ export function currentViewCaption(model: PleinModel, viewName: string | null): 
 }
 
 /**
- * Render one named viewpoint from a loaded model (M9 layout + SVG).
+ * Render one named viewpoint from a loaded model (ELK Layered + SVG).
  * Call this again with a different `viewName` to switch views without reload.
  */
-export function browseNamedView(
+export async function browseNamedView(
   model: PleinModel,
   viewName: string,
   options?: LayoutOptions,
-): BrowsedView {
+): Promise<BrowsedView> {
   const view = model.views.find((candidate) => candidate.name === viewName);
   if (!view) {
     throw new Error(`unknown view '${viewName}'`);
   }
-  const layout = layoutViewpoint(model, viewName, options);
+  const layout = await layoutViewpoint(model, viewName, options);
   return {
     model,
     views: model.views,
@@ -83,6 +83,6 @@ export function switchNamedView(
   model: PleinModel,
   viewName: string,
   options?: LayoutOptions,
-): BrowsedView {
+): Promise<BrowsedView> {
   return browseNamedView(model, viewName, options);
 }

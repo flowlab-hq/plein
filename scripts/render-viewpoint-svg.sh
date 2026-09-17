@@ -31,5 +31,5 @@ if (!viewName) {
   console.error("error: file has no named view");
   process.exit(1);
 }
-process.stdout.write(renderViewpointSvg(layoutViewpoint(result.model, viewName)));
+process.stdout.write(renderViewpointSvg(await layoutViewpoint(result.model, viewName)));
 EOF

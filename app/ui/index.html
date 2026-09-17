@@ -53,12 +53,31 @@
               <h2 id="diagram-heading">Viewpoint</h2>
             </div>
             <div
-              id="nesting-switcher"
-              class="nesting-switcher"
-              role="radiogroup"
-              aria-label="Nesting layout"
-              title="File default is source of truth for PRs. Nested/Beside override is local preview only."
-            ></div>
+              class="layout-controls"
+              role="toolbar"
+              aria-label="Diagram layout"
+            >
+              <div class="layout-group">
+                <span class="layout-kicker">Direction</span>
+                <div
+                  id="direction-switcher"
+                  class="layout-switcher"
+                  role="radiogroup"
+                  aria-label="Layout direction"
+                  title="File default follows autoLayout in the .plein (tb, bt, lr, rl). Other choices override for local preview only."
+                ></div>
+              </div>
+              <div class="layout-group">
+                <span class="layout-kicker">Nesting</span>
+                <div
+                  id="nesting-switcher"
+                  class="layout-switcher nesting-switcher"
+                  role="radiogroup"
+                  aria-label="Nesting layout"
+                  title="File default is source of truth for PRs. Nested/Beside override is local preview only."
+                ></div>
+              </div>
+            </div>
           </div>
           <div id="diagram" class="diagram"></div>
         </section>

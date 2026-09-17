@@ -79,6 +79,33 @@ test("Mac UI keeps the current view name visible outside the scrollable canvas",
   assert.equal(/\.view-switcher\s*\{/.test(css), false, "top view-switcher CSS is gone");
 });
 
+test("Mac UI puts layout direction controls in the diagram chrome", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+
+  const chrome = html.indexOf('class="diagram-chrome"');
+  const direction = html.indexOf('id="direction-switcher"');
+  const nesting = html.indexOf('id="nesting-switcher"');
+  const canvas = html.indexOf('id="diagram" class="diagram"');
+  assert.notEqual(chrome, -1);
+  assert.notEqual(direction, -1, "direction switcher is present");
+  assert.notEqual(nesting, -1, "nesting switcher remains");
+  assert.ok(
+    chrome < direction && direction < nesting && nesting < canvas,
+    "direction + nesting sit in the chrome above the canvas",
+  );
+  assert.match(html, /aria-label="Layout direction"/);
+  assert.match(html, /class="layout-controls"/);
+  assert.equal(html.includes('class="view-switcher"'), false);
+
+  assert.match(ui, /directionOverride/);
+  assert.match(ui, /LAYOUT_DIRECTIONS/);
+  assert.match(ui, /renderDirectionSwitcher/);
+  assert.match(css, /\.layout-controls\s*\{/);
+  assert.match(css, /\.layout-switcher\s*,/);
+});
+
 test("Mac UI switches named views from the left sidebar only", () => {
   const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
   const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");

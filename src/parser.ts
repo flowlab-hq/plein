@@ -71,6 +71,26 @@ const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
 const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
 const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
+const LAYOUT_DIRECTION_TOKENS = new Set([
+  "tb",
+  "bt",
+  "lr",
+  "rl",
+  "left-right",
+  "leftRight",
+  "left_right",
+  "horizontal",
+  "right-left",
+  "rightLeft",
+  "right_left",
+  "top-bottom",
+  "topBottom",
+  "top_bottom",
+  "vertical",
+  "bottom-top",
+  "bottomTop",
+  "bottom_top",
+]);
 
 function tokenize(source: string, file: string): Token[] {
   const tokens: Token[] = [];
@@ -481,7 +501,16 @@ class Parser {
       if (this.checkIdent("autoLayout")) {
         this.advance();
         if (this.check("ident") && !this.isViewClauseStart()) {
-          view.autoLayout = this.advance().value;
+          const direction = this.advance();
+          if (!LAYOUT_DIRECTION_TOKENS.has(direction.value)) {
+            throw new ParseError(
+              `unknown autoLayout direction '${direction.value}' (expected tb, bt, lr, or rl)`,
+              this.file,
+              direction.line,
+              direction.column,
+            );
+          }
+          view.autoLayout = direction.value;
         } else {
           view.autoLayout = "tb";
         }

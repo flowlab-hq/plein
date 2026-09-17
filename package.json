@@ -44,5 +44,8 @@
     "dist",
     "fixtures"
   ],
-  "license": "SEE LICENSE IN LICENSE"
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "elkjs": "^0.10.2"
+  }
 }
