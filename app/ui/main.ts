@@ -10,7 +10,6 @@ import {
 import {
   browseNamedView,
   currentViewCaption,
-  namedViews,
   viewSwitcherLabel,
 } from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
@@ -51,7 +50,6 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
-const diagramViews = document.querySelector("#diagram-views") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 
 let loaded: LoadResult | null = null;
@@ -88,13 +86,6 @@ function failOpen(file: string, error: unknown): void {
   selectedView = null;
   selectedItem = null;
   render();
-}
-
-function currentList() {
-  if (!loaded?.ok) {
-    return null;
-  }
-  return filterModel(loaded.model, selectedView);
 }
 
 function setSelection(next: DiagramSelection | null): void {
@@ -177,36 +168,6 @@ function namedViewForDiagram(): string | null {
   return lastNamedView ?? firstNamedView(loaded.model);
 }
 
-function selectNamedView(name: string): void {
-  selectedView = name;
-  lastNamedView = name;
-  const list = currentList();
-  selectedItem = list ? retainSelection(selectedItem, list) : null;
-  render();
-}
-
-function renderViewSwitcher(): void {
-  if (!loaded?.ok) {
-    diagramViews.replaceChildren();
-    return;
-  }
-  const current = namedViewForDiagram();
-  diagramViews.replaceChildren(
-    ...namedViews(loaded.model).map((view) => {
-      const tab = document.createElement("button");
-      tab.type = "button";
-      tab.setAttribute("role", "tab");
-      tab.textContent = viewSwitcherLabel(view);
-      tab.title = view.name;
-      tab.setAttribute("aria-selected", view.name === current ? "true" : "false");
-      tab.addEventListener("click", () => {
-        selectNamedView(view.name);
-      });
-      return tab;
-    }),
-  );
-}
-
 function renderNestingSwitcher(): void {
   const choices: Array<{ id: "file" | NestingMode; label: string }> = [
     { id: "file", label: "File default" },
@@ -241,7 +202,6 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
 }
 
 function renderDiagram(): void {
-  renderViewSwitcher();
   renderNestingSwitcher();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);

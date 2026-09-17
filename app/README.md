@@ -68,7 +68,7 @@ This Linux checkout cannot produce `Plein.app` (no macOS SDK). `npm test` and `n
 1. Launch `Plein.app` (or `npm run app:preview` in a browser).
 2. **Open…** a `.plein` file — toolbar button (native dialog in the `.app`, file picker in preview), drag-and-drop onto the window, or Finder **Open With** once the `.app` is installed (`.plein` is registered as a Plein Model).
 3. The first named viewpoint in the `views` block is selected (golden: `applicationStructure` in `fixtures/valid-views.plein`).
-4. The diagram pane draws `browseNamedView(model, viewName)` (layout + SVG from M9). The **View** chrome above the canvas always shows the current view name (outside the scrollable SVG). Tabs under that name list every named view in the file. Clicking a tab — or the matching **Views** row — switches the canvas without reloading the file. The left sidebar lists the current view’s elements and relationships (or the whole model when **All** is selected). **All** filters the lists only; the **View** name and the **Showing** row stay on the last named viewpoint.
+4. The diagram pane draws `browseNamedView(model, viewName)` (layout + SVG from M9). The **View** chrome above the canvas always shows the current view name (outside the scrollable SVG). Clicking a **Views** row in the left sidebar switches the canvas without reloading the file. The left sidebar lists the current view’s elements and relationships (or the whole model when **All** is selected). **All** filters the lists only; the **View** name and the **Showing** row stay on the last named viewpoint.
 5. Membership must match the markup: includes add elements (and implied relationships between them); excludes remove them. `fixtures/golden-applicationStructure.json` is the asserted set (`legacyBatch` stays as a node; `tms -> legacyBatch` is omitted).
 
 ## Switch named views
@@ -76,7 +76,7 @@ This Linux checkout cannot produce `Plein.app` (no macOS SDK). `npm test` and `n
 `fixtures/valid-views.plein` has two viewpoints on one model: **Application Structure** and **Application Cooperation**.
 
 1. Open that file. The diagram is **Application Structure** (five typed nodes; no `tms -> legacyBatch` edge). The **View** chrome reads **Application Structure**. Left sidebar: that row is marked **Showing**. **Elements (5)** / **Relationships (3)**.
-2. Click **Application Cooperation** on the diagram switcher (or the matching row in the Views list). The same loaded model now shows TMS and Booking API only, with the serving edge. The **View** chrome updates to **Application Cooperation** without reopening the file. Sidebar: **Elements (2)** / **Relationships (1)**.
+2. Click **Application Cooperation** in the left **Views** list. The same loaded model now shows TMS and Booking API only, with the serving edge. The **View** chrome updates to **Application Cooperation** without reopening the file. Sidebar: **Elements (2)** / **Relationships (1)**.
 3. Click **Application Structure** again. Membership returns to the golden set. The **View** name returns to **Application Structure**. You did not reopen the file.
 4. Click **All** in the Views list. Sidebar lists show the whole model (**5** / **4**). The diagram and the **View** chrome stay on the last named viewpoint you selected. Scroll the canvas or the Views list — the **View** name above the diagram stays visible.
 
@@ -119,7 +119,7 @@ npm test
 Mac app only this cut (HTML export / S3 out of scope). Release `.dmg` or `npm run app:preview`:
 
 1. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein) (≥2 named views). The **View** chrome reads **Application Structure**. The matching Views row is marked **Showing**. Do not reopen the file for the rest of this list.
-2. Click **Application Cooperation** on the diagram tabs or in the Views list. The canvas switches (TMS + Booking API). The **View** chrome reads **Application Cooperation**.
+2. Click **Application Cooperation** in the left **Views** list (not along the top of the canvas). The canvas switches (TMS + Booking API). The **View** chrome reads **Application Cooperation**. There is no view-switcher tablist above the diagram.
 3. Click **Application Structure**. Golden membership returns. The **View** name follows. Same file still open.
 4. Scroll the canvas and the Views list. The **View** name above the diagram stays visible.
 5. Click **All**. Sidebar lists the whole model. The **View** chrome still names the last named viewpoint.
@@ -160,7 +160,7 @@ On an Apple Silicon Mac, after `npm run app:build`:
 4. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Shipper / Booking / Freight order are yellow; Rate engine is cyan. Left sidebar matches those four elements and four relationships.
 5. Click **All**. Sidebar lists show the whole model. The diagram stays on the named viewpoint **booking-context**.
 6. Open `fixtures/valid-views.plein`. The diagram is **Application Structure**. The `tms -> legacyBatch` relationship is absent (`exclude "* -> legacyBatch"`); typed elements including `legacyBatch` remain. Membership is the golden set in `fixtures/golden-applicationStructure.json` (`npm test` / `./scripts/assert-viewpoint-layout.sh`). Application boxes are cyan with component / interface / object glyphs. Sidebar **Elements (5)** / **Relationships (3)**.
-7. Click **Application Cooperation** on the diagram switcher. The canvas shows TMS and Booking API only (same file, same model). The **View** chrome reads **Application Cooperation**. Sidebar becomes **Elements (2)** / **Relationships (1)**. Click **Application Structure** again; golden membership returns and the **View** name follows.
+7. Click **Application Cooperation** in the left **Views** list. The canvas shows TMS and Booking API only (same file, same model). The **View** chrome reads **Application Cooperation**. Sidebar becomes **Elements (2)** / **Relationships (1)**. Click **Application Structure** again; golden membership returns and the **View** name follows. No view-switcher buttons appear along the top of the canvas.
 8. Open `fixtures/malformed-views.plein`. The banner shows **This .plein did not load** and a `file:line:column` diagnostic (same class as `plein check`). No diagram.
 9. Open `fixtures/broken-syntax.plein`. Same class of line-oriented error; diagram and lists stay hidden.
 10. From Finder, Open With `Plein.app` on `fixtures/samples/value-stream-demo.plein`. The file loads and **Quote to cash** renders without using **Open…**.

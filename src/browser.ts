@@ -24,7 +24,7 @@ export type BrowsedView = {
   svg: string;
 };
 
-/** Named views in document order — the Mac switcher lists these. */
+/** Named views in document order — the Mac left sidebar lists these. */
 export function namedViews(model: PleinModel): ViewDecl[] {
   return model.views;
 }
