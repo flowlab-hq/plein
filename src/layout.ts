@@ -13,6 +13,8 @@ export const RANK_GAP = 56;
 /** Gap between siblings in the same rank. */
 export const LANE_GAP = 28;
 export const PADDING = 24;
+/** Extra gap between ArchiMate aspect bands in `autoLayout layers`. */
+export const BAND_GAP = RANK_GAP;
 /** Header band inside a nested parent (keyword + label). */
 export const NEST_HEADER_HEIGHT = 48;
 /** Padding around nested children inside a parent. */
@@ -26,8 +28,8 @@ export const LAYOUT_DIRECTIONS = ["tb", "bt", "lr", "rl"] as const;
 export type LayoutDirection = (typeof LAYOUT_DIRECTIONS)[number];
 
 /**
- * `layered` is plain ELK Layered (edge ranks). `layers` still uses ELK Layered
- * but first partitions root nodes into ArchiMate aspect bands.
+ * `layered` is plain ELK Layered (edge ranks). `layers` still uses that engine
+ * once per ArchiMate aspect band, then stacks the bands in aspect order.
  */
 export const LAYOUT_MODES = ["layered", "layers"] as const;
 
@@ -303,14 +305,10 @@ export async function layoutViewpoint(
   const parentOf = invertForest(nestForest);
   const byId = new Map(list.elements.map((element) => [element.id, element]));
 
-  const packed = await layoutWithElk(
-    list.elements,
-    list.relationships,
-    direction,
-    nestForest,
-    parentOf,
-    mode,
-  );
+  const packed =
+    mode === "layers"
+      ? await layoutLayerBands(list.elements, list.relationships, direction, nestForest, parentOf)
+      : await layoutWithElk(list.elements, list.relationships, direction, nestForest, parentOf);
 
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
@@ -553,7 +551,6 @@ async function layoutWithElk(
   direction: LayoutDirection,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
-  mode: LayoutMode,
 ): Promise<PackedLayout> {
   if (elements.length === 0) {
     return {
@@ -565,9 +562,57 @@ async function layoutWithElk(
   }
 
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const graph = buildElkGraph(elements, relationships, direction, nestForest, parentOf, mode);
+  const graph = buildElkGraph(elements, relationships, direction, nestForest, parentOf);
   const laidOut = await elk.layout(graph);
   return flattenElkLayout(laidOut, byId, nestForest, parentOf);
+}
+
+/**
+ * Rank root nodes into ArchiMate aspect bands, lay each band out with ELK
+ * Layered, then stack the bands. A single ELK `partitioning` graph is not used:
+ * serving/realization arrows that point against the aspect order (the usual
+ * ArchiMate direction) would otherwise collapse or reverse the stack, and
+ * nested containers plus reverse model order can NPE inside elkjs.
+ */
+async function layoutLayerBands(
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+): Promise<PackedLayout> {
+  if (elements.length === 0) {
+    return layoutWithElk(elements, relationships, direction, nestForest, parentOf);
+  }
+
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const rootIds = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
+  const bandOf = new Map<string, LayerBand>();
+  for (const id of rootIds) {
+    bandOf.set(id, resolveRootLayerBand(id, byId, nestForest));
+  }
+  const present = LAYER_BANDS.filter((band) => rootIds.some((id) => bandOf.get(id) === band));
+
+  const bandLayouts: PackedLayout[] = [];
+  for (const band of present) {
+    const bandRoots = rootIds.filter((id) => bandOf.get(id) === band);
+    const bandIds = new Set<string>();
+    for (const rootId of bandRoots) {
+      collectSubtreeIds(rootId, nestForest, bandIds);
+    }
+    const bandForest = filterForest(nestForest, bandIds);
+    const bandParentOf = invertForest(bandForest);
+    const bandMembers = elements.filter((element) => bandIds.has(element.id));
+    const bandElements = orderElementsForBand(bandRoots, bandMembers, bandForest);
+    const bandRels = relationships.filter(
+      (rel) => bandIds.has(rel.source) && bandIds.has(rel.target),
+    );
+    bandLayouts.push(await layoutWithElk(bandElements, bandRels, direction, bandForest, bandParentOf));
+  }
+
+  const stacked = stackBandLayouts(direction, bandLayouts);
+  attachInterBandEdges(stacked, elements, relationships, direction, parentOf);
+  return stacked;
 }
 
 function elkDirection(direction: LayoutDirection): "UP" | "DOWN" | "LEFT" | "RIGHT" {
@@ -589,17 +634,15 @@ function buildElkGraph(
   direction: LayoutDirection,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
-  mode: LayoutMode,
 ): ElkNode {
   const rootIds = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
-  const partitions = mode === "layers" ? layerBandPartitions(rootIds, elements, nestForest) : null;
+  const idSet = new Set(elements.map((element) => element.id));
   const edges: ElkExtendedEdge[] = relationships
     .filter((rel) => {
       if (NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source) {
         return false;
       }
-      return Boolean(elements.some((element) => element.id === rel.source)) &&
-        Boolean(elements.some((element) => element.id === rel.target));
+      return idSet.has(rel.source) && idSet.has(rel.target);
     })
     .map((rel) => ({
       id: edgeId(rel.source, rel.target, rel.type),
@@ -622,13 +665,8 @@ function buildElkGraph(
       "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
       "elk.separateConnectedComponents": "false",
       "elk.randomSeed": "1",
-      ...(partitions
-        ? {
-            "elk.partitioning.activate": "true",
-          }
-        : {}),
     },
-    children: rootIds.map((id) => buildElkSubtree(id, nestForest, partitions?.get(id))),
+    children: rootIds.map((id) => buildElkSubtree(id, nestForest)),
   };
   if (edges.length > 0) {
     graph.edges = edges;
@@ -636,49 +674,212 @@ function buildElkGraph(
   return graph;
 }
 
-function buildElkSubtree(id: string, nestForest: Map<string, string[]>, partition?: number): ElkNode {
+function buildElkSubtree(id: string, nestForest: Map<string, string[]>): ElkNode {
   const childIds = nestForest.get(id) ?? [];
-  const partitionOptions =
-    partition === undefined ? undefined : { "elk.partitioning.partition": String(partition) };
   if (childIds.length === 0) {
     return {
       id,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
-      ...(partitionOptions ? { layoutOptions: partitionOptions } : {}),
     };
   }
   return {
     id,
     layoutOptions: {
       "elk.padding": `[top=${NEST_HEADER_HEIGHT},left=${NEST_PAD},bottom=${NEST_PAD},right=${NEST_PAD}]`,
-      ...partitionOptions,
     },
     children: childIds.map((childId) => buildElkSubtree(childId, nestForest)),
   };
 }
 
+function collectSubtreeIds(id: string, nestForest: Map<string, string[]>, into: Set<string>): void {
+  into.add(id);
+  for (const childId of nestForest.get(id) ?? []) {
+    collectSubtreeIds(childId, nestForest, into);
+  }
+}
+
+function filterForest(forest: Map<string, string[]>, ids: Set<string>): Map<string, string[]> {
+  const next: Map<string, string[]> = new Map();
+  for (const [parent, kids] of forest) {
+    if (!ids.has(parent)) {
+      continue;
+    }
+    const kept = kids.filter((kid) => ids.has(kid));
+    if (kept.length > 0) {
+      next.set(parent, kept);
+    }
+  }
+  return next;
+}
+
 /**
- * Compact 0..n-1 partitions for bands that actually have a **root** member.
- * Nested children stay inside the parent and are not partitioned on their own.
+ * Kind-then-declaration order so disconnected nodes in a band form deterministic
+ * type rows (business-actor before business-process, and so on).
  */
-function layerBandPartitions(
+function orderElementsForBand(
   rootIds: string[],
   elements: ElementDecl[],
   nestForest: Map<string, string[]>,
-): Map<string, number> {
+): ElementDecl[] {
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const bandOf = new Map<string, LayerBand>();
-  for (const id of rootIds) {
-    bandOf.set(id, resolveRootLayerBand(id, byId, nestForest));
+  const sortedRoots = rootIds.slice().sort((left, right) => {
+    const a = byId.get(left);
+    const b = byId.get(right);
+    const kind = (a?.keyword ?? "").localeCompare(b?.keyword ?? "");
+    if (kind !== 0) {
+      return kind;
+    }
+    return (a?.line ?? 0) - (b?.line ?? 0);
+  });
+  const seen = new Set<string>();
+  const ordered: ElementDecl[] = [];
+  const walk = (id: string): void => {
+    if (seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    const element = byId.get(id);
+    if (element) {
+      ordered.push(element);
+    }
+    for (const childId of nestForest.get(id) ?? []) {
+      walk(childId);
+    }
+  };
+  for (const id of sortedRoots) {
+    walk(id);
   }
-  const present = LAYER_BANDS.filter((band) => rootIds.some((id) => bandOf.get(id) === band));
-  const index = new Map(present.map((band, partition) => [band, partition]));
-  const partitions = new Map<string, number>();
-  for (const id of rootIds) {
-    partitions.set(id, index.get(bandOf.get(id)!) ?? 0);
+  for (const element of elements) {
+    if (!seen.has(element.id)) {
+      ordered.push(element);
+    }
   }
-  return partitions;
+  return ordered;
+}
+
+function stackBandLayouts(direction: LayoutDirection, bands: PackedLayout[]): PackedLayout {
+  if (bands.length === 0) {
+    return {
+      nodes: [],
+      edges: new Map(),
+      width: PADDING * 2 + NODE_WIDTH,
+      height: PADDING * 2 + NODE_HEIGHT,
+    };
+  }
+  if (bands.length === 1) {
+    return bands[0]!;
+  }
+
+  const vertical = direction === "tb" || direction === "bt";
+  const sizes = bands.map((band) => (vertical ? band.height : band.width));
+  const crosses = bands.map((band) => (vertical ? band.width : band.height));
+  const totalMain = sizes.reduce((sum, size) => sum + size, 0) + BAND_GAP * (bands.length - 1);
+  const maxCross = Math.max(...crosses);
+  const offsets: number[] = [];
+  if (direction === "tb" || direction === "lr") {
+    let pos = 0;
+    for (const size of sizes) {
+      offsets.push(pos);
+      pos += size + BAND_GAP;
+    }
+  } else {
+    let pos = totalMain;
+    for (const size of sizes) {
+      pos -= size;
+      offsets.push(pos);
+      pos -= BAND_GAP;
+    }
+  }
+
+  const nodes: LayoutNode[] = [];
+  const edges = new Map<string, { x1: number; y1: number; x2: number; y2: number; points: ElkPoint[] }>();
+  for (let index = 0; index < bands.length; index += 1) {
+    const dx = vertical ? Math.round((maxCross - crosses[index]!) / 2) : offsets[index]!;
+    const dy = vertical ? offsets[index]! : Math.round((maxCross - crosses[index]!) / 2);
+    for (const node of bands[index]!.nodes) {
+      nodes.push({ ...node, x: node.x + dx, y: node.y + dy });
+    }
+    for (const [id, edge] of bands[index]!.edges) {
+      edges.set(id, {
+        x1: edge.x1 + dx,
+        y1: edge.y1 + dy,
+        x2: edge.x2 + dx,
+        y2: edge.y2 + dy,
+        points: edge.points.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+      });
+    }
+  }
+
+  return {
+    nodes,
+    edges,
+    width: vertical ? maxCross : totalMain,
+    height: vertical ? totalMain : maxCross,
+  };
+}
+
+function attachInterBandEdges(
+  packed: PackedLayout,
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  parentOf: Map<string, string>,
+): void {
+  const nodeById = new Map(packed.nodes.map((node) => [node.id, node]));
+  const present = new Set(elements.map((element) => element.id));
+  for (const rel of relationships) {
+    if (!present.has(rel.source) || !present.has(rel.target)) {
+      continue;
+    }
+    const id = edgeId(rel.source, rel.target, rel.type);
+    if (packed.edges.has(id)) {
+      continue;
+    }
+    if (NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source) {
+      continue;
+    }
+    const source = nodeById.get(rel.source);
+    const target = nodeById.get(rel.target);
+    if (!source || !target) {
+      continue;
+    }
+    packed.edges.set(id, orthogonalBetween(source, target, direction));
+  }
+}
+
+function nodeCenter(node: LayoutNode): ElkPoint {
+  return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+}
+
+function orthogonalBetween(
+  source: LayoutNode,
+  target: LayoutNode,
+  direction: LayoutDirection,
+): { x1: number; y1: number; x2: number; y2: number; points: ElkPoint[] } {
+  const start = nodeCenter(source);
+  const end = nodeCenter(target);
+  const points: ElkPoint[] =
+    direction === "tb" || direction === "bt"
+      ? [
+          start,
+          { x: start.x, y: roundCoord((start.y + end.y) / 2) },
+          { x: end.x, y: roundCoord((start.y + end.y) / 2) },
+          end,
+        ]
+      : [
+          start,
+          { x: roundCoord((start.x + end.x) / 2), y: start.y },
+          { x: roundCoord((start.x + end.x) / 2), y: end.y },
+          end,
+        ];
+  return {
+    x1: points[0]!.x,
+    y1: points[0]!.y,
+    x2: points[points.length - 1]!.x,
+    y2: points[points.length - 1]!.y,
+    points,
+  };
 }
 
 /**

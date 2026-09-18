@@ -659,4 +659,120 @@ test("layers file default is unchanged by a layered tool override", async () => 
   assert.equal(result.model.views[0]!.autoLayout, "layers");
   assert.equal(resolveLayoutMode(result.model.views[0]!), "layers");
   assert.equal(resolveLayoutMode(result.model.views[0]!, { mode: "layered" }), "layered");
+  assert.ok(
+    (preview.nodes.find((node) => node.id === "rollout")?.y ?? 0) <
+      (preview.nodes.find((node) => node.id === "planning")?.y ?? 0),
+    "plain layered still follows realization/serving ranks, not aspect bands",
+  );
+});
+
+test("layers keeps Business above Application above Technology when every edge points the other way", async () => {
+  const source = `model {
+  work-package "Cutover" as cutover
+  node "Cloud" as cloud
+  application-component "TMS" as tms
+  business-actor "Shipper" as shipper
+  goal "On-time" as onTime
+  tms -> shipper: serving
+  cloud -> tms: serving
+  cutover -> onTime: realization
+}
+views {
+  view against {
+    include onTime shipper tms cloud cutover
+    autoLayout layers
+  }
+}
+`;
+  const result = loadPleinSource(source, "against-band-edges.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "against");
+  const onTime = layout.nodes.find((node) => node.id === "onTime");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const tms = layout.nodes.find((node) => node.id === "tms");
+  const cloud = layout.nodes.find((node) => node.id === "cloud");
+  const cutover = layout.nodes.find((node) => node.id === "cutover");
+  assert.ok(onTime && shipper && tms && cloud && cutover);
+  assert.ok(onTime.y + onTime.height <= shipper.y, "Motivation above Business");
+  assert.ok(shipper.y + shipper.height <= tms.y, "Business above Application");
+  assert.ok(tms.y + tms.height <= cloud.y, "Application above Technology");
+  assert.ok(cloud.y + cloud.height <= cutover.y, "Technology above Implementation");
+  assert.ok(layout.edges.some((edge) => edge.id === "tms->shipper:serves"));
+});
+
+test("research-data landscape in layers mode is Business then Application then Technology", async () => {
+  const result = loadPleinSource(
+    readFixture("samples/research-data.plein"),
+    "fixtures/samples/research-data.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = await layoutViewpoint(result.model, "researchDataLandscape", { mode: "layers" });
+  assert.equal(layout.mode, "layers");
+  const business = layout.nodes.filter((node) =>
+    ["generalPublic", "findPublishedResearch", "requestAccess"].includes(node.id),
+  );
+  const application = layout.nodes.filter((node) =>
+    ["researchProject", "researchPaper", "researchDataConcept", "eprints"].includes(node.id),
+  );
+  const technology = layout.nodes.filter((node) =>
+    ["researchDataArtifact", "fileStorage", "archive", "researchStoragePlatform", "arkivum"].includes(
+      node.id,
+    ),
+  );
+  assert.equal(business.length, 3);
+  assert.equal(application.length, 4);
+  assert.equal(technology.length, 5);
+  const businessBottom = Math.max(...business.map((node) => node.y + node.height));
+  const applicationTop = Math.min(...application.map((node) => node.y));
+  const applicationBottom = Math.max(...application.map((node) => node.y + node.height));
+  const technologyTop = Math.min(...technology.map((node) => node.y));
+  assert.ok(businessBottom <= applicationTop, "Business band sits above Application");
+  assert.ok(applicationBottom <= technologyTop, "Application band sits above Technology");
+});
+
+test("layers kind order keeps same-type roots together inside a band", async () => {
+  const source = `model {
+  business-process "Fulfill" as fulfill
+  business-actor "Carrier" as carrier
+  business-process "Book" as book
+  business-actor "Shipper" as shipper
+  application-component "TMS" as tms
+}
+views {
+  view kinds {
+    include shipper carrier book fulfill tms
+    autoLayout layers
+  }
+}
+`;
+  const result = loadPleinSource(source, "kind-rows.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "kinds");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const carrier = layout.nodes.find((node) => node.id === "carrier");
+  const book = layout.nodes.find((node) => node.id === "book");
+  const fulfill = layout.nodes.find((node) => node.id === "fulfill");
+  const tms = layout.nodes.find((node) => node.id === "tms");
+  assert.ok(shipper && carrier && book && fulfill && tms);
+  const actorsBottom = Math.max(shipper.y + shipper.height, carrier.y + carrier.height);
+  const processesTop = Math.min(book.y, fulfill.y);
+  assert.ok(
+    actorsBottom <= processesTop ||
+      Math.max(shipper.x + shipper.width, carrier.x + carrier.width) <= Math.min(book.x, fulfill.x),
+    "actors form a kind row separate from processes, or sit in an earlier model-order lane",
+  );
+  assert.ok(
+    Math.max(actorsBottom, book.y + book.height, fulfill.y + fulfill.height) <= tms.y,
+    "Business kinds stay above Application",
+  );
 });
