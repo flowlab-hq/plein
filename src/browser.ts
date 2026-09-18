@@ -51,8 +51,9 @@ export function currentViewCaption(model: PleinModel, viewName: string | null): 
 
 /**
  * Render one named viewpoint from a loaded model (ELK Layered + SVG).
- * `autoLayout layers` still uses ELK, partitioned into ArchiMate aspect bands.
- * Call this again with a different `viewName` to switch views without reload.
+ * `autoLayout layers` still uses ELK, once per ArchiMate aspect band, then
+ * stacks the bands. Call this again with a different `viewName` to switch
+ * views without reload.
  */
 export async function browseNamedView(
   model: PleinModel,

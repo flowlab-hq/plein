@@ -170,7 +170,7 @@ The Mac diagram chrome (the space left by removing the top view-switcher) can ov
 
 ### Layer bands (`autoLayout layers`)
 
-Plain `autoLayout tb|bt|lr|rl` is ELK Layered ranked by edges. `autoLayout layers` still uses that engine, but first partitions **root** elements into ArchiMate aspect bands, then lays out within each band. Empty bands are omitted.
+Plain `autoLayout tb|bt|lr|rl` is ELK Layered ranked by edges. `autoLayout layers` still uses that engine, but **once per ArchiMate aspect band**: root elements are ranked into bands, each band is laid out with ELK Layered, then the bands are stacked. Empty bands are omitted. Cross-band serving/realization arrows are routed after the stack, so they cannot pull a technology node into the business band.
 
 ```plein
 viewpoint bookingContext "Booking context" {
@@ -189,11 +189,13 @@ viewpoint bookingContext "Booking context" {
 | Technology / Physical | node, artifact, facility, … |
 | Implementation | work-package, deliverable, plateau, … |
 
-Typical multi-layer views therefore show **Business → Application → Technology** as successive bands (top→bottom for `tb`, left→right for `lr`) even when serving/realization arrows point the other way.
+Typical multi-layer views therefore show **Business → Application → Technology** as successive bands (top→bottom for `tb`, left→right for `lr`) even when serving/realization arrows point the other way, and even when the `.plein` declares technology before business.
 
 Nested containers are assigned **one** band as a whole: children stay inside the parent instead of jumping to their own aspect row. A composite `grouping` / `location` inherits the dominant descendant band (ties keep the earlier ArchiMate aspect) so a grouping of application components sits in Application. See [`fixtures/valid-layer-bands.plein`](../fixtures/valid-layer-bands.plein).
 
-The Mac chrome **Mode** control (File / Layered / Layers) previews this without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout.
+Within a band, disconnected nodes keep a deterministic kind-then-declaration order (all `business-actor` boxes before `business-process`, and so on) so catalogues stay stable.
+
+The Mac chrome **Mode** control (File / Layered / Layers) previews this without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout. `autoLayout layers` does not replace that mode.
 
 ### Nesting (aggregation / composition)
 

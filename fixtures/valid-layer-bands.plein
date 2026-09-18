@@ -1,18 +1,19 @@
 // Multi-layer EA sample for `autoLayout layers`.
-// Business → Application → Technology must be visible as successive bands.
+// Declared bottom-up on purpose: band order must still be
+// Motivation/Strategy → Business → Application → Technology → Implementation.
 // Nested `grouping` stays one container in the Application band.
 plein {
   model {
-    goal "On-time delivery" as onTime
-    capability "Network planning" as planning
-    business-actor "Shipper" as shipper
-    business-service "Booking service" as booking
-    grouping "App platform" as platform
-    application-component "TMS" as tms
-    application-component "Rate engine" as rates
-    node "NordFreight cloud" as cloud
-    artifact "Order API" as orderApi
     work-package "Booking rollout" as rollout
+    artifact "Order API" as orderApi
+    node "NordFreight cloud" as cloud
+    application-component "Rate engine" as rates
+    application-component "TMS" as tms
+    grouping "App platform" as platform
+    business-service "Booking service" as booking
+    business-actor "Shipper" as shipper
+    capability "Network planning" as planning
+    goal "On-time delivery" as onTime
 
     planning -> onTime: realization
     shipper -> booking: serving
