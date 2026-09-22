@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking context — Plein</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; background: #f5f5f7; color: #1d1d1f; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { padding: 20px 24px 0; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  p { margin: 4px 0 0; color: #6e6e73; font-size: 13px; }
+  main { padding: 16px 24px 32px; overflow: auto; }
+  svg { display: block; background: #fff; border-radius: 12px; }
+</style>
+</head>
+<body>
+<!-- Plein static export. Open this file in a browser. No Mac app required. -->
+<header>
+  <h1>Booking context</h1>
+  <p>view booking-context · fixtures/valid-basic.plein</p>
+</header>
+<main>
+<svg xmlns="http://www.w3.org/2000/svg" width="244" height="424" viewBox="0 0 244 424" data-view="booking-context" data-layout="tb" data-layout-mode="layered" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="Booking context">
+  <title>Booking context</title>
+  <defs>
+    <marker id="arrow-booking-context" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" />
+    </marker>
+  </defs>
+  <g class="edges">
+    <g data-edge-id="shipper->booking:serves">
+      <polyline points="136,76 136,132" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-booking-context)" />
+    </g>
+    <g data-edge-id="booking->order:accesses">
+      <polyline points="108,184 108,240" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-booking-context)" />
+    </g>
+    <g data-edge-id="booking->rates:serves">
+      <polyline points="164,184 164,194 202,194 202,302 164,302 164,348" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-booking-context)" />
+    </g>
+    <g data-edge-id="rates->order:realizes">
+      <polyline points="108,348 108,292" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-booking-context)" />
+    </g>
+  </g>
+  <g class="nodes">
+    <g data-node-id="shipper" data-keyword="businessActor" data-layer="business" data-icon="stick-figure" transform="translate(52 24)">
+      <title>business-actor — Shipper</title>
+      <rect width="168" height="52" rx="8" fill="#FFFFB5" stroke="#5C5C5C" stroke-width="1.25" />
+      <g class="type-icon" data-icon="stick-figure" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.2" r="2.1"/><path d="M8 5.4 V10.4 M4.8 7.8 H11.2 M8 10.4 L5.2 14.6 M8 10.4 L10.8 14.6"/></g>
+      <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Shipper</text>
+    </g>
+    <g data-node-id="booking" data-keyword="businessService" data-layer="business" data-icon="service" transform="translate(52 132)">
+      <title>business-service — Booking service</title>
+      <rect width="168" height="52" rx="8" fill="#FFFFB5" stroke="#5C5C5C" stroke-width="1.25" />
+      <g class="type-icon" data-icon="service" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="8" rx="6.2" ry="3.6"/></g>
+      <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Booking service</text>
+    </g>
+    <g data-node-id="order" data-keyword="businessObject" data-layer="business" data-icon="object" transform="translate(24 240)">
+      <title>business-object — Freight order</title>
+      <rect width="168" height="52" rx="8" fill="#FFFFB5" stroke="#5C5C5C" stroke-width="1.25" />
+      <g class="type-icon" data-icon="object" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3.2 H10.2 L13 6.2 V13.5 H4 Z"/><path d="M10.2 3.2 V6.2 H13"/></g>
+      <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Freight order</text>
+    </g>
+    <g data-node-id="rates" data-keyword="applicationComponent" data-layer="application" data-icon="component" transform="translate(52 348)">
+      <title>application-component — Rate engine</title>
+      <rect width="168" height="52" rx="8" fill="#B5FFFF" stroke="#5C5C5C" stroke-width="1.25" />
+      <g class="type-icon" data-icon="component" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="9" height="11" rx="0.5"/><rect x="2" y="4.2" width="5.2" height="2.4"/><rect x="2" y="9.2" width="5.2" height="2.4"/></g>
+      <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Rate engine</text>
+    </g>
+  </g>
+</svg>
+</main>
+</body>
+</html>

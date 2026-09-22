@@ -1,4 +1,5 @@
-# M5: build the CLI and run `plein check` on the fixture catalogue.
+# M5: build the CLI, run unit/golden tests (including `plein export`),
+# and run `plein check` on the fixture catalogue.
 #
 # Golden fixtures must exit 0. Expected-fail fixtures must exit non-zero.
 # The job fails if a golden check fails or an expected-fail fixture
@@ -45,6 +46,9 @@ jobs:
 
       - name: Build CLI
         run: npm run build
+
+      - name: Run unit and golden tests
+        run: npm test
 
       - name: Check golden and expected-fail fixtures
         run: npm run check:fixtures
