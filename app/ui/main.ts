@@ -15,10 +15,13 @@ import {
 import { elementStyle } from "../../src/archimate-style.ts";
 import {
   edgeId,
+  EDGE_ROUTINGS,
   LAYOUT_DIRECTIONS,
   LAYOUT_MODES,
+  edgeRoutingTitle,
   layoutDirectionTitle,
   layoutModeTitle,
+  type EdgeRouting,
   type LayoutDirection,
   type LayoutMode,
   type LayoutOptions,
@@ -62,6 +65,7 @@ const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement
 const diagram = document.querySelector("#diagram") as HTMLElement;
 const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
+const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 
 let loaded: LoadResult | null = null;
@@ -76,6 +80,8 @@ let nestingOverride: "file" | NestingMode = "file";
 let directionOverride: "file" | LayoutDirection = "file";
 /** `file` follows the view’s `autoLayout`; layered/layers is local preview only. */
 let modeOverride: "file" | LayoutMode = "file";
+/** `file` follows the view’s `autoLayout`; orthogonal/polyline is local preview only. */
+let routingOverride: "file" | EdgeRouting = "file";
 /** Drop stale ELK results when the user switches views mid-layout. */
 let renderSeq = 0;
 
@@ -197,7 +203,10 @@ function previewLayoutOptions(): LayoutOptions | undefined {
   if (modeOverride !== "file") {
     options.mode = modeOverride;
   }
-  return options.nesting || options.direction || options.mode ? options : undefined;
+  if (routingOverride !== "file") {
+    options.routing = routingOverride;
+  }
+  return options.nesting || options.direction || options.mode || options.routing ? options : undefined;
 }
 
 function radioButton(
@@ -254,6 +263,25 @@ function renderDirectionSwitcher(): void {
   );
 }
 
+function renderRoutingSwitcher(): void {
+  const choices: Array<{ id: "file" | EdgeRouting; label: string; title: string }> = [
+    { id: "file", label: "File", title: "Use autoLayout routing from the open view" },
+    ...EDGE_ROUTINGS.map((routing) => ({
+      id: routing,
+      label: routing === "orthogonal" ? "Orthogonal" : "Polyline",
+      title: edgeRoutingTitle(routing),
+    })),
+  ];
+  routingSwitcher.replaceChildren(
+    ...choices.map((choice) =>
+      radioButton(choice.id === routingOverride, choice.label, choice.title, () => {
+        routingOverride = choice.id;
+        void render();
+      }),
+    ),
+  );
+}
+
 function renderNestingSwitcher(): void {
   const choices: Array<{ id: "file" | NestingMode; label: string }> = [
     { id: "file", label: "File default" },
@@ -291,6 +319,7 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
 async function renderDiagram(seq: number): Promise<void> {
   renderModeSwitcher();
   renderDirectionSwitcher();
+  renderRoutingSwitcher();
   renderNestingSwitcher();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);

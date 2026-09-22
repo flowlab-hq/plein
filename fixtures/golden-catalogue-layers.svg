@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-mode="layered" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
+<svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
   <title>ArchiMate layers sample</title>
   <defs>
     <marker id="arrow-catalogue-layers" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
