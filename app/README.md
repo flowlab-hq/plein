@@ -116,7 +116,7 @@ npm test
 
 ## Arran smoke — S4 multi-view navigation
 
-Mac app only this cut (HTML export / S3 out of scope). Release `.dmg` or `npm run app:preview`:
+Mac app checklist for named-view navigation. Static HTML/SVG of a view is `plein export` (see the [README](../README.md#export-a-named-view)); this list does not click an in-app export button. Release `.dmg` or `npm run app:preview`:
 
 1. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein) (≥2 named views). The **View** chrome reads **Application Structure**. The matching Views row is marked **Showing**. Do not reopen the file for the rest of this list.
 2. Click **Application Cooperation** in the left **Views** list (not along the top of the canvas). The canvas switches (TMS + Booking API). The **View** chrome reads **Application Cooperation**. There is no view-switcher tablist above the diagram.

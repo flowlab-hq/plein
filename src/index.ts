@@ -64,6 +64,16 @@ export {
   type BrowsedView,
 } from "./browser.js";
 export {
+  EXPORT_FORMATS,
+  ExportError,
+  exportNamedView,
+  isExportFormat,
+  resolveNamedView,
+  wrapViewpointHtml,
+  type ExportFormat,
+  type ExportedView,
+} from "./export.js";
+export {
   ELEMENT_KEYWORDS,
   COMPOSITE_ELEMENT_KEYWORDS,
   RELATIONSHIP_KEYWORDS,

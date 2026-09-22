@@ -117,7 +117,11 @@ brew install plein
 git clone https://github.com/flowlab-hq/plein.git
 cd plein
 plein check fixtures/valid-basic.plein
+plein export fixtures/valid-basic.plein --view booking-context -o booking-context.html
+open booking-context.html
 ```
+
+`plein export` writes a self-contained HTML page (or SVG) for one named view. Open that file in a browser; the Mac app does not need to be running. Details: [Export a named view](#export-a-named-view).
 
 Expected walkthrough:
 
@@ -155,9 +159,35 @@ npm run check:fixtures
 npm test
 ```
 
-GitHub Actions (**Check fixtures**) installs the CLI and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
+GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases).
+
+### Export a named view
+
+`plein export` writes one named viewpoint as a **self-contained HTML page** and/or **SVG**. The diagram is the same ELK + `renderViewpointSvg` path the Mac app uses. Open the file in Safari, Chrome, or Firefox — Plein.app does not need to be running, and the page does not load scripts or stylesheets from the network.
+
+From a source checkout or a Homebrew install (`plein` on `PATH`), in the repo root. On a Mac, `open` launches the file in the default browser:
+
+```bash
+# HTML (default). --view is a viewpoint name or its title. Omit it for the first named view.
+plein export fixtures/valid-basic.plein --view booking-context -o booking-context.html
+open booking-context.html
+
+# SVG only
+plein export fixtures/valid-basic.plein --view "Booking context" --format svg -o booking-context.svg
+
+# Both files: booking-context.html and booking-context.svg
+plein export fixtures/valid-basic.plein --format both -o booking-context
+
+# Another named view of the research-data sample
+plein export fixtures/samples/research-data.plein --view "Published research access" -o published-research-access.html
+open published-research-access.html
+```
+
+Without `-o`, HTML or SVG is written to stdout (`--format both` requires `-o`). A path that is a directory (or ends with `/`) writes `<view-name>.html` or `<view-name>.svg` inside it.
+
+Golden snapshot: [fixtures/golden-booking-context.html](fixtures/golden-booking-context.html) is `plein export fixtures/valid-basic.plein --view booking-context --format html`. `npm test` / `./scripts/assert-export.sh` fails if that file drifts. The research-data sample asserts that `--view` selects one viewpoint (landscape vs published access vs storage).
 
 ### Golden viewpoint layout
 
@@ -175,6 +205,8 @@ npm test
 ./scripts/assert-multi-view-browser.sh
 # diagram ↔ left-list selection (nested + multi-view):
 ./scripts/assert-selection-sync.sh
+# static HTML/SVG export of a named view:
+./scripts/assert-export.sh
 ```
 
 ## Branding

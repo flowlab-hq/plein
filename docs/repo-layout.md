@@ -16,6 +16,7 @@ plein/
     unknown-*.plein         expected-fail (keyword)
     invalid-*.plein         expected-fail (nesting / validity)
     golden-*.json           asserted membership / parse
+    golden-*.html           static HTML export snapshot (`plein export`)
     README.md               fixture catalogue
   src/                      TypeScript CLI, parser, layout, tests
   app/                      Mac Tauri UI
@@ -41,7 +42,7 @@ Keep fixtures compact so a PR can review the markup as architecture, not as a du
 
 1. Add a `.plein` under `fixtures/` (check cases) or `fixtures/samples/` (demo the Mac app / README would open).
 2. Name by contract: `valid-*` or `samples/` must pass `plein check`; `broken-*` / `malformed-*` / `unknown-*` / `invalid-*` must fail with a line-oriented diagnostic.
-3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-archimate-style.json`, `golden-capability-value-stream.json`, `golden-value-stream-stages.json`, `golden-nested-quote-to-cash.json`) and assert it from a `src/*.test.ts` file.
+3. If the case pins membership or parse shape, add a `golden-*.json` next to it (see `golden-applicationStructure.json`, `golden-catalogue-layers.json`, `golden-archimate-style.json`, `golden-capability-value-stream.json`, `golden-value-stream-stages.json`, `golden-nested-quote-to-cash.json`) and assert it from a `src/*.test.ts` file. A static export snapshot is a `golden-*.html` file (`golden-booking-context.html`, asserted by `src/export.test.ts`).
 4. Wire `plein check` coverage in `src/check.test.ts` and `scripts/check-fixtures.sh` (Mac CLI smoke delegates there).
 5. List the file in [`fixtures/README.md`](../fixtures/README.md) with the expected exit and diagnostic class.
 6. Do not change existing golden JSON or fail diagnostics unless the PR is intentionally changing that contract.
@@ -65,7 +66,7 @@ npx plein check fixtures/broken-syntax.plein
 ./scripts/mac/smoke.sh
 ```
 
-`npm test` compiles with `tsc` and runs `src/*.test.ts` (including `check.test.ts`, layout golden, ArchiMate style golden, and parser golden). `./scripts/assert-viewpoint-layout.sh` is the layout-only assert. `./scripts/assert-archimate-style.sh` is the colour/icon assert.
+`npm test` compiles with `tsc` and runs `src/*.test.ts` (including `check.test.ts`, layout golden, ArchiMate style golden, static HTML/SVG export golden, and parser golden). `./scripts/assert-viewpoint-layout.sh` is the layout-only assert. `./scripts/assert-archimate-style.sh` is the colour/icon assert. `./scripts/assert-export.sh` is the `plein export` snapshot (`fixtures/golden-booking-context.html`).
 
 ## Mac contributor notes
 
