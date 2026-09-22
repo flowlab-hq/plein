@@ -12,15 +12,19 @@ import {
   membershipOf,
   parseLayoutDirection,
   parseLayoutMode,
+  parseEdgeRouting,
   isLayoutDirectionToken,
   isLayoutModeToken,
+  isEdgeRoutingToken,
   renderViewpointSvg,
   resolveLayoutDirection,
   resolveLayoutMode,
+  resolveEdgeRouting,
   svgMembership,
   svgNodeStyles,
   type LayoutDirection,
   type LayoutNode,
+  type ViewpointLayout,
 } from "./layout.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
 
@@ -205,6 +209,31 @@ function isInside(child: LayoutNode, parent: LayoutNode): boolean {
     child.x + child.width <= parent.x + parent.width &&
     child.y + child.height <= parent.y + parent.height
   );
+}
+
+/** Diagonal segments on drawn edges (nest-implied lines are not rendered). */
+function diagonalSegments(layout: ViewpointLayout): number {
+  let count = 0;
+  for (const edge of layout.edges) {
+    if (edge.impliedByNest) {
+      continue;
+    }
+    const points =
+      edge.points && edge.points.length >= 2
+        ? edge.points
+        : [
+            { x: edge.x1, y: edge.y1 },
+            { x: edge.x2, y: edge.y2 },
+          ];
+    for (let index = 1; index < points.length; index += 1) {
+      const dx = points[index]!.x - points[index - 1]!.x;
+      const dy = points[index]!.y - points[index - 1]!.y;
+      if (dx !== 0 && dy !== 0) {
+        count += 1;
+      }
+    }
+  }
+  return count;
 }
 
 type GoldenNested = {
@@ -775,4 +804,128 @@ views {
     Math.max(actorsBottom, book.y + book.height, fulfill.y + fulfill.height) <= tms.y,
     "Business kinds stay above Application",
   );
+});
+
+test("parseEdgeRouting defaults to orthogonal and reads polyline", () => {
+  assert.equal(parseEdgeRouting(undefined), "orthogonal");
+  assert.equal(parseEdgeRouting("lr"), "orthogonal");
+  assert.equal(parseEdgeRouting("layers tb"), "orthogonal");
+  assert.equal(parseEdgeRouting("orthogonal"), "orthogonal");
+  assert.equal(parseEdgeRouting("right-angle"), "orthogonal");
+  assert.equal(parseEdgeRouting("ortho"), "orthogonal");
+  assert.equal(parseEdgeRouting("polyline"), "polyline");
+  assert.equal(parseEdgeRouting("poly-line"), "polyline");
+  assert.equal(parseEdgeRouting("layers lr polyline"), "polyline");
+  assert.equal(parseEdgeRouting("POLYLINE layers"), "polyline");
+  assert.equal(isEdgeRoutingToken("orthogonal"), true);
+  assert.equal(isEdgeRoutingToken("polyline"), true);
+  assert.equal(isEdgeRoutingToken("tb"), false);
+  assert.equal(isEdgeRoutingToken("layers"), false);
+  assert.equal(parseLayoutDirection("lr orthogonal"), "lr");
+  assert.equal(parseLayoutMode("layers polyline"), "layers");
+  assert.equal(parseLayoutMode("orthogonal"), "layered");
+});
+
+const COOPERATION_SOURCE = `model {
+  business-actor "Shipper" as shipper
+  business-process "Booking" as booking
+  application-component "Rates" as rates
+  application-component "TMS" as tms
+  application-component "Gateway" as gateway
+  shipper -> booking: serving
+  shipper -> rates: serving
+  booking -> tms: serving
+  rates -> tms: serving
+  booking -> rates: flow
+  gateway -> tms: serving
+  rates -> gateway: flow
+}
+views {
+  view cooperation {
+    include shipper booking rates tms gateway
+    autoLayout lr orthogonal
+  }
+}
+`;
+
+test("orthogonal routing keeps layered placement and drops diagonal segments", async () => {
+  const result = loadPleinSource(COOPERATION_SOURCE, "cooperation-routing.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const orthogonal = await layoutViewpoint(result.model, "cooperation");
+  const polyline = await layoutViewpoint(result.model, "cooperation", { routing: "polyline" });
+  assert.equal(orthogonal.routing, "orthogonal");
+  assert.equal(orthogonal.direction, "lr");
+  assert.equal(orthogonal.mode, "layered");
+  assert.equal(polyline.routing, "polyline");
+  assert.equal(polyline.direction, "lr");
+  assert.equal(polyline.mode, "layered");
+  assert.equal(resolveEdgeRouting(result.model.views[0]!), "orthogonal");
+  assert.equal(resolveEdgeRouting(result.model.views[0]!, { routing: "polyline" }), "polyline");
+  assert.equal(result.model.views[0]!.autoLayout, "lr orthogonal");
+
+  const shipper = orthogonal.nodes.find((node) => node.id === "shipper");
+  const booking = orthogonal.nodes.find((node) => node.id === "booking");
+  const tms = orthogonal.nodes.find((node) => node.id === "tms");
+  const shipperPoly = polyline.nodes.find((node) => node.id === "shipper");
+  const tmsPoly = polyline.nodes.find((node) => node.id === "tms");
+  assert.ok(shipper && booking && tms && shipperPoly && tmsPoly);
+  assert.ok(shipper.x < booking.x && booking.x < tms.x, "orthogonal keeps left-to-right ranks");
+  assert.ok(shipperPoly.x < tmsPoly.x, "polyline keeps left-to-right ranks");
+  assert.equal(diagonalSegments(orthogonal), 0);
+  assert.ok(diagonalSegments(polyline) > 0, "polyline routing still draws diagonal segments");
+  assert.match(renderViewpointSvg(orthogonal), /data-layout-routing="orthogonal"/);
+  assert.match(renderViewpointSvg(polyline), /data-layout-routing="polyline"/);
+  assert.match(renderViewpointSvg(polyline), /data-layout="lr"/);
+});
+
+test("routing does not change layer-band order or direction", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-layer-bands.plein"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const orthogonal = await layoutViewpoint(result.model, "layerBands", { routing: "orthogonal" });
+  const polyline = await layoutViewpoint(result.model, "layerBands", {
+    routing: "polyline",
+    direction: "lr",
+  });
+  const shipper = polyline.nodes.find((node) => node.id === "shipper");
+  const platform = polyline.nodes.find((node) => node.id === "platform");
+  const cloud = polyline.nodes.find((node) => node.id === "cloud");
+  assert.ok(shipper && platform && cloud);
+  assert.equal(orthogonal.mode, "layers");
+  assert.equal(orthogonal.direction, "tb");
+  assert.equal(orthogonal.routing, "orthogonal");
+  assert.equal(diagonalSegments(orthogonal), 0);
+  assert.equal(polyline.mode, "layers");
+  assert.equal(polyline.direction, "lr");
+  assert.equal(polyline.routing, "polyline");
+  assert.ok(shipper.x + shipper.width <= platform.x, "polyline routing still stacks bands left-to-right");
+  assert.ok(platform.x + platform.width <= cloud.x, "Application stays left of Technology");
+});
+
+test("default routing on an existing sample stays orthogonal", async () => {
+  const result = loadPleinSource(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "strategy");
+  assert.equal(layout.routing, "orthogonal");
+  assert.equal(layout.direction, "lr");
+  assert.equal(layout.nesting, "nested");
+  assert.equal(diagonalSegments(layout), 0);
+  assert.match(renderViewpointSvg(layout), /data-layout-routing="orthogonal"/);
+  assert.match(renderViewpointSvg(layout), /data-layout="lr"/);
 });

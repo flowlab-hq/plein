@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="216" height="180" viewBox="0 0 216 180" data-view="capability-and-value-stream" data-layout="lr" data-layout-mode="layered" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="Capability vs value stream glyphs">
+<svg xmlns="http://www.w3.org/2000/svg" width="216" height="180" viewBox="0 0 216 180" data-view="capability-and-value-stream" data-layout="lr" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="Capability vs value stream glyphs">
   <title>Capability vs value stream glyphs</title>
   <defs>
     <marker id="arrow-capability-and-value-stream" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">

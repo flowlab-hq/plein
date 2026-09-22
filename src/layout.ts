@@ -36,6 +36,17 @@ export const LAYOUT_MODES = ["layered", "layers"] as const;
 export type LayoutMode = (typeof LAYOUT_MODES)[number];
 
 /**
+ * Edge routing on top of ELK Layered placement.
+ * `orthogonal` is the viewer default (right-angle connectors).
+ * `polyline` is the non-orthogonal alternative and may draw diagonal segments.
+ */
+export const EDGE_ROUTINGS = ["orthogonal", "polyline"] as const;
+
+export type EdgeRouting = (typeof EDGE_ROUTINGS)[number];
+
+export const DEFAULT_EDGE_ROUTING: EdgeRouting = "orthogonal";
+
+/**
  * ArchiMate aspect bands used by `autoLayout layers`.
  * Motivation/Strategy share a band; Technology/Physical share a band.
  * `other` is composite/unknown, and is omitted when nothing maps to it.
@@ -62,6 +73,7 @@ export type LayoutOptions = {
   nesting?: NestingMode;
   direction?: LayoutDirection;
   mode?: LayoutMode;
+  routing?: EdgeRouting;
 };
 
 export type LayoutNode = {
@@ -104,6 +116,8 @@ export type ViewpointLayout = {
   viewpoint?: string;
   direction: LayoutDirection;
   mode: LayoutMode;
+  /** Right-angle (`orthogonal`) or diagonal-capable (`polyline`) connectors. */
+  routing: EdgeRouting;
   nesting: NestingMode;
   width: number;
   height: number;
@@ -161,6 +175,16 @@ function modeFromCompact(compact: string): LayoutMode | undefined {
   return undefined;
 }
 
+function routingFromCompact(compact: string): EdgeRouting | undefined {
+  if (compact === "orthogonal" || compact === "ortho" || compact === "rightangle") {
+    return "orthogonal";
+  }
+  if (compact === "polyline") {
+    return "polyline";
+  }
+  return undefined;
+}
+
 /**
  * Canonical `tb|bt|lr|rl`. Existing shorthand (`left-right`, `horizontal`,
  * `top-bottom`, `vertical`) still maps. `autoLayout layers lr` picks `lr`;
@@ -200,6 +224,26 @@ export function isLayoutModeToken(value: string): boolean {
   return modeFromCompact(compactAutoLayoutToken(value)) !== undefined;
 }
 
+/**
+ * `orthogonal` / `ortho` / `right-angle` select right-angle connectors.
+ * `polyline` / `poly-line` select ELK polyline routing (segments may be diagonal).
+ * A clause with no routing token stays on the viewer default (`orthogonal`).
+ */
+export function parseEdgeRouting(value?: string): EdgeRouting {
+  for (const token of autoLayoutTokens(value)) {
+    const routing = routingFromCompact(compactAutoLayoutToken(token));
+    if (routing) {
+      return routing;
+    }
+  }
+  return DEFAULT_EDGE_ROUTING;
+}
+
+/** True when the DSL token selects an edge routing style. */
+export function isEdgeRoutingToken(value: string): boolean {
+  return routingFromCompact(compactAutoLayoutToken(value)) !== undefined;
+}
+
 export function layoutDirectionTitle(direction: LayoutDirection): string {
   switch (direction) {
     case "tb":
@@ -219,6 +263,15 @@ export function layoutModeTitle(mode: LayoutMode): string {
       return "ArchiMate layer bands (Motivation/Strategy → Business → Application → Technology → Implementation)";
     default:
       return "ELK Layered (edge ranks)";
+  }
+}
+
+export function edgeRoutingTitle(routing: EdgeRouting): string {
+  switch (routing) {
+    case "polyline":
+      return "Polyline connectors (ELK polyline; segments may be diagonal)";
+    default:
+      return "Right-angle connectors (ELK orthogonal)";
   }
 }
 
@@ -278,13 +331,21 @@ export function resolveLayoutMode(view: ViewDecl, options?: LayoutOptions): Layo
   return parseLayoutMode(view.autoLayout);
 }
 
+/** Resolve file `autoLayout` routing, then optional tool override (Mac local preview). */
+export function resolveEdgeRouting(view: ViewDecl, options?: LayoutOptions): EdgeRouting {
+  if (options?.routing) {
+    return options.routing;
+  }
+  return parseEdgeRouting(view.autoLayout);
+}
+
 /**
  * Lay out the include/exclude set of one named view with ELK Layered.
  * Unknown view names throw. Membership is the same set `filterModel` uses.
  *
- * `options.nesting` / `options.direction` / `options.mode` are Mac/tool
- * overrides. The `.plein` clauses are the source of truth for PRs when the
- * override is omitted.
+ * `options.nesting` / `options.direction` / `options.mode` / `options.routing`
+ * are Mac/tool overrides. The `.plein` clauses are the source of truth for
+ * PRs when the override is omitted.
  */
 export async function layoutViewpoint(
   model: PleinModel,
@@ -299,6 +360,7 @@ export async function layoutViewpoint(
   const list = filterModel(model, viewName);
   const direction = resolveLayoutDirection(view, options);
   const mode = resolveLayoutMode(view, options);
+  const routing = resolveEdgeRouting(view, options);
   const nesting = resolveNestingMode(view, options);
   const nestForest =
     nesting === "nested" ? buildNestForest(list.elements, list.relationships) : emptyForest();
@@ -307,8 +369,22 @@ export async function layoutViewpoint(
 
   const packed =
     mode === "layers"
-      ? await layoutLayerBands(list.elements, list.relationships, direction, nestForest, parentOf)
-      : await layoutWithElk(list.elements, list.relationships, direction, nestForest, parentOf);
+      ? await layoutLayerBands(
+          list.elements,
+          list.relationships,
+          direction,
+          routing,
+          nestForest,
+          parentOf,
+        )
+      : await layoutWithElk(
+          list.elements,
+          list.relationships,
+          direction,
+          routing,
+          nestForest,
+          parentOf,
+        );
 
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
@@ -329,7 +405,10 @@ export async function layoutViewpoint(
     const routed = packed.edges.get(id);
     const anchors = impliedByNest
       ? { x1: source.x, y1: source.y, x2: target.x, y2: target.y }
-      : (routed ?? edgeAnchors(source, target));
+      : (routed ??
+        (routing === "orthogonal"
+          ? orthogonalBetween(source, target, direction)
+          : edgeAnchors(source, target)));
     return {
       id,
       source: rel.source,
@@ -346,6 +425,7 @@ export async function layoutViewpoint(
     viewpoint: view.viewpoint,
     direction,
     mode,
+    routing,
     nesting,
     width: Math.max(packed.width, PADDING * 2 + NODE_WIDTH),
     height: Math.max(packed.height, PADDING * 2 + NODE_HEIGHT),
@@ -389,7 +469,7 @@ ${containerMarkup}
 `
     : "";
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-engine="${LAYOUT_ENGINE}" data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${LAYOUT_ENGINE}" data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
     <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -549,6 +629,7 @@ async function layoutWithElk(
   elements: ElementDecl[],
   relationships: RelationshipDecl[],
   direction: LayoutDirection,
+  routing: EdgeRouting,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): Promise<PackedLayout> {
@@ -562,7 +643,7 @@ async function layoutWithElk(
   }
 
   const byId = new Map(elements.map((element) => [element.id, element]));
-  const graph = buildElkGraph(elements, relationships, direction, nestForest, parentOf);
+  const graph = buildElkGraph(elements, relationships, direction, routing, nestForest, parentOf);
   const laidOut = await elk.layout(graph);
   return flattenElkLayout(laidOut, byId, nestForest, parentOf);
 }
@@ -578,11 +659,12 @@ async function layoutLayerBands(
   elements: ElementDecl[],
   relationships: RelationshipDecl[],
   direction: LayoutDirection,
+  routing: EdgeRouting,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): Promise<PackedLayout> {
   if (elements.length === 0) {
-    return layoutWithElk(elements, relationships, direction, nestForest, parentOf);
+    return layoutWithElk(elements, relationships, direction, routing, nestForest, parentOf);
   }
 
   const byId = new Map(elements.map((element) => [element.id, element]));
@@ -607,11 +689,13 @@ async function layoutLayerBands(
     const bandRels = relationships.filter(
       (rel) => bandIds.has(rel.source) && bandIds.has(rel.target),
     );
-    bandLayouts.push(await layoutWithElk(bandElements, bandRels, direction, bandForest, bandParentOf));
+    bandLayouts.push(
+      await layoutWithElk(bandElements, bandRels, direction, routing, bandForest, bandParentOf),
+    );
   }
 
   const stacked = stackBandLayouts(direction, bandLayouts);
-  attachInterBandEdges(stacked, elements, relationships, direction, parentOf);
+  attachInterBandEdges(stacked, elements, relationships, direction, routing, parentOf);
   return stacked;
 }
 
@@ -628,10 +712,15 @@ function elkDirection(direction: LayoutDirection): "UP" | "DOWN" | "LEFT" | "RIG
   }
 }
 
+function elkEdgeRouting(routing: EdgeRouting): "ORTHOGONAL" | "POLYLINE" {
+  return routing === "polyline" ? "POLYLINE" : "ORTHOGONAL";
+}
+
 function buildElkGraph(
   elements: ElementDecl[],
   relationships: RelationshipDecl[],
   direction: LayoutDirection,
+  routing: EdgeRouting,
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): ElkNode {
@@ -655,7 +744,7 @@ function buildElkGraph(
     layoutOptions: {
       "elk.algorithm": "layered",
       "elk.direction": elkDirection(direction),
-      "elk.edgeRouting": "ORTHOGONAL",
+      "elk.edgeRouting": elkEdgeRouting(routing),
       "elk.hierarchyHandling": "INCLUDE_CHILDREN",
       "elk.padding": `[top=${PADDING},left=${PADDING},bottom=${PADDING},right=${PADDING}]`,
       "elk.spacing.nodeNode": String(LANE_GAP),
@@ -824,6 +913,7 @@ function attachInterBandEdges(
   elements: ElementDecl[],
   relationships: RelationshipDecl[],
   direction: LayoutDirection,
+  routing: EdgeRouting,
   parentOf: Map<string, string>,
 ): void {
   const nodeById = new Map(packed.nodes.map((node) => [node.id, node]));
@@ -844,12 +934,49 @@ function attachInterBandEdges(
     if (!source || !target) {
       continue;
     }
-    packed.edges.set(id, orthogonalBetween(source, target, direction));
+    packed.edges.set(
+      id,
+      routing === "orthogonal"
+        ? orthogonalBetween(source, target, direction)
+        : straightBetween(source, target),
+    );
   }
 }
 
 function nodeCenter(node: LayoutNode): ElkPoint {
   return { x: node.x + node.width / 2, y: node.y + node.height / 2 };
+}
+
+/** Straight center-line clipped to the two box borders (polyline inter-band edges). */
+function straightBetween(
+  source: LayoutNode,
+  target: LayoutNode,
+): { x1: number; y1: number; x2: number; y2: number; points: ElkPoint[] } {
+  const start = borderPoint(source, nodeCenter(target));
+  const end = borderPoint(target, nodeCenter(source));
+  return {
+    x1: start.x,
+    y1: start.y,
+    x2: end.x,
+    y2: end.y,
+    points: [start, end],
+  };
+}
+
+function borderPoint(node: LayoutNode, toward: ElkPoint): ElkPoint {
+  const center = nodeCenter(node);
+  const dx = toward.x - center.x;
+  const dy = toward.y - center.y;
+  if (dx === 0 && dy === 0) {
+    return { x: roundCoord(center.x), y: roundCoord(center.y) };
+  }
+  const scaleX = dx === 0 ? Number.POSITIVE_INFINITY : node.width / 2 / Math.abs(dx);
+  const scaleY = dy === 0 ? Number.POSITIVE_INFINITY : node.height / 2 / Math.abs(dy);
+  const scale = Math.min(scaleX, scaleY);
+  return {
+    x: roundCoord(center.x + dx * scale),
+    y: roundCoord(center.y + dy * scale),
+  };
 }
 
 function orthogonalBetween(

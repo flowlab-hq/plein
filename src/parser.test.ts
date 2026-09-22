@@ -155,6 +155,76 @@ views {
   );
 });
 
+test("autoLayout accepts orthogonal and polyline with direction and layers", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view rightAngle {
+    include shipper
+    autoLayout lr orthogonal
+  }
+  view bandsPolyline {
+    include shipper
+    autoLayout layers polyline
+  }
+  view polyFirst {
+    include shipper
+    autoLayout poly-line bt layers
+  }
+  view alias {
+    include shipper
+    autoLayout right-angle
+  }
+}
+`;
+  const model = checkPlein(source, "edge-routing.plein");
+  assert.deepEqual(
+    model.views.map((view) => view.autoLayout),
+    ["lr orthogonal", "layers polyline", "poly-line bt layers", "right-angle"],
+  );
+});
+
+test("duplicate or extra autoLayout routing is a line diagnostic", () => {
+  const duplicate = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout orthogonal polyline
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(duplicate, "duplicate-routing.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /duplicate autoLayout routing 'polyline'/);
+      return true;
+    },
+  );
+
+  const extra = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout layers lr orthogonal extra
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(extra, "extra-routing.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /too many autoLayout tokens 'extra'/);
+      return true;
+    },
+  );
+});
+
 test("unknown nesting mode is a line diagnostic", () => {
   const source = `model {
   business-actor "Shipper" as shipper

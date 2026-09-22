@@ -225,6 +225,27 @@ test("browseNamedView tool override changes layout mode without changing the fil
   assert.equal(fileDefault.model.views[0]!.autoLayout, "layers");
 });
 
+test("browseNamedView tool override changes routing without changing direction or the file", async () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const fileDefault = await browseNamedView(result.model, "applicationStructure");
+  const preview = await browseNamedView(result.model, "applicationStructure", { routing: "polyline" });
+  assert.equal(fileDefault.layout.routing, "orthogonal");
+  assert.equal(fileDefault.layout.direction, "lr");
+  assert.equal(preview.layout.routing, "polyline");
+  assert.equal(preview.layout.direction, "lr");
+  assert.equal(preview.model, result.model);
+  assert.match(fileDefault.svg, /data-layout-routing="orthogonal"/);
+  assert.match(fileDefault.svg, /data-layout="lr"/);
+  assert.match(preview.svg, /data-layout-routing="polyline"/);
+  assert.match(preview.svg, /data-layout="lr"/);
+  assert.equal(fileDefault.model.views[0]!.autoLayout, "lr");
+});
+
 test("reload keeps the current named view selected when it still exists", async () => {
   const file = "fixtures/valid-views.plein";
   const original = readFixture("valid-views.plein");

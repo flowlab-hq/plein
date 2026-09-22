@@ -87,27 +87,37 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const chrome = html.indexOf('class="diagram-chrome"');
   const mode = html.indexOf('id="mode-switcher"');
   const direction = html.indexOf('id="direction-switcher"');
+  const routing = html.indexOf('id="routing-switcher"');
   const nesting = html.indexOf('id="nesting-switcher"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(chrome, -1);
   assert.notEqual(mode, -1, "mode switcher is present");
   assert.notEqual(direction, -1, "direction switcher is present");
+  assert.notEqual(routing, -1, "routing switcher is present");
   assert.notEqual(nesting, -1, "nesting switcher remains");
   assert.ok(
-    chrome < mode && mode < direction && direction < nesting && nesting < canvas,
-    "mode + direction + nesting sit in the chrome above the canvas",
+    chrome < mode &&
+      mode < direction &&
+      direction < routing &&
+      routing < nesting &&
+      nesting < canvas,
+    "mode + direction + routing + nesting sit in the chrome above the canvas",
   );
   assert.match(html, /aria-label="Layout mode"/);
   assert.match(html, /aria-label="Layout direction"/);
+  assert.match(html, /aria-label="Edge routing"/);
   assert.match(html, /class="layout-controls"/);
   assert.equal(html.includes('class="view-switcher"'), false);
 
   assert.match(ui, /modeOverride/);
   assert.match(ui, /directionOverride/);
+  assert.match(ui, /routingOverride/);
   assert.match(ui, /LAYOUT_MODES/);
   assert.match(ui, /LAYOUT_DIRECTIONS/);
+  assert.match(ui, /EDGE_ROUTINGS/);
   assert.match(ui, /renderModeSwitcher/);
   assert.match(ui, /renderDirectionSwitcher/);
+  assert.match(ui, /renderRoutingSwitcher/);
   assert.match(css, /\.layout-controls\s*\{/);
   assert.match(css, /\.layout-switcher\s*,/);
 });

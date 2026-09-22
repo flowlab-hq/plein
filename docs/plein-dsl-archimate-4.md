@@ -166,7 +166,32 @@ Direction is optional. The Mac viewer lays the view out with **ELK Layered** and
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
-The Mac diagram chrome (the space left by removing the top view-switcher) can override **Mode** and **Direction** for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
+### Edge routing (`orthogonal` / `polyline`)
+
+Node placement stays **ELK Layered** (including `autoLayout layers` bands). Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode and direction. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL`). That is the current default, so existing views do not grow diagonal segments.
+
+| Token | Meaning |
+| --- | --- |
+| `orthogonal` | Right-angle connectors (default). Aliases: `ortho`, `right-angle`. |
+| `polyline` | ELK polyline connectors. Segments may be diagonal. Alias: `poly-line`. |
+
+```plein
+viewpoint applicationCooperation "Application Cooperation" {
+  include tms bookingApi customsGateway
+  autoLayout lr orthogonal
+}
+
+viewpoint applicationProcess "Application Process" {
+  include tms bookingApi
+  autoLayout tb polyline
+}
+```
+
+`autoLayout layers lr orthogonal` keeps ArchiMate aspect bands, stacks them left→right, and draws right-angle connectors. `autoLayout polyline` is top→bottom polyline routing with plain edge ranks. At most one routing token; a second is a parse error.
+
+Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
+
+The Mac diagram chrome can override **Mode**, **Direction**, and **Routing** (File / Orthogonal / Polyline) for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
 
 ### Layer bands (`autoLayout layers`)
 
@@ -179,7 +204,7 @@ viewpoint bookingContext "Booking context" {
 }
 ```
 
-`autoLayout layers lr` (or `autoLayout lr layers`) keeps the same bands and stacks them left→right. Bare `autoLayout layers` is top→bottom.
+`autoLayout layers lr` (or `autoLayout lr layers`) keeps the same bands and stacks them left→right. Bare `autoLayout layers` is top→bottom with orthogonal connectors. A routing token does not change the bands: `autoLayout layers lr polyline` still stacks left→right and only switches the edge router.
 
 | Band (in order) | Aspects present in the view |
 | --- | --- |

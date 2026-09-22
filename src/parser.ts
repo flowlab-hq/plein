@@ -72,6 +72,16 @@ const IDENT_PART = /[A-Za-z0-9_-]/;
 const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
 const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
 const LAYOUT_MODE_TOKENS = new Set(["layers", "layer", "layered"]);
+const LAYOUT_ROUTING_TOKENS = new Set([
+  "orthogonal",
+  "ortho",
+  "right-angle",
+  "rightAngle",
+  "right_angle",
+  "polyline",
+  "poly-line",
+  "polyLine",
+]);
 const LAYOUT_DIRECTION_TOKENS = new Set([
   "tb",
   "bt",
@@ -569,18 +579,19 @@ class Parser {
   }
 
   /**
-   * `autoLayout` tokens are a layout mode (`layers` / `layered`) and/or a
-   * direction (`tb|bt|lr|rl` and shorthand), in either order.
-   * Bare `autoLayout` remains `tb` (plain ELK Layered, top→bottom).
+   * `autoLayout` tokens are a layout mode (`layers` / `layered`), a direction
+   * (`tb|bt|lr|rl` and shorthand), and/or an edge routing (`orthogonal` /
+   * `polyline`), in any order. At most one of each.
+   * Bare `autoLayout` remains `tb` (plain ELK Layered, top→bottom, orthogonal).
    */
   private parseAutoLayoutTokens(tokens: Token[]): string {
     if (tokens.length === 0) {
       return "tb";
     }
-    if (tokens.length > 2) {
-      const extra = tokens[2]!;
+    if (tokens.length > 3) {
+      const extra = tokens[3]!;
       throw new ParseError(
-        `too many autoLayout tokens '${extra.value}' (expected layers and/or tb, bt, lr, or rl)`,
+        `too many autoLayout tokens '${extra.value}' (expected layers, a direction, and/or orthogonal or polyline)`,
         this.file,
         extra.line,
         extra.column,
@@ -588,6 +599,7 @@ class Parser {
     }
     let mode: Token | undefined;
     let direction: Token | undefined;
+    let routing: Token | undefined;
     for (const token of tokens) {
       if (LAYOUT_MODE_TOKENS.has(token.value)) {
         if (mode) {
@@ -613,8 +625,20 @@ class Parser {
         direction = token;
         continue;
       }
+      if (LAYOUT_ROUTING_TOKENS.has(token.value)) {
+        if (routing) {
+          throw new ParseError(
+            `duplicate autoLayout routing '${token.value}'`,
+            this.file,
+            token.line,
+            token.column,
+          );
+        }
+        routing = token;
+        continue;
+      }
       throw new ParseError(
-        `unknown autoLayout token '${token.value}' (expected layers, or tb, bt, lr, or rl)`,
+        `unknown autoLayout token '${token.value}' (expected layers, tb, bt, lr, rl, orthogonal, or polyline)`,
         this.file,
         token.line,
         token.column,
