@@ -1,0 +1,11 @@
+{
+  "file": "fixtures/valid-manual-layout.plein",
+  "view": "story",
+  "auto": false,
+  "nodes": [
+    { "id": "booking", "x": 280, "y": 40 },
+    { "id": "order", "x": 40, "y": 40 },
+    { "id": "rates", "x": 280, "y": 240 },
+    { "id": "shipper", "x": 40, "y": 240 }
+  ]
+}

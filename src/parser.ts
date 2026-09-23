@@ -36,6 +36,14 @@ export type RelationshipDecl = {
   line: number;
 };
 
+/** Top-left of one element when auto-layout is off. Ignored while auto-layout is on. */
+export type PositionDecl = {
+  id: string;
+  x: number;
+  y: number;
+  line: number;
+};
+
 export type ViewDecl = {
   name: string;
   viewpoint?: string;
@@ -43,6 +51,12 @@ export type ViewDecl = {
   includes: string[];
   excludes: string[];
   autoLayout?: string;
+  /**
+   * Explicit coordinates used only when this view’s auto-layout is off
+   * (`autoLayout off` / `autoLayout manual`). Declaring `autoLayout` without
+   * `off` keeps automatic placement and ignores these positions.
+   */
+  positions?: PositionDecl[];
   /**
    * File default for aggregation/composition placement.
    * Omit or `beside` = today’s side-by-side graph. `nested` draws children
@@ -58,7 +72,7 @@ export type PleinModel = {
   views: ViewDecl[];
 };
 
-type TokenKind = "ident" | "string" | "{" | "}" | "->" | ":" | "other" | "eof";
+type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "other" | "eof";
 
 type Token = {
   kind: TokenKind;
@@ -69,7 +83,18 @@ type Token = {
 
 const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
-const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
+const VIEW_CLAUSES = new Set([
+  "include",
+  "exclude",
+  "title",
+  "autoLayout",
+  "position",
+  "nesting",
+  "view",
+  "viewpoint",
+]);
+/** Disables automatic layout for this view. `manual` is an alias of `off`. */
+const AUTO_LAYOUT_OFF = new Set(["off", "manual"]);
 const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
 const LAYOUT_MODE_TOKENS = new Set(["layers", "layer", "layered", "organic", "grid"]);
 const LAYOUT_GRID_ORDER_TOKENS = new Set(["kind", "name"]);
@@ -103,6 +128,10 @@ const LAYOUT_DIRECTION_TOKENS = new Set([
   "bottomTop",
   "bottom_top",
 ]);
+
+function isDigit(ch: string): boolean {
+  return ch >= "0" && ch <= "9";
+}
 
 function tokenize(source: string, file: string): Token[] {
   const tokens: Token[] = [];
@@ -161,6 +190,21 @@ function tokenize(source: string, file: string): Token[] {
       advance();
       advance();
       tokens.push({ kind: "->", value: "->", line: startLine, column: startColumn });
+      continue;
+    }
+
+    if ((ch >= "0" && ch <= "9") || (ch === "-" && isDigit(source[i + 1] ?? ""))) {
+      let value = advance();
+      while (i < source.length && isDigit(source[i] ?? "")) {
+        value += advance();
+      }
+      if (source[i] === "." && isDigit(source[i + 1] ?? "")) {
+        value += advance();
+        while (i < source.length && isDigit(source[i] ?? "")) {
+          value += advance();
+        }
+      }
+      tokens.push({ kind: "number", value, line: startLine, column: startColumn });
       continue;
     }
 
@@ -468,6 +512,7 @@ class Parser {
       name: name.value,
       includes: [],
       excludes: [],
+      positions: [],
       line: start.line,
     });
     this.views.push(view);
@@ -487,12 +532,15 @@ class Parser {
       title,
       includes: [],
       excludes: [],
+      positions: [],
       line: start.line,
     });
     this.views.push(view);
   }
 
   private parseViewBody(view: ViewDecl): ViewDecl {
+    const positions = view.positions ?? [];
+    view.positions = positions;
     while (!this.check("}") && !this.check("eof")) {
       if (this.checkIdent("include")) {
         const clause = this.advance();
@@ -517,6 +565,22 @@ class Parser {
           tokens.push(this.advance());
         }
         view.autoLayout = this.parseAutoLayoutTokens(tokens);
+        continue;
+      }
+      if (this.checkIdent("position")) {
+        const start = this.advance();
+        const id = this.expect("ident", "expected element id after position");
+        const x = this.expectCoordinate("expected x coordinate after position");
+        const y = this.expectCoordinate("expected y coordinate after position");
+        if (positions.some((position) => position.id === id.value)) {
+          throw new ParseError(
+            `duplicate position for '${id.value}'`,
+            this.file,
+            id.line,
+            id.column,
+          );
+        }
+        positions.push({ id: id.value, x, y, line: start.line });
         continue;
       }
       if (this.checkIdent("nesting")) {
@@ -586,10 +650,25 @@ class Parser {
    * (`kind` / `name`), in any order. At most one of each.
    * Bare `autoLayout` remains `tb` (plain ELK Layered, top→bottom, orthogonal).
    * Omitting a mode stays `layered`; `organic` is not the default.
+   * `off` or `manual` alone disables auto-layout and must not be combined
+   * with a mode, direction, routing, or grid order.
    */
   private parseAutoLayoutTokens(tokens: Token[]): string {
     if (tokens.length === 0) {
       return "tb";
+    }
+    const disabled = tokens.find((token) => AUTO_LAYOUT_OFF.has(token.value));
+    if (disabled) {
+      if (tokens.length !== 1) {
+        const other = tokens.find((token) => token !== disabled)!;
+        throw new ParseError(
+          `autoLayout ${disabled.value} cannot be combined with '${other.value}'`,
+          this.file,
+          other.line,
+          other.column,
+        );
+      }
+      return disabled.value;
     }
     if (tokens.length > 4) {
       const extra = tokens[4]!;
@@ -654,7 +733,7 @@ class Parser {
         continue;
       }
       throw new ParseError(
-        `unknown autoLayout token '${token.value}' (expected layered, layers, organic, grid, a direction, orthogonal, polyline, or grid order kind/name)`,
+        `unknown autoLayout token '${token.value}' (expected layered, layers, organic, grid, off, manual, a direction, orthogonal, polyline, or grid order kind/name)`,
         this.file,
         token.line,
         token.column,
@@ -707,6 +786,19 @@ class Parser {
       this.index += 1;
     }
     return token;
+  }
+
+  private expectCoordinate(message: string): number {
+    const token = this.peek();
+    if (token.kind !== "number") {
+      throw new ParseError(message, this.file, token.line, token.column);
+    }
+    this.advance();
+    const value = Number(token.value);
+    if (!Number.isFinite(value)) {
+      throw new ParseError(message, this.file, token.line, token.column);
+    }
+    return value;
   }
 
   private expect(kind: TokenKind, message: string): Token {
@@ -773,6 +865,17 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
           `unknown identifier '${selector}' in view '${view.name}'`,
           file,
           view.line,
+          1,
+        );
+      }
+    }
+
+    for (const position of view.positions ?? []) {
+      if (!seen.has(position.id)) {
+        throw new ParseError(
+          `unknown identifier '${position.id}' in view '${view.name}'`,
+          file,
+          position.line,
           1,
         );
       }

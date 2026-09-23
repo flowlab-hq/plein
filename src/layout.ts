@@ -88,12 +88,41 @@ export type LayerBand = (typeof LAYER_BANDS)[number];
  */
 export type NestingMode = "beside" | "nested";
 
+/** `auto` forces a fresh layout. `off` freezes positions. Omit to follow the view clause. */
+export type AutoLayoutSetting = "auto" | "off";
+
+/**
+ * A frozen top-left (and optional box size) for one element.
+ * Session snapshots from the Mac toolbar may include width and height so a
+ * nested container does not resize when auto-layout is turned off.
+ * File `position` clauses only set x and y.
+ */
+export type ManualPosition = {
+  id: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+};
+
 /** Tool override for local preview. When set, wins over the view’s clause. */
 export type LayoutOptions = {
   nesting?: NestingMode;
   direction?: LayoutDirection;
   mode?: LayoutMode;
   routing?: EdgeRouting;
+  /**
+   * `auto` recomputes with the selected mode and ignores saved positions.
+   * `off` keeps file `position` clauses and `manualPositions`.
+   * Omit to follow the view (`autoLayout off` / `manual` disables; anything else stays automatic,
+   * including layered, layers, organic, and grid).
+   */
+  autoLayout?: AutoLayoutSetting;
+  /**
+   * Positions captured when auto-layout was turned off, or moved by drag.
+   * Used only while auto-layout is off. Wins over a file `position` for the same id.
+   */
+  manualPositions?: ManualPosition[];
 };
 
 export type LayoutNode = {
@@ -141,11 +170,19 @@ export type ViewpointLayout = {
   /** Set for `grid`: pack by element kind (then name) or by name. */
   gridOrder?: GridOrder;
   nesting: NestingMode;
+  /**
+   * False when this view is placed from saved positions (`autoLayout off`).
+   * Omit or true means the selected mode recomputed the graph.
+   */
+  auto?: boolean;
   width: number;
   height: number;
   nodes: LayoutNode[];
   edges: LayoutEdge[];
 };
+
+/** SVG engine token when node positions come from `position` clauses, not a layout algorithm. */
+export const MANUAL_LAYOUT_ENGINE = "manual";
 
 /** Sorted membership snapshot used by the golden fixture assert. */
 export type LayoutMembership = {
@@ -426,12 +463,48 @@ export function resolveEdgeRouting(view: ViewDecl, options?: LayoutOptions): Edg
 }
 
 /**
- * Lay out the include/exclude set of one named view with ELK Layered.
+ * True unless the clause is exactly `off` or `manual`.
+ * Bare `autoLayout`, a direction, `layered` / `layers` / `organic` / `grid`,
+ * and a missing clause all stay automatic.
+ */
+export function isAutoLayoutEnabled(value?: string): boolean {
+  const tokens = autoLayoutTokens(value).map(compactAutoLayoutToken);
+  if (tokens.length === 1 && (tokens[0] === "off" || tokens[0] === "manual")) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * File `autoLayout`, then optional tool override.
+ * `options.autoLayout: "auto"` recomputes even when the file says off.
+ * `options.autoLayout: "off"` freezes even when the file is automatic.
+ */
+export function resolveAutoLayout(view: ViewDecl, options?: LayoutOptions): boolean {
+  if (options?.autoLayout === "off") {
+    return false;
+  }
+  if (options?.autoLayout === "auto") {
+    return true;
+  }
+  return isAutoLayoutEnabled(view.autoLayout);
+}
+
+/**
+ * Lay out the include/exclude set of one named view.
  * Unknown view names throw. Membership is the same set `filterModel` uses.
  *
  * `options.nesting` / `options.direction` / `options.mode` / `options.routing`
  * are Mac/tool overrides. The `.plein` clauses are the source of truth for
  * PRs when the override is omitted. Omitting a mode keeps ELK Layered.
+ * `organic` and `grid` stay optional modes on the same path.
+ *
+ * When auto-layout is off, node top-lefts come from `position` clauses and
+ * `options.manualPositions` (session wins per id). Elements with neither are
+ * stacked in a column beside the placed nodes so the saved coordinates do not
+ * move. Turning auto-layout back on (`autoLayout` direction or mode, or
+ * `options.autoLayout: "auto"`) runs the selected algorithm again and ignores
+ * those positions.
  */
 export async function layoutViewpoint(
   model: PleinModel,
@@ -449,21 +522,30 @@ export async function layoutViewpoint(
   const routing = resolveEdgeRouting(view, options);
   const gridOrder = parseGridOrder(view.autoLayout);
   const nesting = resolveNestingMode(view, options);
+  const auto = resolveAutoLayout(view, options);
   const nestForest =
     nesting === "nested" ? buildNestForest(list.elements, list.relationships) : emptyForest();
   const parentOf = invertForest(nestForest);
   const byId = new Map(list.elements.map((element) => [element.id, element]));
 
-  const packed = await layoutPacked(
-    mode,
-    gridOrder,
-    list.elements,
-    list.relationships,
-    direction,
-    routing,
-    nestForest,
-    parentOf,
-  );
+  const packed = auto
+    ? await layoutPacked(
+        mode,
+        gridOrder,
+        list.elements,
+        list.relationships,
+        direction,
+        routing,
+        nestForest,
+        parentOf,
+      )
+    : layoutManual(
+        list.elements,
+        nesting,
+        nestForest,
+        view.positions ?? [],
+        options?.manualPositions ?? [],
+      );
 
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
@@ -507,6 +589,7 @@ export async function layoutViewpoint(
     routing,
     ...(mode === "grid" ? { gridOrder } : {}),
     nesting,
+    auto,
     width: Math.max(packed.width, PADDING * 2 + NODE_WIDTH),
     height: Math.max(packed.height, PADDING * 2 + NODE_HEIGHT),
     nodes,
@@ -549,11 +632,14 @@ ${containerMarkup}
 `
     : "";
 
+  const manual = layout.auto === false;
   const gridOrderAttr =
-    layout.mode === "grid"
+    !manual && layout.mode === "grid"
       ? ` data-grid-order="${layout.gridOrder ?? DEFAULT_GRID_ORDER}"`
       : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${layoutEngineFor(layout.mode)}"${gridOrderAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
+  const autoAttr = manual ? ` data-layout-auto="off"` : "";
+  const engine = manual ? MANUAL_LAYOUT_ENGINE : layoutEngineFor(layout.mode);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
     <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -1158,6 +1244,130 @@ function compareName(a: { label: string; id: string }, b: { label: string; id: s
     return byLabel;
   }
   return compareText(a.id, b.id);
+}
+
+/**
+ * Place nodes from saved coordinates. Does not call ELK or the organic/grid
+ * packers, so a later model edit cannot reflow boxes that already have a position.
+ * Session positions win over file `position` clauses for the same id.
+ * Missing positions stack in declaration order to the right of the placed set.
+ */
+function layoutManual(
+  elements: ElementDecl[],
+  nesting: NestingMode,
+  nestForest: Map<string, string[]>,
+  filePositions: Array<{ id: string; x: number; y: number }>,
+  sessionPositions: ManualPosition[],
+): PackedLayout {
+  if (elements.length === 0) {
+    return {
+      nodes: [],
+      edges: new Map(),
+      width: PADDING * 2 + NODE_WIDTH,
+      height: PADDING * 2 + NODE_HEIGHT,
+    };
+  }
+
+  const coords = new Map<string, ManualPosition>();
+  for (const position of filePositions) {
+    coords.set(position.id, {
+      id: position.id,
+      x: position.x,
+      y: position.y,
+    });
+  }
+  for (const position of sessionPositions) {
+    coords.set(position.id, {
+      id: position.id,
+      x: position.x,
+      y: position.y,
+      ...(position.width !== undefined ? { width: position.width } : {}),
+      ...(position.height !== undefined ? { height: position.height } : {}),
+    });
+  }
+
+  const parentOf = nesting === "nested" ? invertForest(nestForest) : new Map<string, string>();
+  const nodes: LayoutNode[] = elements.map((element) => {
+    const known = coords.get(element.id);
+    const childIds = nesting === "nested" ? (nestForest.get(element.id) ?? []) : [];
+    const parentId = parentOf.get(element.id);
+    return {
+      id: element.id,
+      label: element.label,
+      keyword: element.keyword,
+      x: known?.x ?? 0,
+      y: known?.y ?? 0,
+      width: known?.width ?? NODE_WIDTH,
+      height: known?.height ?? NODE_HEIGHT,
+      ...(parentId ? { parentId } : {}),
+      ...(childIds.length > 0 ? { container: true } : {}),
+    };
+  });
+
+  const missing = nodes.filter((node) => !coords.has(node.id));
+  if (missing.length > 0) {
+    const placed = nodes.filter((node) => coords.has(node.id));
+    const anchorX =
+      placed.length === 0 ? PADDING : Math.max(...placed.map((node) => node.x + node.width)) + RANK_GAP;
+    let cursorY = PADDING;
+    for (const node of missing) {
+      node.x = anchorX;
+      node.y = cursorY;
+      cursorY += node.height + LANE_GAP;
+    }
+  }
+
+  if (nesting === "nested") {
+    expandManualContainers(nodes, nestForest);
+  }
+
+  const width = Math.max(PADDING * 2 + NODE_WIDTH, ...nodes.map((node) => node.x + node.width + PADDING));
+  const height = Math.max(
+    PADDING * 2 + NODE_HEIGHT,
+    ...nodes.map((node) => node.y + node.height + PADDING),
+  );
+  return {
+    nodes,
+    edges: new Map(),
+    width,
+    height,
+  };
+}
+
+/** Grow a nested parent so it still covers its children. Declared top-lefts stay put. */
+function expandManualContainers(nodes: LayoutNode[], nestForest: Map<string, string[]>): void {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const walk = (id: string): void => {
+    const childIds = nestForest.get(id) ?? [];
+    for (const childId of childIds) {
+      walk(childId);
+    }
+    if (childIds.length === 0) {
+      return;
+    }
+    const parent = byId.get(id);
+    if (!parent) {
+      return;
+    }
+    let maxX = parent.x + parent.width;
+    let maxY = parent.y + Math.max(parent.height, NEST_HEADER_HEIGHT + NEST_PAD);
+    for (const childId of childIds) {
+      const child = byId.get(childId);
+      if (!child) {
+        continue;
+      }
+      maxX = Math.max(maxX, child.x + child.width + NEST_PAD);
+      maxY = Math.max(maxY, child.y + child.height + NEST_PAD);
+    }
+    parent.width = roundCoord(Math.max(parent.width, maxX - parent.x));
+    parent.height = roundCoord(Math.max(parent.height, maxY - parent.y));
+    parent.container = true;
+  };
+  for (const node of nodes) {
+    if (!node.parentId) {
+      walk(node.id);
+    }
+  }
 }
 
 async function layoutWithElk(

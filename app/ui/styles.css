@@ -257,6 +257,15 @@ button:disabled {
   min-height: 100%;
 }
 
+.diagram[data-manual-layout="true"] [data-node-id] {
+  cursor: grab;
+  touch-action: none;
+}
+
+.diagram.is-dragging [data-node-id] {
+  cursor: grabbing;
+}
+
 .diagram [data-node-id],
 .diagram [data-edge-id],
 .diagram [data-container-id] {

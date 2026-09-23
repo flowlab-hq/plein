@@ -24,6 +24,11 @@ import {
   resolveLayoutDirection,
   resolveLayoutMode,
   resolveEdgeRouting,
+  isAutoLayoutEnabled,
+  resolveAutoLayout,
+  MANUAL_LAYOUT_ENGINE,
+  NODE_WIDTH,
+  RANK_GAP,
   svgMembership,
   svgNodeStyles,
   type LayoutDirection,
@@ -1270,4 +1275,144 @@ test("toolbar mode override selects organic or grid without changing the file", 
   assert.equal(resolveLayoutMode(ranked), "layered");
   assert.equal(resolveLayoutMode(ranked, { mode: "organic" }), "organic");
   assert.equal(resolveLayoutMode(ranked, { mode: "grid" }), "grid");
+});
+
+type GoldenManual = {
+  file: string;
+  view: string;
+  auto: boolean;
+  nodes: Array<{ id: string; x: number; y: number }>;
+};
+
+function placed(layout: ViewpointLayout): Array<{ id: string; x: number; y: number }> {
+  return layout.nodes
+    .map((node) => ({ id: node.id, x: node.x, y: node.y }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+test("autoLayout stays on unless the clause is off or manual", () => {
+  assert.equal(isAutoLayoutEnabled(undefined), true);
+  assert.equal(isAutoLayoutEnabled("tb"), true);
+  assert.equal(isAutoLayoutEnabled("lr orthogonal"), true);
+  assert.equal(isAutoLayoutEnabled("layers"), true);
+  assert.equal(isAutoLayoutEnabled("organic"), true);
+  assert.equal(isAutoLayoutEnabled("grid name"), true);
+  assert.equal(isAutoLayoutEnabled("off"), false);
+  assert.equal(isAutoLayoutEnabled("manual"), false);
+  assert.equal(resolveAutoLayout({ name: "v", includes: [], excludes: [], line: 1 }), true);
+  assert.equal(
+    resolveAutoLayout({ name: "v", includes: [], excludes: [], autoLayout: "off", line: 1 }, { autoLayout: "auto" }),
+    true,
+  );
+  assert.equal(
+    resolveAutoLayout({ name: "v", includes: [], excludes: [], autoLayout: "lr", line: 1 }, { autoLayout: "off" }),
+    false,
+  );
+});
+
+test("golden manual layout restores position clauses and ignores them when auto is on", async () => {
+  const golden = JSON.parse(
+    readFileSync(join(repoRoot, "fixtures", "golden-manual-layout.json"), "utf8"),
+  ) as GoldenManual;
+  const result = loadPleinSource(readFixture("valid-manual-layout.plein"), golden.file);
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const manual = await layoutViewpoint(result.model, golden.view);
+  assert.equal(manual.auto, false);
+  assert.deepEqual(placed(manual), golden.nodes);
+  const manualSvg = renderViewpointSvg(manual);
+  assert.match(manualSvg, new RegExp(`data-layout-engine="${MANUAL_LAYOUT_ENGINE}"`));
+  assert.match(manualSvg, /data-layout-auto="off"/);
+
+  const declaredAuto = await layoutViewpoint(result.model, "storyAuto");
+  assert.equal(declaredAuto.auto, true);
+  assert.equal(declaredAuto.direction, "tb");
+  assert.notDeepEqual(placed(declaredAuto), golden.nodes);
+  const autoSvg = renderViewpointSvg(declaredAuto);
+  assert.match(autoSvg, new RegExp(`data-layout-engine="${LAYOUT_ENGINE}"`));
+  assert.doesNotMatch(autoSvg, /data-layout-auto/);
+
+  const recomputed = await layoutViewpoint(result.model, golden.view, { autoLayout: "auto" });
+  assert.equal(recomputed.auto, true);
+  assert.notDeepEqual(placed(recomputed), placed(manual));
+
+  const shifted = await layoutViewpoint(result.model, golden.view, {
+    autoLayout: "off",
+    manualPositions: [{ id: "shipper", x: 12, y: 18 }],
+  });
+  assert.deepEqual(
+    placed(shifted).find((node) => node.id === "shipper"),
+    { id: "shipper", x: 12, y: 18 },
+  );
+  assert.deepEqual(
+    placed(shifted).find((node) => node.id === "order"),
+    { id: "order", x: 40, y: 40 },
+  );
+});
+
+test("elements without a position keep their siblings where they were declared", async () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+  shipper -> booking: serving
+}
+views {
+  view story {
+    include shipper booking
+    autoLayout off
+    position shipper 40 80
+  }
+}
+`;
+  const result = loadPleinSource(source, "partial-position.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "story");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const booking = layout.nodes.find((node) => node.id === "booking");
+  assert.ok(shipper && booking);
+  assert.equal(shipper.x, 40);
+  assert.equal(shipper.y, 80);
+  assert.equal(booking.x, 40 + NODE_WIDTH + RANK_GAP);
+  assert.equal(booking.y, 24);
+});
+
+test("nested manual positions stay put and the parent still covers the child", async () => {
+  const source = `model {
+  business-actor "Parent" as parent
+  business-actor "Child" as child
+  parent -> child: composedOf
+}
+views {
+  view nest {
+    include parent child
+    autoLayout manual
+    nesting nested
+    position parent 20 20
+    position child 40 80
+  }
+}
+`;
+  const result = loadPleinSource(source, "nested-manual.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "nest");
+  const parent = layout.nodes.find((node) => node.id === "parent");
+  const child = layout.nodes.find((node) => node.id === "child");
+  assert.ok(parent && child);
+  assert.equal(parent.x, 20);
+  assert.equal(parent.y, 20);
+  assert.equal(child.x, 40);
+  assert.equal(child.y, 80);
+  assert.equal(parent.container, true);
+  assert.equal(child.parentId, "parent");
+  assert.ok(parent.x + parent.width >= child.x + child.width);
+  assert.ok(parent.y + parent.height >= child.y + child.height);
 });

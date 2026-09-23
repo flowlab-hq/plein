@@ -1,0 +1,31 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-service "Booking" as booking
+    business-object "Order" as order
+    application-component "Rates" as rates
+
+    shipper -> booking: serving
+    booking -> order: access
+    booking -> rates: serving
+  }
+
+  views {
+    viewpoint story "Story" {
+      include shipper booking order rates
+      autoLayout off
+      position shipper 40 240
+      position booking 280 40
+      position order 40 40
+      position rates 280 240
+    }
+    viewpoint storyAuto "Story auto" {
+      include shipper booking order rates
+      autoLayout tb
+      position shipper 40 240
+      position booking 280 40
+      position order 40 40
+      position rates 280 240
+    }
+  }
+}

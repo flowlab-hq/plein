@@ -54,8 +54,10 @@ export function currentViewCaption(model: PleinModel, viewName: string | null): 
  * Default placement is ELK Layered. `autoLayout layers` still uses ELK, once
  * per ArchiMate aspect band, then stacks the bands. `organic` is seeded ELK
  * Force. `grid` packs a catalogue by kind or name. `orthogonal` (default) or
- * `polyline` selects edge routing. Call this again with a different
- * `viewName` to switch views without reload.
+ * `polyline` selects edge routing. `autoLayout off` (or `manual`) keeps
+ * `position` clauses instead of running a layout algorithm;
+ * `options.autoLayout: "auto"` recomputes with the selected mode.
+ * Call this again with a different `viewName` to switch views without reload.
  */
 export async function browseNamedView(
   model: PleinModel,

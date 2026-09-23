@@ -166,6 +166,35 @@ Direction is optional. The Mac viewer defaults to **ELK Layered** (not organic) 
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
+### Turning auto-layout off
+
+Declaring `autoLayout` (bare, or with a direction, a mode such as `layers` / `organic` / `grid`, or a routing token) **keeps automatic placement**. That is the default. To freeze a view so a later reload does not reflow it, set `autoLayout off` (alias `manual`) and give each element a top-left with `position`:
+
+```plein
+viewpoint story "Story" {
+  include shipper booking order rates
+  autoLayout off
+  position shipper 40 240
+  position booking 280 40
+  position order 40 40
+  position rates 280 240
+}
+```
+
+`off` / `manual` must be the only `autoLayout` token. Coordinates are view-space pixels (decimals allowed; a leading minus is allowed). Each id may appear once, and it must exist in the model. Positions are **ignored while auto-layout is on**, so you can leave them in the file and turn `autoLayout lr` back on — the next layout runs ELK Layered again from the model.
+
+An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
+
+The Mac diagram chrome **Auto layout** control (File / On / Off) previews this without rewriting the file:
+
+| Choice | Effect |
+| --- | --- |
+| File | Follow the view. `off` or `manual` uses `position` clauses; anything else stays automatic (layered, layers, organic, or grid). |
+| Off | Freeze the positions currently on screen (the last automatic layout, or the file positions). **Reload** keeps that freeze. Drag a box to move it while auto-layout is off; nested children move with their parent. |
+| On | Drop the freeze and recompute from the model. Saved `position` clauses are not applied. |
+
+Dragging and the Off snapshot last for this open file, including across **Reload**. They are not written back. Put `position` clauses in the `.plein` when the arrangement should travel with the model.
+
 ### Edge routing (`orthogonal` / `polyline`)
 
 For `layered` and `layers`, node placement stays **ELK Layered**. `organic` and `grid` place nodes with their own algorithms (below); the routing token still draws the connectors. Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode, direction, and (for grid) order. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL` on layered/layers; a right-angle polyline on organic and grid). That is the current default, so existing views do not grow diagonal segments.
@@ -191,7 +220,7 @@ viewpoint applicationProcess "Application Process" {
 
 Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
 
-The Mac diagram chrome can override **Mode**, **Direction**, and **Routing** (File / Orthogonal / Polyline) for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank.
+The Mac diagram chrome can override **Auto layout** (File / On / Off), **Mode**, **Direction**, and **Routing** (File / Orthogonal / Polyline) for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload.
 
 ### Layer bands (`autoLayout layers`)
 

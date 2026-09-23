@@ -7,7 +7,7 @@
 # and must stay aligned with fixtures/README.md (Moss).
 #
 #   golden:        valid-basic, valid-views, valid-catalogue-layers,
-#                  valid-layer-bands, valid-organic-grid, valid-value-stream-stages,
+#                  valid-layer-bands, valid-organic-grid, valid-manual-layout, valid-value-stream-stages,
 #                  samples/value-stream-demo, samples/research-data,
 #                  open-exchange/booking.plein
 #   expected-fail: broken-syntax, unknown-keyword, malformed-views,

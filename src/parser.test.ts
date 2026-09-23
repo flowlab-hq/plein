@@ -303,6 +303,100 @@ views {
   );
 });
 
+test("autoLayout off and manual keep position clauses", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+}
+views {
+  view story {
+    include shipper booking
+    autoLayout off
+    position shipper 40 240
+    position booking 280.5 40
+  }
+  view alias {
+    include shipper
+    autoLayout manual
+    position shipper 12 18
+  }
+}
+`;
+  const model = checkPlein(source, "manual-layout.plein");
+  assert.equal(model.views[0]!.autoLayout, "off");
+  assert.deepEqual(
+    model.views[0]!.positions?.map((position) => [position.id, position.x, position.y]),
+    [
+      ["shipper", 40, 240],
+      ["booking", 280.5, 40],
+    ],
+  );
+  assert.equal(model.views[1]!.autoLayout, "manual");
+  assert.equal(model.views[1]!.positions?.[0]?.x, 12);
+});
+
+test("autoLayout off cannot be combined, and positions must be known", () => {
+  const combined = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout off lr
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(combined, "off-combined.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /autoLayout off cannot be combined with 'lr'/);
+      return true;
+    },
+  );
+
+  const duplicate = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout off
+    position shipper 1 2
+    position shipper 3 4
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(duplicate, "duplicate-position.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /duplicate position for 'shipper'/);
+      return true;
+    },
+  );
+
+  const unknown = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout off
+    position missing 10 20
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(unknown, "unknown-position.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /unknown-position\.plein:\d+:\d+: unknown identifier 'missing'/);
+      return true;
+    },
+  );
+});
+
 test("unknown nesting mode is a line diagnostic", () => {
   const source = `model {
   business-actor "Shipper" as shipper
