@@ -7,14 +7,18 @@ import { fileURLToPath } from "node:url";
 import {
   LAYOUT_ENGINE,
   NEST_HEADER_HEIGHT,
+  ORGANIC_RANDOM_SEED,
   layerBandOf,
+  layoutEngineFor,
   layoutViewpoint,
   membershipOf,
   parseLayoutDirection,
   parseLayoutMode,
+  parseGridOrder,
   parseEdgeRouting,
   isLayoutDirectionToken,
   isLayoutModeToken,
+  isGridOrderToken,
   isEdgeRoutingToken,
   renderViewpointSvg,
   resolveLayoutDirection,
@@ -549,9 +553,24 @@ test("parseLayoutMode reads layers from autoLayout clauses", () => {
   assert.equal(parseLayoutMode("layer"), "layers");
   assert.equal(parseLayoutMode("layers lr"), "layers");
   assert.equal(parseLayoutMode("lr layers"), "layers");
+  assert.equal(parseLayoutMode("organic"), "organic");
+  assert.equal(parseLayoutMode("organic lr"), "organic");
+  assert.equal(parseLayoutMode("grid"), "grid");
+  assert.equal(parseLayoutMode("grid name"), "grid");
+  assert.equal(parseLayoutMode("name grid lr"), "grid");
+  assert.equal(parseGridOrder("grid"), "kind");
+  assert.equal(parseGridOrder("grid name"), "name");
+  assert.equal(parseGridOrder("kind grid"), "kind");
+  assert.equal(parseGridOrder(undefined), "kind");
   assert.equal(isLayoutModeToken("layers"), true);
   assert.equal(isLayoutModeToken("layered"), true);
+  assert.equal(isLayoutModeToken("organic"), true);
+  assert.equal(isLayoutModeToken("grid"), true);
   assert.equal(isLayoutModeToken("tb"), false);
+  assert.equal(isLayoutModeToken("kind"), false);
+  assert.equal(isGridOrderToken("kind"), true);
+  assert.equal(isGridOrderToken("name"), true);
+  assert.equal(isGridOrderToken("grid"), false);
   assert.equal(layerBandOf("business-actor"), "business");
   assert.equal(layerBandOf("applicationComponent"), "application");
   assert.equal(layerBandOf("node"), "technology-physical");
@@ -928,4 +947,327 @@ test("default routing on an existing sample stays orthogonal", async () => {
   assert.equal(diagonalSegments(layout), 0);
   assert.match(renderViewpointSvg(layout), /data-layout-routing="orthogonal"/);
   assert.match(renderViewpointSvg(layout), /data-layout="lr"/);
+});
+
+function nodeById(layout: ViewpointLayout, id: string): LayoutNode {
+  const node = layout.nodes.find((candidate) => candidate.id === id);
+  assert.ok(node, id);
+  return node!;
+}
+
+function boxesOverlap(a: LayoutNode, b: LayoutNode): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+test("organic is seeded force-directed and does not replace the layered default", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-organic-grid.plein"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const ranked = await layoutViewpoint(result.model, "ranked");
+  assert.equal(ranked.mode, "layered");
+  assert.equal(ranked.direction, "tb");
+  assert.equal(layoutEngineFor(ranked.mode), "elk-layered");
+  assert.match(renderViewpointSvg(ranked), /data-layout-mode="layered"/);
+  assert.match(renderViewpointSvg(ranked), /data-layout-engine="elk-layered"/);
+
+  const first = await layoutViewpoint(result.model, "landscape");
+  const second = await layoutViewpoint(result.model, "landscape");
+  assert.equal(first.mode, "organic");
+  assert.equal(first.direction, "tb");
+  assert.equal(ORGANIC_RANDOM_SEED, "1");
+  assert.equal(layoutEngineFor("organic"), "elk-force");
+  const svg = renderViewpointSvg(first);
+  assert.match(svg, /data-layout-mode="organic"/);
+  assert.match(svg, /data-layout-engine="elk-force"/);
+  assert.equal(svg.includes("data-grid-order"), false);
+  assert.deepEqual(
+    first.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height })),
+    second.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height })),
+  );
+  assert.deepEqual(
+    first.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+    second.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+  );
+
+  const roots = first.nodes.filter((node) => !node.parentId);
+  for (let left = 0; left < roots.length; left += 1) {
+    for (let right = left + 1; right < roots.length; right += 1) {
+      assert.equal(
+        boxesOverlap(roots[left]!, roots[right]!),
+        false,
+        `${roots[left]!.id} overlaps ${roots[right]!.id}`,
+      );
+    }
+  }
+  assert.equal(diagonalSegments(first), 0);
+  const polyline = await layoutViewpoint(result.model, "landscape", { routing: "polyline" });
+  assert.equal(polyline.mode, "organic");
+  assert.ok(diagonalSegments(polyline) > 0, "organic polyline connectors may be diagonal");
+  assert.deepEqual(
+    polyline.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+    first.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+    "routing does not move organic nodes",
+  );
+
+  const golden = JSON.parse(
+    readFileSync(join(repoRoot, "fixtures", "golden-organic-grid.json"), "utf8"),
+  ) as {
+    organic: { nodes: Array<{ id: string; x: number; y: number }> };
+  };
+  assert.deepEqual(
+    first.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    golden.organic.nodes,
+  );
+});
+
+test("organic layout is stable when element declaration order changes", async () => {
+  const forward = loadPleinSource(
+    `model {
+  business-actor "Shipper" as shipper
+  business-process "Book" as book
+  application-component "Rates" as rates
+  node "Cloud" as cloud
+  shipper -> book: serving
+  book -> rates: serving
+  rates -> cloud: serving
+}
+views {
+  view landscape {
+    include shipper book rates cloud
+    autoLayout organic
+  }
+}
+`,
+    "organic-order-a.plein",
+  );
+  const reversed = loadPleinSource(
+    `model {
+  node "Cloud" as cloud
+  application-component "Rates" as rates
+  business-process "Book" as book
+  business-actor "Shipper" as shipper
+  shipper -> book: serving
+  book -> rates: serving
+  rates -> cloud: serving
+}
+views {
+  view landscape {
+    include shipper book rates cloud
+    autoLayout organic
+  }
+}
+`,
+    "organic-order-b.plein",
+  );
+  assert.equal(forward.ok, true);
+  assert.equal(reversed.ok, true);
+  if (!forward.ok || !reversed.ok) {
+    return;
+  }
+  const a = await layoutViewpoint(forward.model, "landscape");
+  const b = await layoutViewpoint(reversed.model, "landscape");
+  assert.deepEqual(
+    a.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })).sort((left, right) => left.id.localeCompare(right.id)),
+    b.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })).sort((left, right) => left.id.localeCompare(right.id)),
+  );
+});
+
+test("grid packs by kind then name and packs disconnected leftovers", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-organic-grid.plein"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const layout = await layoutViewpoint(result.model, "catalogue");
+  assert.equal(layout.mode, "grid");
+  assert.equal(layout.gridOrder, "kind");
+  assert.equal(layout.direction, "tb");
+  assert.equal(layoutEngineFor("grid"), "grid-pack");
+  const svg = renderViewpointSvg(layout);
+  assert.match(svg, /data-layout-mode="grid"/);
+  assert.match(svg, /data-layout-engine="grid-pack"/);
+  assert.match(svg, /data-grid-order="kind"/);
+  assert.equal(result.model.views.find((view) => view.name === "catalogue")!.autoLayout, "grid");
+
+  const rates = nodeById(layout, "rates");
+  const tms = nodeById(layout, "tms");
+  const shipper = nodeById(layout, "shipper");
+  const book = nodeById(layout, "book");
+  const fulfill = nodeById(layout, "fulfill");
+  const onTime = nodeById(layout, "onTime");
+  const cloud = nodeById(layout, "cloud");
+  const carrier = nodeById(layout, "carrier");
+  const invoice = nodeById(layout, "invoice");
+
+  assert.equal(rates.y, tms.y);
+  assert.ok(rates.x < tms.x, "Rates before TMS by name inside application-component");
+  assert.equal(book.y, fulfill.y);
+  assert.ok(book.x < fulfill.x, "Book before Fulfill by name inside business-process");
+  assert.ok(rates.y < shipper.y, "application-component row above business-actor");
+  assert.ok(shipper.y < book.y, "business-actor row above business-process");
+  assert.ok(book.y < onTime.y && onTime.y < cloud.y, "goal then node follow business");
+  assert.ok(cloud.y + cloud.height < carrier.y, "disconnected leftovers pack after the catalogue");
+  assert.ok(carrier.y < invoice.y, "leftover business-actor before business-object");
+  assert.equal(carrier.x, invoice.x);
+
+  const roots = layout.nodes;
+  for (let left = 0; left < roots.length; left += 1) {
+    for (let right = left + 1; right < roots.length; right += 1) {
+      assert.equal(boxesOverlap(roots[left]!, roots[right]!), false);
+    }
+  }
+  assert.equal(diagonalSegments(layout), 0);
+
+  const sideways = await layoutViewpoint(result.model, "catalogue", { direction: "lr" });
+  assert.equal(sideways.mode, "grid");
+  assert.equal(sideways.direction, "lr");
+  const ratesLr = nodeById(sideways, "rates");
+  const tmsLr = nodeById(sideways, "tms");
+  const shipperLr = nodeById(sideways, "shipper");
+  assert.equal(ratesLr.x, tmsLr.x);
+  assert.ok(ratesLr.y < tmsLr.y, "kind column orders names top to bottom");
+  assert.ok(ratesLr.x + ratesLr.width < shipperLr.x, "application column left of business-actor");
+
+  const upward = await layoutViewpoint(result.model, "catalogue", { direction: "bt" });
+  assert.ok(
+    nodeById(upward, "carrier").y < nodeById(upward, "rates").y,
+    "bt packs the leftover block above the catalogue",
+  );
+});
+
+test("grid name packs alphabetically and still packs leftovers", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-organic-grid.plein"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "catalogueByName");
+  assert.equal(layout.mode, "grid");
+  assert.equal(layout.gridOrder, "name");
+  assert.match(renderViewpointSvg(layout), /data-grid-order="name"/);
+  const book = nodeById(layout, "book");
+  const cloud = nodeById(layout, "cloud");
+  const fulfill = nodeById(layout, "fulfill");
+  const onTime = nodeById(layout, "onTime");
+  const tms = nodeById(layout, "tms");
+  const carrier = nodeById(layout, "carrier");
+  const invoice = nodeById(layout, "invoice");
+  assert.equal(book.y, cloud.y);
+  assert.equal(cloud.y, fulfill.y);
+  assert.ok(book.x < cloud.x && cloud.x < fulfill.x, "Book, Cloud, Fulfill share the first name row");
+  assert.ok(book.y < onTime.y && onTime.y < tms.y, "name rows continue downward");
+  assert.ok(tms.y + tms.height < carrier.y, "name-sorted leftovers pack after the catalogue");
+  assert.equal(carrier.y, invoice.y);
+  assert.ok(carrier.x < invoice.x, "Carrier before Invoice by name");
+});
+
+test("a relationship-free grid is one catalogue of leftovers", async () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-actor "Carrier" as carrier
+  business-object "Invoice" as invoice
+}
+views {
+  view inventory {
+    include shipper carrier invoice
+    autoLayout grid
+  }
+}
+`;
+  const result = loadPleinSource(source, "inventory-grid.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "inventory");
+  const carrier = nodeById(layout, "carrier");
+  const shipper = nodeById(layout, "shipper");
+  const invoice = nodeById(layout, "invoice");
+  assert.equal(carrier.y, shipper.y, "actors share one kind row");
+  assert.ok(carrier.x < shipper.x, "Carrier before Shipper by name");
+  assert.ok(shipper.y + shipper.height < invoice.y, "business-object follows business-actor");
+  assert.ok(invoice.y - (shipper.y + shipper.height) < 80, "no extra leftover gap when every node is disconnected");
+});
+
+test("organic and grid keep nested children inside the parent", async () => {
+  const source = `model {
+  grouping "Platform" as platform
+  application-component "TMS" as tms
+  application-component "Rates" as rates
+  business-actor "Shipper" as shipper
+  platform -> tms: composition
+  platform -> rates: composition
+  shipper -> tms: serving
+}
+views {
+  view nestedOrganic {
+    include platform tms rates shipper
+    autoLayout organic
+    nesting nested
+  }
+  view nestedGrid {
+    include platform tms rates shipper
+    autoLayout grid
+    nesting nested
+  }
+}
+`;
+  const result = loadPleinSource(source, "nested-organic-grid.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  for (const viewName of ["nestedOrganic", "nestedGrid"] as const) {
+    const layout = await layoutViewpoint(result.model, viewName);
+    const platform = nodeById(layout, "platform");
+    const tms = nodeById(layout, "tms");
+    const rates = nodeById(layout, "rates");
+    assert.equal(platform.container, true);
+    assert.equal(tms.parentId, "platform");
+    assert.equal(rates.parentId, "platform");
+    assert.equal(isInside(tms, platform), true, `${viewName} tms inside platform`);
+    assert.equal(isInside(rates, platform), true, `${viewName} rates inside platform`);
+  }
+  const grid = await layoutViewpoint(result.model, "nestedGrid");
+  const rates = nodeById(grid, "rates");
+  const tms = nodeById(grid, "tms");
+  assert.equal(rates.y, tms.y);
+  assert.ok(rates.x < tms.x, "nested grid still orders Rates before TMS by name");
+});
+
+test("toolbar mode override selects organic or grid without changing the file", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-organic-grid.plein"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const ranked = result.model.views.find((view) => view.name === "ranked")!;
+  assert.equal(ranked.autoLayout, "tb");
+  const organic = await layoutViewpoint(result.model, "ranked", { mode: "organic" });
+  const grid = await layoutViewpoint(result.model, "ranked", { mode: "grid" });
+  assert.equal(organic.mode, "organic");
+  assert.equal(grid.mode, "grid");
+  assert.equal(grid.gridOrder, "kind");
+  assert.equal(ranked.autoLayout, "tb");
+  assert.equal(resolveLayoutMode(ranked), "layered");
+  assert.equal(resolveLayoutMode(ranked, { mode: "organic" }), "organic");
+  assert.equal(resolveLayoutMode(ranked, { mode: "grid" }), "grid");
 });

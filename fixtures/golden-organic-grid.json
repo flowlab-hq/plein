@@ -1,0 +1,20 @@
+{
+  "file": "fixtures/valid-organic-grid.plein",
+  "view": "landscape",
+  "seed": "1",
+  "engine": "elk-force",
+  "note": "Rounded ELK Force coordinates. Same file and seed must keep this pin.",
+  "organic": {
+    "nodes": [
+      { "id": "book", "x": 362, "y": 330 },
+      { "id": "carrier", "x": 1251, "y": 24 },
+      { "id": "cloud", "x": 706, "y": 537 },
+      { "id": "fulfill", "x": 24, "y": 24 },
+      { "id": "invoice", "x": 24, "y": 921 },
+      { "id": "onTime", "x": 488, "y": 121 },
+      { "id": "rates", "x": 872, "y": 198 },
+      { "id": "shipper", "x": 234, "y": 789 },
+      { "id": "tms", "x": 1003, "y": 660 }
+    ]
+  }
+}

@@ -114,7 +114,7 @@ PLEIN_BIN=plein ./scripts/mac/smoke.sh
 
 The script delegates to `scripts/check-fixtures.sh` (same catalogue CI uses):
 
-1. Golden (exit 0): `valid-basic.plein`, `valid-views.plein`, `valid-catalogue-layers.plein`, `valid-layer-bands.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`, `samples/research-data.plein`
+1. Golden (exit 0): `valid-basic.plein`, `valid-views.plein`, `valid-catalogue-layers.plein`, `valid-layer-bands.plein`, `valid-organic-grid.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`, `samples/research-data.plein`
 2. Expected-fail (non-zero + diagnostics): `broken-syntax.plein`, `unknown-keyword.plein`, `malformed-views.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`
 
 `brew test plein` repeats a smaller golden / broken pair inside the formula. GitHub Actions **Check fixtures** runs the same script on every push and pull request.

@@ -28,12 +28,32 @@ export const LAYOUT_DIRECTIONS = ["tb", "bt", "lr", "rl"] as const;
 export type LayoutDirection = (typeof LAYOUT_DIRECTIONS)[number];
 
 /**
- * `layered` is plain ELK Layered (edge ranks). `layers` still uses that engine
- * once per ArchiMate aspect band, then stacks the bands in aspect order.
+ * `layered` is plain ELK Layered (edge ranks) and stays the default.
+ * `layers` still uses that engine once per ArchiMate aspect band, then stacks
+ * the bands. `organic` is a seeded ELK Force layout. `grid` packs a catalogue.
+ * Organic is not the default.
  */
-export const LAYOUT_MODES = ["layered", "layers"] as const;
+export const LAYOUT_MODES = ["layered", "layers", "organic", "grid"] as const;
 
 export type LayoutMode = (typeof LAYOUT_MODES)[number];
+
+/**
+ * Catalogue order for `autoLayout grid`.
+ * `kind` groups by element keyword, then by name. `name` packs by label.
+ * Omitted order is `kind`.
+ */
+export const GRID_ORDERS = ["kind", "name"] as const;
+
+export type GridOrder = (typeof GRID_ORDERS)[number];
+
+export const DEFAULT_GRID_ORDER: GridOrder = "kind";
+
+/**
+ * Fixed ELK seed for `organic`. elkjs treats seed `0` as unseeded, so the
+ * stable seed is `1` (the same value layered already sets). Same file → same
+ * coordinates.
+ */
+export const ORGANIC_RANDOM_SEED = "1";
 
 /**
  * Edge routing on top of ELK Layered placement.
@@ -118,6 +138,8 @@ export type ViewpointLayout = {
   mode: LayoutMode;
   /** Right-angle (`orthogonal`) or diagonal-capable (`polyline`) connectors. */
   routing: EdgeRouting;
+  /** Set for `grid`: pack by element kind (then name) or by name. */
+  gridOrder?: GridOrder;
   nesting: NestingMode;
   width: number;
   height: number;
@@ -172,6 +194,22 @@ function modeFromCompact(compact: string): LayoutMode | undefined {
   if (compact === "layered") {
     return "layered";
   }
+  if (compact === "organic") {
+    return "organic";
+  }
+  if (compact === "grid") {
+    return "grid";
+  }
+  return undefined;
+}
+
+function gridOrderFromCompact(compact: string): GridOrder | undefined {
+  if (compact === "kind") {
+    return "kind";
+  }
+  if (compact === "name") {
+    return "name";
+  }
   return undefined;
 }
 
@@ -201,17 +239,30 @@ export function parseLayoutDirection(value?: string): LayoutDirection {
 }
 
 /**
- * `layers` / `layer` select ArchiMate aspect bands. Anything else, including
- * a direction-only clause, is plain ELK Layered.
+ * First explicit mode token wins. `layers` / `layer` select ArchiMate aspect
+ * bands. `organic` selects seeded force-directed layout. `grid` selects
+ * catalogue packing. Anything else, including a direction-only clause, is
+ * plain ELK Layered — organic is not the default.
  */
 export function parseLayoutMode(value?: string): LayoutMode {
   for (const token of autoLayoutTokens(value)) {
     const mode = modeFromCompact(compactAutoLayoutToken(token));
-    if (mode === "layers") {
-      return "layers";
+    if (mode) {
+      return mode;
     }
   }
   return "layered";
+}
+
+/** `kind` (default) or `name` from an `autoLayout grid` clause. */
+export function parseGridOrder(value?: string): GridOrder {
+  for (const token of autoLayoutTokens(value)) {
+    const order = gridOrderFromCompact(compactAutoLayoutToken(token));
+    if (order) {
+      return order;
+    }
+  }
+  return DEFAULT_GRID_ORDER;
 }
 
 /** True when the DSL token is a supported autoLayout direction or shorthand. */
@@ -219,9 +270,14 @@ export function isLayoutDirectionToken(value: string): boolean {
   return directionFromCompact(compactAutoLayoutToken(value)) !== undefined;
 }
 
-/** True when the DSL token selects a layout mode (`layers` / `layered`). */
+/** True when the DSL token selects a layout mode (`layered` / `layers` / `organic` / `grid`). */
 export function isLayoutModeToken(value: string): boolean {
   return modeFromCompact(compactAutoLayoutToken(value)) !== undefined;
+}
+
+/** True when the DSL token selects a grid catalogue order (`kind` / `name`). */
+export function isGridOrderToken(value: string): boolean {
+  return gridOrderFromCompact(compactAutoLayoutToken(value)) !== undefined;
 }
 
 /**
@@ -261,8 +317,38 @@ export function layoutModeTitle(mode: LayoutMode): string {
   switch (mode) {
     case "layers":
       return "ArchiMate layer bands (Motivation/Strategy → Business → Application → Technology → Implementation)";
+    case "organic":
+      return "Seeded force-directed layout for landscape and inventory diagrams (same file, same layout)";
+    case "grid":
+      return "Catalog grid packed by kind or name, including disconnected leftovers";
     default:
       return "ELK Layered (edge ranks)";
+  }
+}
+
+/** Short toolbar label. `layered` stays the first choice. */
+export function layoutModeLabel(mode: LayoutMode): string {
+  switch (mode) {
+    case "layers":
+      return "Layers";
+    case "organic":
+      return "Organic";
+    case "grid":
+      return "Grid";
+    default:
+      return "Layered";
+  }
+}
+
+/** SVG `data-layout-engine`. Layered and layers stay on ELK Layered. */
+export function layoutEngineFor(mode: LayoutMode | undefined): string {
+  switch (mode) {
+    case "organic":
+      return "elk-force";
+    case "grid":
+      return "grid-pack";
+    default:
+      return LAYOUT_ENGINE;
   }
 }
 
@@ -345,7 +431,7 @@ export function resolveEdgeRouting(view: ViewDecl, options?: LayoutOptions): Edg
  *
  * `options.nesting` / `options.direction` / `options.mode` / `options.routing`
  * are Mac/tool overrides. The `.plein` clauses are the source of truth for
- * PRs when the override is omitted.
+ * PRs when the override is omitted. Omitting a mode keeps ELK Layered.
  */
 export async function layoutViewpoint(
   model: PleinModel,
@@ -361,30 +447,23 @@ export async function layoutViewpoint(
   const direction = resolveLayoutDirection(view, options);
   const mode = resolveLayoutMode(view, options);
   const routing = resolveEdgeRouting(view, options);
+  const gridOrder = parseGridOrder(view.autoLayout);
   const nesting = resolveNestingMode(view, options);
   const nestForest =
     nesting === "nested" ? buildNestForest(list.elements, list.relationships) : emptyForest();
   const parentOf = invertForest(nestForest);
   const byId = new Map(list.elements.map((element) => [element.id, element]));
 
-  const packed =
-    mode === "layers"
-      ? await layoutLayerBands(
-          list.elements,
-          list.relationships,
-          direction,
-          routing,
-          nestForest,
-          parentOf,
-        )
-      : await layoutWithElk(
-          list.elements,
-          list.relationships,
-          direction,
-          routing,
-          nestForest,
-          parentOf,
-        );
+  const packed = await layoutPacked(
+    mode,
+    gridOrder,
+    list.elements,
+    list.relationships,
+    direction,
+    routing,
+    nestForest,
+    parentOf,
+  );
 
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
@@ -426,6 +505,7 @@ export async function layoutViewpoint(
     direction,
     mode,
     routing,
+    ...(mode === "grid" ? { gridOrder } : {}),
     nesting,
     width: Math.max(packed.width, PADDING * 2 + NODE_WIDTH),
     height: Math.max(packed.height, PADDING * 2 + NODE_HEIGHT),
@@ -469,7 +549,11 @@ ${containerMarkup}
 `
     : "";
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${LAYOUT_ENGINE}" data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
+  const gridOrderAttr =
+    layout.mode === "grid"
+      ? ` data-grid-order="${layout.gridOrder ?? DEFAULT_GRID_ORDER}"`
+      : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${layoutEngineFor(layout.mode)}"${gridOrderAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
     <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -624,6 +708,457 @@ type PackedLayout = {
   width: number;
   height: number;
 };
+
+async function layoutPacked(
+  mode: LayoutMode,
+  gridOrder: GridOrder,
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  routing: EdgeRouting,
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+): Promise<PackedLayout> {
+  if (mode === "layers") {
+    return layoutLayerBands(elements, relationships, direction, routing, nestForest, parentOf);
+  }
+  if (mode === "organic") {
+    return layoutOrganic(elements, relationships, direction, routing, nestForest, parentOf);
+  }
+  if (mode === "grid") {
+    return layoutGrid(
+      elements,
+      relationships,
+      direction,
+      routing,
+      gridOrder,
+      nestForest,
+      parentOf,
+    );
+  }
+  return layoutWithElk(elements, relationships, direction, routing, nestForest, parentOf);
+}
+
+type Placement = {
+  positions: Map<string, { x: number; y: number }>;
+  width: number;
+  height: number;
+};
+
+type SizedNode = ElementDecl & { width: number; height: number };
+
+type LevelPlacer = (
+  nodes: SizedNode[],
+  edges: RelationshipDecl[],
+  pad: number,
+) => Promise<Placement>;
+
+/**
+ * Seeded ELK Force (Fruchterman–Reingold). `elk.randomSeed` is fixed so the
+ * same graph yields the same coordinates. Direction does not re-rank nodes;
+ * orthogonal routing still uses it for bend axis. Disconnected components are
+ * simulated separately and then packed.
+ */
+async function layoutOrganic(
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  routing: EdgeRouting,
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+): Promise<PackedLayout> {
+  return layoutCompound(
+    elements,
+    relationships,
+    direction,
+    routing,
+    nestForest,
+    parentOf,
+    placeOrganic,
+  );
+}
+
+/**
+ * Catalogue packing. Relationships do not decide coordinates.
+ * `kind` makes one strip per element keyword (items ordered by name).
+ * `name` wraps a single name-sorted sequence.
+ * Roots with no relationship (and no related descendant) are disconnected
+ * leftovers: they are packed in a following strip, not dropped.
+ */
+async function layoutGrid(
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  routing: EdgeRouting,
+  gridOrder: GridOrder,
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+): Promise<PackedLayout> {
+  const roots = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
+  const leftovers = leftoverRoots(roots, relationships, nestForest, parentOf);
+  return layoutCompound(
+    elements,
+    relationships,
+    direction,
+    routing,
+    nestForest,
+    parentOf,
+    (nodes, _edges, pad) => Promise.resolve(placeGrid(nodes, direction, gridOrder, leftovers, pad)),
+  );
+}
+
+async function layoutCompound(
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  routing: EdgeRouting,
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+  place: LevelPlacer,
+): Promise<PackedLayout> {
+  if (elements.length === 0) {
+    return {
+      nodes: [],
+      edges: new Map(),
+      width: PADDING * 2 + NODE_WIDTH,
+      height: PADDING * 2 + NODE_HEIGHT,
+    };
+  }
+
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const topIds = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
+  const innerByParent = new Map<string, PackedLayout>();
+
+  const layoutIds = async (ids: string[], pad: number): Promise<PackedLayout> => {
+    const sized: SizedNode[] = [];
+    for (const id of ids) {
+      const element = byId.get(id);
+      if (!element) {
+        continue;
+      }
+      const kids = nestForest.get(id) ?? [];
+      if (kids.length === 0) {
+        sized.push({ ...element, width: NODE_WIDTH, height: NODE_HEIGHT });
+        continue;
+      }
+      const inner = await layoutIds(kids, NEST_PAD);
+      innerByParent.set(id, inner);
+      sized.push({
+        ...element,
+        width: Math.max(NODE_WIDTH, inner.width),
+        height: NEST_HEADER_HEIGHT + inner.height,
+      });
+    }
+
+    const idSet = new Set(sized.map((node) => node.id));
+    const levelEdges = relationships.filter((rel) => {
+      if (!idSet.has(rel.source) || !idSet.has(rel.target)) {
+        return false;
+      }
+      return !(NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source);
+    });
+    const placement = await place(sized, levelEdges, pad);
+    const nodes: LayoutNode[] = [];
+    for (const element of sized) {
+      const pos = placement.positions.get(element.id);
+      if (!pos) {
+        throw new Error(`layout missing position for '${element.id}'`);
+      }
+      const kids = nestForest.get(element.id) ?? [];
+      nodes.push({
+        id: element.id,
+        label: element.label,
+        keyword: element.keyword,
+        x: pos.x,
+        y: pos.y,
+        width: element.width,
+        height: element.height,
+        ...(kids.length > 0 ? { container: true } : {}),
+      });
+      const inner = innerByParent.get(element.id);
+      if (!inner) {
+        continue;
+      }
+      for (const child of inner.nodes) {
+        nodes.push({
+          ...child,
+          x: child.x + pos.x,
+          y: child.y + pos.y + NEST_HEADER_HEIGHT,
+          parentId: child.parentId ?? element.id,
+        });
+      }
+    }
+    return {
+      nodes,
+      edges: new Map(),
+      width: Math.max(placement.width, pad * 2),
+      height: Math.max(placement.height, pad * 2),
+    };
+  };
+
+  const packed = await layoutIds(topIds, PADDING);
+  attachInterBandEdges(packed, elements, relationships, direction, routing, parentOf);
+  return packed;
+}
+
+async function placeOrganic(
+  nodes: SizedNode[],
+  edges: RelationshipDecl[],
+  pad: number,
+): Promise<Placement> {
+  if (nodes.length === 0) {
+    return { positions: new Map(), width: pad * 2, height: pad * 2 };
+  }
+
+  const ordered = nodes.slice().sort((a, b) => compareText(a.id, b.id));
+  const elkEdges = edges
+    .slice()
+    .sort((a, b) =>
+      compareText(edgeId(a.source, a.target, a.type), edgeId(b.source, b.target, b.type)),
+    )
+    .map((rel) => ({
+      id: edgeId(rel.source, rel.target, rel.type),
+      sources: [rel.source],
+      targets: [rel.target],
+    }));
+  const graph: ElkNode = {
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "force",
+      "elk.randomSeed": ORGANIC_RANDOM_SEED,
+      "elk.force.model": "FRUCHTERMAN_REINGOLD",
+      "elk.force.iterations": "300",
+      "elk.spacing.nodeNode": "80",
+      "elk.separateConnectedComponents": "true",
+      "elk.aspectRatio": "1.6",
+      "elk.padding": `[top=${pad},left=${pad},bottom=${pad},right=${pad}]`,
+    },
+    children: ordered.map((node) => ({
+      id: node.id,
+      width: node.width,
+      height: node.height,
+    })),
+  };
+  if (elkEdges.length > 0) {
+    graph.edges = elkEdges;
+  }
+  const laidOut = await elk.layout(graph);
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const child of laidOut.children ?? []) {
+    positions.set(child.id, {
+      x: roundCoord(child.x ?? 0),
+      y: roundCoord(child.y ?? 0),
+    });
+  }
+  for (const node of ordered) {
+    if (!positions.has(node.id)) {
+      throw new Error(`organic layout missing position for '${node.id}'`);
+    }
+  }
+  return {
+    positions,
+    width: Math.max(roundCoord(laidOut.width ?? 0), pad * 2),
+    height: Math.max(roundCoord(laidOut.height ?? 0), pad * 2),
+  };
+}
+
+function placeGrid(
+  nodes: SizedNode[],
+  direction: LayoutDirection,
+  order: GridOrder,
+  leftoverIds: Set<string>,
+  pad: number,
+): Placement {
+  if (nodes.length === 0) {
+    return { positions: new Map(), width: pad * 2, height: pad * 2 };
+  }
+  const linked = nodes.filter((node) => !leftoverIds.has(node.id));
+  const loose = nodes.filter((node) => leftoverIds.has(node.id));
+  const blocks: PackedLayout[] = [];
+  if (linked.length > 0) {
+    blocks.push(placementToPacked(linked, packCatalog(linked, direction, order)));
+  }
+  if (loose.length > 0) {
+    blocks.push(placementToPacked(loose, packCatalog(loose, direction, order)));
+  }
+  const stacked = stackBandLayouts(direction, blocks);
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const node of stacked.nodes) {
+    positions.set(node.id, { x: node.x + pad, y: node.y + pad });
+  }
+  return {
+    positions,
+    width: stacked.width + pad * 2,
+    height: stacked.height + pad * 2,
+  };
+}
+
+function packCatalog(nodes: SizedNode[], direction: LayoutDirection, order: GridOrder): Placement {
+  const vertical = direction === "tb" || direction === "bt";
+  let strips = order === "name" ? nameStrips(nodes, vertical) : kindStrips(nodes);
+  if (direction === "bt" || direction === "rl") {
+    strips = strips.slice().reverse();
+  }
+  return packStrips(strips, vertical ? "row" : "column");
+}
+
+function kindStrips(nodes: SizedNode[]): SizedNode[][] {
+  const groups = new Map<string, SizedNode[]>();
+  for (const node of nodes) {
+    const key = toKebabCaseKeyword(node.keyword);
+    const list = groups.get(key) ?? [];
+    list.push(node);
+    groups.set(key, list);
+  }
+  return [...groups.keys()].sort(compareText).map((key) => groups.get(key)!.slice().sort(compareName));
+}
+
+function nameStrips(nodes: SizedNode[], rows: boolean): SizedNode[][] {
+  const sorted = nodes.slice().sort(compareName);
+  const span = Math.max(1, Math.ceil(Math.sqrt(sorted.length)));
+  if (rows) {
+    const out: SizedNode[][] = [];
+    for (let index = 0; index < sorted.length; index += span) {
+      out.push(sorted.slice(index, index + span));
+    }
+    return out;
+  }
+  const rowCount = Math.max(1, Math.ceil(sorted.length / span));
+  const columns: SizedNode[][] = Array.from({ length: span }, () => []);
+  for (let index = 0; index < sorted.length; index += 1) {
+    columns[Math.floor(index / rowCount)]!.push(sorted[index]!);
+  }
+  return columns.filter((column) => column.length > 0);
+}
+
+function packStrips(strips: SizedNode[][], along: "row" | "column"): Placement {
+  const positions = new Map<string, { x: number; y: number }>();
+  if (along === "row") {
+    let y = 0;
+    let width = 0;
+    for (let stripIndex = 0; stripIndex < strips.length; stripIndex += 1) {
+      const strip = strips[stripIndex]!;
+      let x = 0;
+      let rowHeight = 0;
+      for (let index = 0; index < strip.length; index += 1) {
+        const node = strip[index]!;
+        positions.set(node.id, { x, y });
+        rowHeight = Math.max(rowHeight, node.height);
+        x += node.width;
+        if (index < strip.length - 1) {
+          x += LANE_GAP;
+        }
+      }
+      width = Math.max(width, x);
+      y += rowHeight;
+      if (stripIndex < strips.length - 1) {
+        y += LANE_GAP;
+      }
+    }
+    return { positions, width, height: y };
+  }
+
+  let x = 0;
+  let height = 0;
+  for (let stripIndex = 0; stripIndex < strips.length; stripIndex += 1) {
+    const strip = strips[stripIndex]!;
+    let y = 0;
+    let columnWidth = 0;
+    for (let index = 0; index < strip.length; index += 1) {
+      const node = strip[index]!;
+      positions.set(node.id, { x, y });
+      columnWidth = Math.max(columnWidth, node.width);
+      y += node.height;
+      if (index < strip.length - 1) {
+        y += LANE_GAP;
+      }
+    }
+    height = Math.max(height, y);
+    x += columnWidth;
+    if (stripIndex < strips.length - 1) {
+      x += LANE_GAP;
+    }
+  }
+  return { positions, width: x, height };
+}
+
+function placementToPacked(nodes: SizedNode[], placement: Placement): PackedLayout {
+  return {
+    width: placement.width,
+    height: placement.height,
+    edges: new Map(),
+    nodes: nodes.map((node) => {
+      const pos = placement.positions.get(node.id);
+      if (!pos) {
+        throw new Error(`grid layout missing position for '${node.id}'`);
+      }
+      return {
+        id: node.id,
+        label: node.label,
+        keyword: node.keyword,
+        x: pos.x,
+        y: pos.y,
+        width: node.width,
+        height: node.height,
+      };
+    }),
+  };
+}
+
+/**
+ * A root is a disconnected leftover when neither it nor a descendant is an
+ * endpoint of a non-nest relationship. Those roots are still packed.
+ */
+function leftoverRoots(
+  rootIds: string[],
+  relationships: RelationshipDecl[],
+  nestForest: Map<string, string[]>,
+  parentOf: Map<string, string>,
+): Set<string> {
+  const touched = new Set<string>();
+  for (const rel of relationships) {
+    if (NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source) {
+      continue;
+    }
+    touched.add(rel.source);
+    touched.add(rel.target);
+  }
+  const leftovers = new Set<string>();
+  for (const id of rootIds) {
+    let linked = false;
+    const walk = (nodeId: string): void => {
+      if (touched.has(nodeId)) {
+        linked = true;
+      }
+      for (const childId of nestForest.get(nodeId) ?? []) {
+        walk(childId);
+      }
+    };
+    walk(id);
+    if (!linked) {
+      leftovers.add(id);
+    }
+  }
+  return leftovers;
+}
+
+function compareText(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
+function compareName(a: { label: string; id: string }, b: { label: string; id: string }): number {
+  const byLabel = compareText(a.label, b.label);
+  if (byLabel !== 0) {
+    return byLabel;
+  }
+  return compareText(a.id, b.id);
+}
 
 async function layoutWithElk(
   elements: ElementDecl[],

@@ -20,6 +20,7 @@ import {
   LAYOUT_MODES,
   edgeRoutingTitle,
   layoutDirectionTitle,
+  layoutModeLabel,
   layoutModeTitle,
   type EdgeRouting,
   type LayoutDirection,
@@ -78,7 +79,7 @@ let selectedItem: DiagramSelection | null = null;
 let nestingOverride: "file" | NestingMode = "file";
 /** `file` follows the view’s `autoLayout`; tb/bt/lr/rl is local preview only. */
 let directionOverride: "file" | LayoutDirection = "file";
-/** `file` follows the view’s `autoLayout`; layered/layers is local preview only. */
+/** `file` follows the view’s `autoLayout`; layered/layers/organic/grid is local preview only. */
 let modeOverride: "file" | LayoutMode = "file";
 /** `file` follows the view’s `autoLayout`; orthogonal/polyline is local preview only. */
 let routingOverride: "file" | EdgeRouting = "file";
@@ -230,7 +231,7 @@ function renderModeSwitcher(): void {
     { id: "file", label: "File", title: "Use autoLayout from the open view" },
     ...LAYOUT_MODES.map((mode) => ({
       id: mode,
-      label: mode === "layers" ? "Layers" : "Layered",
+      label: layoutModeLabel(mode),
       title: layoutModeTitle(mode),
     })),
   ];

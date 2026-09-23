@@ -1,0 +1,42 @@
+// Organic + grid autoLayout. A direction-only view in the same file stays layered.
+// Carrier and Invoice have no relationships: grid packs them as leftovers.
+// Declaration order is not alphabetical, so kind/name order cannot be source order.
+plein {
+  model {
+    node "Cloud" as cloud
+    business-actor "Shipper" as shipper
+    application-component "TMS" as tms
+    business-object "Invoice" as invoice
+    business-process "Fulfill" as fulfill
+    goal "On-time" as onTime
+    application-component "Rates" as rates
+    business-actor "Carrier" as carrier
+    business-process "Book" as book
+
+    shipper -> book: serving
+    book -> fulfill: flow
+    book -> rates: serving
+    rates -> tms: flow
+    tms -> cloud: serving
+    cloud -> onTime: realization
+  }
+
+  views {
+    viewpoint landscape "Landscape" {
+      include shipper carrier book fulfill rates tms cloud onTime invoice
+      autoLayout organic
+    }
+    viewpoint catalogue "Catalogue" {
+      include shipper carrier book fulfill rates tms cloud onTime invoice
+      autoLayout grid
+    }
+    viewpoint catalogueByName "Catalogue by name" {
+      include shipper carrier book fulfill rates tms cloud onTime invoice
+      autoLayout grid name
+    }
+    viewpoint ranked "Ranked" {
+      include shipper book rates
+      autoLayout tb
+    }
+  }
+}

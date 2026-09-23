@@ -225,6 +225,32 @@ test("browseNamedView tool override changes layout mode without changing the fil
   assert.equal(fileDefault.model.views[0]!.autoLayout, "layers");
 });
 
+test("browseNamedView tool override selects organic or grid without changing the file", async () => {
+  const result = loadPleinSource(
+    readFixture("valid-organic-grid.plein"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const fileDefault = await browseNamedView(result.model, "ranked");
+  const organic = await browseNamedView(result.model, "ranked", { mode: "organic" });
+  const grid = await browseNamedView(result.model, "ranked", { mode: "grid" });
+  assert.equal(fileDefault.layout.mode, "layered");
+  assert.equal(organic.layout.mode, "organic");
+  assert.equal(grid.layout.mode, "grid");
+  assert.equal(grid.layout.gridOrder, "kind");
+  assert.match(organic.svg, /data-layout-mode="organic"/);
+  assert.match(organic.svg, /data-layout-engine="elk-force"/);
+  assert.match(grid.svg, /data-layout-mode="grid"/);
+  assert.match(grid.svg, /data-layout-engine="grid-pack"/);
+  assert.match(grid.svg, /data-grid-order="kind"/);
+  assert.equal(fileDefault.model.views.find((view) => view.name === "ranked")!.autoLayout, "tb");
+  assert.equal(organic.model, result.model);
+});
+
 test("browseNamedView tool override changes routing without changing direction or the file", async () => {
   const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
   assert.equal(result.ok, true);
