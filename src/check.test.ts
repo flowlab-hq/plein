@@ -40,6 +40,14 @@ test("plein check exits 0 on fixtures/valid-layer-bands.plein", () => {
   assert.match(result.stdout, /10 elements/);
 });
 
+test("plein check exits 0 on fixtures/valid-organic-grid.plein", () => {
+  const result = runCheck("fixtures/valid-organic-grid.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-organic-grid\.plein/);
+  assert.match(result.stdout, /9 elements/);
+  assert.match(result.stdout, /4 views/);
+});
+
 test("plein check exits 0 on fixtures/valid-capability-value-stream.plein", () => {
   const result = runCheck("fixtures/valid-capability-value-stream.plein");
   assert.equal(result.status, 0, result.stderr);

@@ -71,7 +71,8 @@ const IDENT_START = /[A-Za-z_*]/;
 const IDENT_PART = /[A-Za-z0-9_-]/;
 const VIEW_CLAUSES = new Set(["include", "exclude", "title", "autoLayout", "nesting", "view", "viewpoint"]);
 const NESTING_MODES = new Set(["nested", "inside", "beside", "sideBySide", "side-by-side", "side_by_side"]);
-const LAYOUT_MODE_TOKENS = new Set(["layers", "layer", "layered"]);
+const LAYOUT_MODE_TOKENS = new Set(["layers", "layer", "layered", "organic", "grid"]);
+const LAYOUT_GRID_ORDER_TOKENS = new Set(["kind", "name"]);
 const LAYOUT_ROUTING_TOKENS = new Set([
   "orthogonal",
   "ortho",
@@ -579,19 +580,21 @@ class Parser {
   }
 
   /**
-   * `autoLayout` tokens are a layout mode (`layers` / `layered`), a direction
-   * (`tb|bt|lr|rl` and shorthand), and/or an edge routing (`orthogonal` /
-   * `polyline`), in any order. At most one of each.
+   * `autoLayout` tokens are a layout mode (`layered` / `layers` / `organic` /
+   * `grid`), a direction (`tb|bt|lr|rl` and shorthand), an edge routing
+   * (`orthogonal` / `polyline`), and — only with `grid` — an order
+   * (`kind` / `name`), in any order. At most one of each.
    * Bare `autoLayout` remains `tb` (plain ELK Layered, top→bottom, orthogonal).
+   * Omitting a mode stays `layered`; `organic` is not the default.
    */
   private parseAutoLayoutTokens(tokens: Token[]): string {
     if (tokens.length === 0) {
       return "tb";
     }
-    if (tokens.length > 3) {
-      const extra = tokens[3]!;
+    if (tokens.length > 4) {
+      const extra = tokens[4]!;
       throw new ParseError(
-        `too many autoLayout tokens '${extra.value}' (expected layers, a direction, and/or orthogonal or polyline)`,
+        `too many autoLayout tokens '${extra.value}' (expected a mode, a direction, orthogonal or polyline, and/or grid order kind or name)`,
         this.file,
         extra.line,
         extra.column,
@@ -600,6 +603,7 @@ class Parser {
     let mode: Token | undefined;
     let direction: Token | undefined;
     let routing: Token | undefined;
+    let gridOrder: Token | undefined;
     for (const token of tokens) {
       if (LAYOUT_MODE_TOKENS.has(token.value)) {
         if (mode) {
@@ -637,11 +641,31 @@ class Parser {
         routing = token;
         continue;
       }
+      if (LAYOUT_GRID_ORDER_TOKENS.has(token.value)) {
+        if (gridOrder) {
+          throw new ParseError(
+            `duplicate autoLayout grid order '${token.value}'`,
+            this.file,
+            token.line,
+            token.column,
+          );
+        }
+        gridOrder = token;
+        continue;
+      }
       throw new ParseError(
-        `unknown autoLayout token '${token.value}' (expected layers, tb, bt, lr, rl, orthogonal, or polyline)`,
+        `unknown autoLayout token '${token.value}' (expected layered, layers, organic, grid, a direction, orthogonal, polyline, or grid order kind/name)`,
         this.file,
         token.line,
         token.column,
+      );
+    }
+    if (gridOrder && mode?.value !== "grid") {
+      throw new ParseError(
+        `grid order '${gridOrder.value}' requires autoLayout grid`,
+        this.file,
+        gridOrder.line,
+        gridOrder.column,
       );
     }
     return tokens.map((token) => token.value).join(" ");

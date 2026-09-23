@@ -155,6 +155,84 @@ views {
   );
 });
 
+test("autoLayout organic and grid accept direction, routing, and grid order", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view landscape {
+    include shipper
+    autoLayout organic
+  }
+  view landscapeRight {
+    include shipper
+    autoLayout organic lr polyline
+  }
+  view catalogue {
+    include shipper
+    autoLayout grid
+  }
+  view catalogueByName {
+    include shipper
+    autoLayout name grid lr
+  }
+  view catalogueExplicit {
+    include shipper
+    autoLayout grid kind orthogonal
+  }
+  view stillLayered {
+    include shipper
+    autoLayout tb
+  }
+}
+`;
+  const model = checkPlein(source, "organic-grid.plein");
+  assert.deepEqual(
+    model.views.map((view) => view.autoLayout),
+    ["organic", "organic lr polyline", "grid", "name grid lr", "grid kind orthogonal", "tb"],
+  );
+});
+
+test("grid order without grid, and a second mode, are line diagnostics", () => {
+  const orderOnly = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout name
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(orderOnly, "grid-order.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /grid order 'name' requires autoLayout grid/);
+      return true;
+    },
+  );
+
+  const duplicate = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view context {
+    include shipper
+    autoLayout organic layers
+  }
+}
+`;
+  assert.throws(
+    () => checkPlein(duplicate, "duplicate-mode.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /duplicate autoLayout mode 'layers'/);
+      return true;
+    },
+  );
+});
+
 test("autoLayout accepts orthogonal and polyline with direction and layers", () => {
   const source = `model {
   business-actor "Shipper" as shipper
@@ -211,7 +289,7 @@ views {
 views {
   view context {
     include shipper
-    autoLayout layers lr orthogonal extra
+    autoLayout layers lr orthogonal kind extra
   }
 }
 `;

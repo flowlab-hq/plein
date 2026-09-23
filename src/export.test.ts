@@ -71,6 +71,7 @@ test("wrapViewpointHtml escapes text and inlines the SVG", () => {
     title: `A & B "quoted"`,
     direction: "tb",
     mode: "layered",
+    routing: "orthogonal",
     nesting: "beside",
     width: 10,
     height: 10,

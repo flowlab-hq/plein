@@ -155,7 +155,7 @@ views {
 
 Views may include relationships when the implementation supports a relationship selector; otherwise relationships between included elements are rendered automatically. Keep view names stable because they are useful review and documentation anchors.
 
-Direction is optional. The Mac viewer lays the view out with **ELK Layered** and honours `autoLayout` with one of:
+Direction is optional. The Mac viewer defaults to **ELK Layered** (not organic) and honours `autoLayout` direction with one of:
 
 | Token | Meaning |
 | --- | --- |
@@ -168,7 +168,7 @@ Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-botto
 
 ### Edge routing (`orthogonal` / `polyline`)
 
-Node placement stays **ELK Layered** (including `autoLayout layers` bands). Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode and direction. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL`). That is the current default, so existing views do not grow diagonal segments.
+For `layered` and `layers`, node placement stays **ELK Layered**. `organic` and `grid` place nodes with their own algorithms (below); the routing token still draws the connectors. Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode, direction, and (for grid) order. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL` on layered/layers; a right-angle polyline on organic and grid). That is the current default, so existing views do not grow diagonal segments.
 
 | Token | Meaning |
 | --- | --- |
@@ -220,7 +220,51 @@ Nested containers are assigned **one** band as a whole: children stay inside the
 
 Within a band, disconnected nodes keep a deterministic kind-then-declaration order (all `business-actor` boxes before `business-process`, and so on) so catalogues stay stable.
 
-The Mac chrome **Mode** control (File / Layered / Layers) previews this without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout. `autoLayout layers` does not replace that mode.
+The Mac chrome **Mode** control (File / Layered / Layers / Organic / Grid) previews a mode without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
+
+### When to use each layout mode
+
+| Mode | How to select | Use it when |
+| --- | --- | --- |
+| `layered` (default) | Omit the mode, or `autoLayout layered` | Relationships are the story: processes, cooperation, sequences. ELK Layered ranks boxes by edges. Leave this as the file default unless a view needs one of the modes below. |
+| `layers` | `autoLayout layers` | A multi-aspect ArchiMate view should read Motivation/Strategy → Business → Application → Technology/Physical → Implementation even when arrows point the other way. |
+| `organic` | `autoLayout organic` | A landscape or inventory where clusters matter more than ranks. Seeded force-directed layout: the same file always produces the same coordinates, so the diagram is safe to review in git. |
+| `grid` | `autoLayout grid` | A catalogue where relationships are secondary. Boxes pack by element kind, then by name. `autoLayout grid name` packs by name instead. Disconnected leftovers are packed into the grid rather than dropped. |
+
+The Mac **Mode** control can preview any of these. The override is not written back; the `.plein` clause is the source of truth for pull requests. See [`fixtures/valid-organic-grid.plein`](../fixtures/valid-organic-grid.plein).
+
+### Organic (`autoLayout organic`)
+
+Organic runs **ELK Force** (Fruchterman–Reingold) with a fixed seed (`elk.randomSeed` `1`). Seed `0` is unseeded inside elkjs, so the stable seed is `1` — the same value layered already sets. Reordering element declarations does not move boxes: the simulation walks node ids in sorted order. Two checkouts of the same file therefore share one layout.
+
+Use it for landscape and inventory diagrams with many relationship types and no single reading direction. Do not use it when edge ranks or ArchiMate aspect bands are the point; those stay `layered` and `layers`.
+
+Disconnected components are simulated on their own and then packed, so an isolated box does not fly away from the cluster. Direction (`tb|bt|lr|rl`) does not re-rank organic nodes. It is still recorded on the view, and orthogonal routing uses it as the bend axis. `autoLayout organic lr polyline` keeps the force placement and draws straight (possibly diagonal) connectors. `nesting nested` still draws children inside the parent; each container is force-laid-out on its own, then placed in the parent simulation.
+
+### Grid (`autoLayout grid`)
+
+Grid ignores edges when it places boxes. That is the point of a catalogue: relationships stay visible, but they do not decide the reading order.
+
+| Order token | Packing |
+| --- | --- |
+| `kind` (default) | One strip per element keyword, keywords in alphabetical order. Inside a strip, boxes are ordered by name, then by id. |
+| `name` | One name-sorted sequence (label, then id), wrapped into a roughly square grid. |
+
+```plein
+viewpoint catalogue "Catalogue" {
+  include shipper carrier book rates
+  autoLayout grid
+}
+
+viewpoint catalogueByName "Catalogue by name" {
+  include shipper carrier book rates
+  autoLayout grid name
+}
+```
+
+`autoLayout grid lr` turns kind strips into columns (left → right). `bt` / `rl` reverse that primary axis. `kind` may be written explicitly (`autoLayout grid kind`). A `kind` or `name` token on any mode other than `grid` is a parse error.
+
+**Disconnected leftovers.** A root that has no relationship to the rest of the view (and no related descendant) is still packed. Linked boxes form the catalogue; leftovers are packed the same way in a following block (below for `tb`, above for `bt`, to the right for `lr`, to the left for `rl`) instead of being dropped or left at the origin. A view with no relationships is entirely leftovers, so the whole diagram is one catalogue. Nested children stay inside the parent and are packed there by the same order.
 
 ### Nesting (aggregation / composition)
 
