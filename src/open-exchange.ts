@@ -1,8 +1,10 @@
 /**
- * Import a documented subset of the Open Group ArchiMate Model Exchange
- * File Format (3.1 namespace) into `.plein`.
+ * Open Group ArchiMate Model Exchange File Format (3.1 namespace).
  *
- * Export and round-trip are S5b — this module only reads XML.
+ * `importOpenExchange` reads the documented subset into `.plein`.
+ * `exportOpenExchange` writes that same subset back out. Comment
+ * breadcrumbs from import are not an exchange format — see
+ * docs/open-exchange-import.md for the round-trip deltas.
  */
 
 import {
@@ -12,8 +14,9 @@ import {
   resolveRelationshipKeyword,
   toKebabCaseKeyword,
   type ElementKeyword,
+  type RelationshipKeyword,
 } from "./keywords.js";
-import { checkPlein, ParseError } from "./parser.js";
+import { checkPlein, ParseError, type PleinModel, type RelationshipDecl, type ViewDecl } from "./parser.js";
 import {
   attribute,
   directText,
@@ -60,6 +63,24 @@ const RELATIONSHIP_SPELLING: Record<string, string> = {
   Specialization: "specialization",
   Association: "association",
 };
+
+/** Canonical relationship keyword → Open Exchange `xsi:type`. */
+const RELATIONSHIP_XML_TYPE: Record<RelationshipKeyword, string> = {
+  composedOf: "Composition",
+  aggregates: "Aggregation",
+  assignedTo: "Assignment",
+  realizes: "Realization",
+  serves: "Serving",
+  accesses: "Access",
+  influences: "Influence",
+  triggers: "Triggering",
+  flowsTo: "Flow",
+  specializes: "Specialization",
+  associatedWith: "Association",
+};
+
+const OPEN_EXCHANGE_SCHEMA_LOCATION =
+  "http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate_model.xsd";
 
 const elementTypeToKeyword = new Map<string, ElementKeyword>();
 for (const keyword of ELEMENT_KEYWORDS) {
@@ -378,6 +399,337 @@ export function formatImportReport(file: string, report: ImportReport, output?: 
     lines.push("note: no diagrams in the exchange file; wrote viewpoint imported");
   }
   return lines.join("\n");
+}
+
+export type OpenExchangeExportOptions = {
+  /** Path used for the default model name and identifier (the file stem). */
+  file?: string;
+  /** `<name>` text. Defaults to the `.plein` file stem, or `Plein model`. */
+  name?: string;
+  /** `model/@identifier`. Defaults to `model-` plus the file stem, or `model`. */
+  identifier?: string;
+};
+
+export type OpenExchangeExportReport = {
+  name: string;
+  identifier: string;
+  elements: number;
+  relationships: number;
+  views: number;
+};
+
+export type ExportedOpenExchange = {
+  xml: string;
+  report: OpenExchangeExportReport;
+};
+
+type DiagramNode = {
+  elementId: string;
+  children: DiagramNode[];
+};
+
+/**
+ * Write the documented Open Exchange subset for a checked `.plein` model.
+ * Diagram geometry, styles, junctions, properties, and import-comment
+ * breadcrumbs are not written — `.plein` does not store them as fields.
+ */
+export function exportOpenExchange(
+  model: PleinModel,
+  options: OpenExchangeExportOptions = {},
+): ExportedOpenExchange {
+  const identity = modelIdentity(options);
+  const used = new Set<string>(model.elements.map((element) => element.id));
+  const identifier = uniqueId(identity.identifier, used);
+  const viewIds = model.views.map((view) => uniqueId(view.name, used));
+  const relationshipIds = model.relationships.map(() => allocatePrefixed("id-rel", used));
+
+  const lines: string[] = [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<!-- Exported from .plein. Subset and round-trip deltas: docs/open-exchange-import.md. -->`,
+    `<model xmlns="${OPEN_EXCHANGE_NS}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${OPEN_EXCHANGE_SCHEMA_LOCATION}" identifier="${escapeXml(identifier)}">`,
+    `  <name xml:lang="en">${escapeXml(identity.name)}</name>`,
+  ];
+
+  if (model.elements.length > 0) {
+    lines.push("  <elements>");
+    for (const element of model.elements) {
+      lines.push(
+        `    <element identifier="${escapeXml(element.id)}" xsi:type="${pascalType(element.keyword)}">`,
+      );
+      lines.push(`      <name xml:lang="en">${escapeXml(element.label)}</name>`);
+      lines.push("    </element>");
+    }
+    lines.push("  </elements>");
+  }
+
+  if (model.relationships.length > 0) {
+    lines.push("  <relationships>");
+    model.relationships.forEach((relationship, index) => {
+      const id = relationshipIds[index]!;
+      lines.push(
+        `    <relationship identifier="${escapeXml(id)}" source="${escapeXml(relationship.source)}" target="${escapeXml(relationship.target)}" xsi:type="${RELATIONSHIP_XML_TYPE[relationship.type]}"/>`,
+      );
+    });
+    lines.push("  </relationships>");
+  }
+
+  const renderedViews: string[] = [];
+  model.views.forEach((view, index) => {
+    const elementIds = includedElementIds(model, view);
+    if (elementIds.length === 0) {
+      return;
+    }
+    const forest = nestingRequested(view.nesting) ? nestForest(elementIds, model.relationships) : new Map();
+    const nodes = diagramTree(elementIds, forest);
+    const viewLines: string[] = [];
+    const viewId = viewIds[index]!;
+    viewLines.push(`      <view identifier="${escapeXml(viewId)}" xsi:type="Diagram">`);
+    if (view.title) {
+      viewLines.push(`        <name xml:lang="en">${escapeXml(view.title)}</name>`);
+    }
+    for (const node of nodes) {
+      renderDiagramNode(node, "        ", used, viewLines);
+    }
+    viewLines.push("      </view>");
+    renderedViews.push(viewLines.join("\n"));
+  });
+
+  if (renderedViews.length > 0) {
+    lines.push("  <views>");
+    lines.push("    <diagrams>");
+    lines.push(...renderedViews);
+    lines.push("    </diagrams>");
+    lines.push("  </views>");
+  }
+
+  lines.push("</model>");
+  lines.push("");
+
+  return {
+    xml: lines.join("\n"),
+    report: {
+      name: identity.name,
+      identifier,
+      elements: model.elements.length,
+      relationships: model.relationships.length,
+      views: renderedViews.length,
+    },
+  };
+}
+
+/** Human-readable summary for the CLI. Notes go with the summary, not into the XML. */
+export function formatOpenExchangeExportReport(
+  file: string,
+  report: OpenExchangeExportReport,
+  output?: string,
+): string {
+  const dest = output ? ` -> ${output}` : "";
+  return [
+    `exported ${file}${dest} (${report.elements} elements, ${report.relationships} relationships, ${report.views} views)`,
+    "note: documentation, properties, alternate names, accessType, influence modifiers, and ArchiMate viewpoint kinds are not exported",
+    "note: diagram geometry, styles, junctions, and organization folders are not in .plein",
+  ].join("\n");
+}
+
+function modelIdentity(options: OpenExchangeExportOptions): { name: string; identifier: string } {
+  const stem = fileStem(options.file);
+  const name = options.name?.trim() || stem || "Plein model";
+  const rawId = options.identifier?.trim() || (stem ? `model-${stem}` : "model");
+  return { name, identifier: safeModelIdentifier(rawId) };
+}
+
+function fileStem(file: string | undefined): string {
+  if (!file) {
+    return "";
+  }
+  const base = file.split(/[\\/]/).pop() ?? "";
+  const stem = base.replace(/\.plein$/i, "");
+  return stem.length > 0 ? stem : "";
+}
+
+function safeModelIdentifier(raw: string): string {
+  let body = raw
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+  if (!/^[A-Za-z_]/.test(body)) {
+    body = `model-${body || "plein"}`;
+  }
+  return body;
+}
+
+function uniqueId(preferred: string, used: Set<string>): string {
+  if (!used.has(preferred)) {
+    used.add(preferred);
+    return preferred;
+  }
+  let n = 2;
+  let id = `${preferred}-${n}`;
+  while (used.has(id)) {
+    n += 1;
+    id = `${preferred}-${n}`;
+  }
+  used.add(id);
+  return id;
+}
+
+function allocatePrefixed(prefix: string, used: Set<string>): string {
+  let n = 1;
+  for (;;) {
+    const id = `${prefix}-${n}`;
+    n += 1;
+    if (!used.has(id)) {
+      used.add(id);
+      return id;
+    }
+  }
+}
+
+function nestingRequested(value: string | undefined): boolean {
+  const normalized = (value ?? "").toLowerCase().replaceAll("_", "-");
+  return normalized === "nested" || normalized === "inside";
+}
+
+/**
+ * Element ids a view will show, in include-list order.
+ * An empty include list is the whole model (same rule as the diagram).
+ * `*`, an element id, and a type keyword expand to element ids.
+ * Relationship selectors are not element nodes.
+ */
+function includedElementIds(model: PleinModel, view: ViewDecl): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const add = (id: string): void => {
+    if (seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    ids.push(id);
+  };
+  const selectors = view.includes.length > 0 ? view.includes : ["*"];
+  for (const selector of selectors) {
+    for (const id of selectorElementIds(model, selector)) {
+      add(id);
+    }
+  }
+  const drop = new Set<string>();
+  for (const selector of view.excludes) {
+    for (const id of selectorElementIds(model, selector)) {
+      if (seen.has(id)) {
+        drop.add(id);
+      }
+    }
+  }
+  return ids.filter((id) => !drop.has(id));
+}
+
+function selectorElementIds(model: PleinModel, selector: string): string[] {
+  if (selector.includes("->")) {
+    return [];
+  }
+  if (selector === "*") {
+    return model.elements.map((element) => element.id);
+  }
+  const keyword = resolveElementKeyword(selector);
+  return model.elements
+    .filter(
+      (element) => element.id === selector || (keyword !== undefined && element.keyword === keyword),
+    )
+    .map((element) => element.id);
+}
+
+/**
+ * Parent → children for composition, then aggregation, among included elements.
+ * Matches diagram nesting: one parent per child, composition wins, no cycles.
+ */
+function nestForest(ids: readonly string[], relationships: RelationshipDecl[]): Map<string, string[]> {
+  const idSet = new Set(ids);
+  const order = new Map(ids.map((id, index) => [id, index]));
+  const forest = new Map<string, string[]>();
+  const claimed = new Set<string>();
+  const nestRels = relationships
+    .filter(
+      (rel) =>
+        (rel.type === "composedOf" || rel.type === "aggregates") &&
+        idSet.has(rel.source) &&
+        idSet.has(rel.target) &&
+        rel.source !== rel.target,
+    )
+    .slice()
+    .sort((a, b) => {
+      if (a.type === "composedOf" && b.type !== "composedOf") {
+        return -1;
+      }
+      if (b.type === "composedOf" && a.type !== "composedOf") {
+        return 1;
+      }
+      return a.line - b.line;
+    });
+
+  for (const rel of nestRels) {
+    if (claimed.has(rel.target)) {
+      continue;
+    }
+    if (isNestDescendant(rel.source, rel.target, forest)) {
+      continue;
+    }
+    claimed.add(rel.target);
+    const kids = forest.get(rel.source) ?? [];
+    kids.push(rel.target);
+    forest.set(rel.source, kids);
+  }
+
+  for (const kids of forest.values()) {
+    kids.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  }
+  return forest;
+}
+
+function isNestDescendant(id: string, ancestor: string, forest: Map<string, string[]>): boolean {
+  for (const child of forest.get(ancestor) ?? []) {
+    if (child === id || isNestDescendant(id, child, forest)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function diagramTree(ids: readonly string[], forest: Map<string, string[]>): DiagramNode[] {
+  const nested = new Set<string>();
+  for (const kids of forest.values()) {
+    for (const kid of kids) {
+      nested.add(kid);
+    }
+  }
+  const build = (id: string): DiagramNode => ({
+    elementId: id,
+    children: (forest.get(id) ?? []).map(build),
+  });
+  return ids.filter((id) => !nested.has(id)).map(build);
+}
+
+function renderDiagramNode(node: DiagramNode, indent: string, used: Set<string>, lines: string[]): void {
+  const id = allocatePrefixed("id-node", used);
+  const open = `${indent}<node identifier="${escapeXml(id)}" xsi:type="Element" elementRef="${escapeXml(node.elementId)}"`;
+  if (node.children.length === 0) {
+    lines.push(`${open}/>`);
+    return;
+  }
+  lines.push(`${open}>`);
+  for (const child of node.children) {
+    renderDiagramNode(child, `${indent}  `, used, lines);
+  }
+  lines.push(`${indent}</node>`);
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function renderPlein(input: {

@@ -1,4 +1,5 @@
-# M5: build the CLI, run unit/golden tests (including `plein export` and `plein import`),
+# M5: build the CLI, run unit/golden tests (including `plein export`, `plein import`,
+# and `plein export-open-exchange`),
 # and run `plein check` on the fixture catalogue.
 #
 # Golden fixtures must exit 0. Expected-fail fixtures must exit non-zero.
@@ -9,7 +10,7 @@
 #   golden:        valid-basic, valid-views, valid-catalogue-layers,
 #                  valid-layer-bands, valid-organic-grid, valid-manual-layout, valid-value-stream-stages,
 #                  samples/value-stream-demo, samples/research-data,
-#                  open-exchange/booking.plein
+#                  open-exchange/booking.plein, open-exchange/booking.roundtrip.plein
 #   expected-fail: broken-syntax, unknown-keyword, malformed-views,
 #                  invalid-value-stream-nesting, unknown-value-stream-step
 name: Check fixtures

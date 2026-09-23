@@ -9,7 +9,13 @@ import {
   type ExportFormat,
 } from "./export.js";
 import { loadPleinSource } from "./list-model.js";
-import { formatImportReport, importOpenExchange, ImportError } from "./open-exchange.js";
+import {
+  exportOpenExchange,
+  formatImportReport,
+  formatOpenExchangeExportReport,
+  importOpenExchange,
+  ImportError,
+} from "./open-exchange.js";
 import { checkPlein, ParseError } from "./parser.js";
 
 function usage(): never {
@@ -17,6 +23,7 @@ function usage(): never {
   plein check <file.plein>
   plein export <file.plein> [--view <name>] [--format html|svg|both] [-o <file>]
   plein import <file.xml> [-o <file.plein>]
+  plein export-open-exchange <file.plein> [-o <file.xml>]
 
 Export one named viewpoint to a self-contained HTML page and/or SVG.
 Open the file in a browser; the Mac app does not need to be running.
@@ -26,7 +33,10 @@ Without -o, html or svg is written to stdout.
 
 Import an Open Exchange XML model (documented subset) into .plein.
 Without -o, the .plein source is written to stdout.
-See docs/open-exchange-import.md for the subset and known gaps.`);
+
+export-open-exchange writes that same subset back to Open Exchange XML.
+Without -o, the XML is written to stdout.
+See docs/open-exchange-import.md for the subset and known round-trip deltas.`);
   process.exit(2);
 }
 
@@ -308,6 +318,37 @@ function runImport(argv: string[]): void {
   console.log(formatImportReport(args.file, imported.report, target));
 }
 
+function openExchangeOutputPath(output: string, pleinFile: string): string {
+  if (!isDirectoryPath(output)) {
+    return output;
+  }
+  const dir = output.replace(/[\\/]+$/, "");
+  const base = pleinFile.split(/[\\/]/).pop() ?? "model.plein";
+  const stem = base.replace(/\.plein$/i, "");
+  return join(dir, `${stem.length > 0 ? stem : "model"}.xml`);
+}
+
+function runExportOpenExchange(argv: string[]): void {
+  const args = parseImportArgs(argv);
+  const source = readSource(args.file);
+  const loaded = loadPleinSource(source, args.file);
+  if (!loaded.ok) {
+    console.error(loaded.error);
+    process.exit(1);
+  }
+
+  const exported = exportOpenExchange(loaded.model, { file: args.file });
+  if (!args.output) {
+    process.stdout.write(exported.xml);
+    console.error(formatOpenExchangeExportReport(args.file, exported.report));
+    return;
+  }
+
+  const target = openExchangeOutputPath(args.output, args.file);
+  writeText(target, exported.xml);
+  console.log(formatOpenExchangeExportReport(args.file, exported.report, target));
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -324,6 +365,10 @@ async function main(): Promise<void> {
   }
   if (command === "import") {
     runImport(args.slice(1));
+    return;
+  }
+  if (command === "export-open-exchange") {
+    runExportOpenExchange(args.slice(1));
     return;
   }
   usage();
