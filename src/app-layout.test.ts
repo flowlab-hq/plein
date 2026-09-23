@@ -85,39 +85,58 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
 
   const chrome = html.indexOf('class="diagram-chrome"');
+  const autoLayout = html.indexOf('id="auto-layout-switcher"');
   const mode = html.indexOf('id="mode-switcher"');
   const direction = html.indexOf('id="direction-switcher"');
   const routing = html.indexOf('id="routing-switcher"');
   const nesting = html.indexOf('id="nesting-switcher"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(chrome, -1);
+  assert.notEqual(autoLayout, -1, "auto-layout switcher is present");
   assert.notEqual(mode, -1, "mode switcher is present");
   assert.notEqual(direction, -1, "direction switcher is present");
   assert.notEqual(routing, -1, "routing switcher is present");
   assert.notEqual(nesting, -1, "nesting switcher remains");
   assert.ok(
-    chrome < mode &&
+    chrome < autoLayout &&
+      autoLayout < mode &&
       mode < direction &&
       direction < routing &&
       routing < nesting &&
       nesting < canvas,
-    "mode + direction + routing + nesting sit in the chrome above the canvas",
+    "auto layout + mode + direction + routing + nesting sit in the chrome above the canvas",
   );
+  assert.match(html, /aria-label="Auto layout"/);
   assert.match(html, /aria-label="Layout mode"/);
   assert.match(html, /aria-label="Layout direction"/);
   assert.match(html, /aria-label="Edge routing"/);
   assert.match(html, /class="layout-controls"/);
   assert.equal(html.includes('class="view-switcher"'), false);
 
+  assert.match(ui, /autoLayoutOverride/);
+  assert.match(ui, /manualPositions/);
+  assert.match(ui, /selectAutoLayout/);
   assert.match(ui, /modeOverride/);
   assert.match(ui, /directionOverride/);
   assert.match(ui, /routingOverride/);
   assert.match(ui, /LAYOUT_MODES/);
   assert.match(ui, /LAYOUT_DIRECTIONS/);
   assert.match(ui, /EDGE_ROUTINGS/);
+  assert.match(ui, /renderAutoLayoutSwitcher/);
   assert.match(ui, /renderModeSwitcher/);
   assert.match(ui, /renderDirectionSwitcher/);
   assert.match(ui, /renderRoutingSwitcher/);
+  assert.match(ui, /pointerdown/);
+  assert.match(css, /data-manual-layout/);
+
+  const openSource = ui.slice(ui.indexOf("function openSource"), ui.indexOf("function applyReload"));
+  const applyReload = ui.slice(ui.indexOf("function applyReload"), ui.indexOf("async function openFromTauriDialog"));
+  assert.match(openSource, /manualPositions\.clear\(\)/);
+  assert.equal(
+    applyReload.includes("manualPositions.clear"),
+    false,
+    "Reload keeps frozen positions",
+  );
   assert.match(css, /\.layout-controls\s*\{/);
   assert.match(css, /\.layout-switcher\s*,/);
 });

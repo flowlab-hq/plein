@@ -209,3 +209,49 @@ test("re-read from disk after include/exclude edit updates diagram membership", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("reload keeps element positions when auto-layout is off", async () => {
+  const file = "fixtures/valid-manual-layout.plein";
+  const original = readFixture("valid-manual-layout.plein");
+  const opened = loadPleinSource(original, file);
+  assert.equal(opened.ok, true);
+  if (!opened.ok) {
+    return;
+  }
+
+  const before = await layoutViewpoint(opened.model, "story");
+  assert.equal(before.auto, false);
+  const beforePlaced = before.nodes
+    .map((node) => [node.id, node.x, node.y])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+  const edited = original.replace(
+    "booking -> rates: serving",
+    "booking -> rates: serving\n    rates -> order: realization",
+  );
+  const reloaded = reloadPleinSource(edited, file, "story");
+  assert.equal(reloaded.loaded.ok, true);
+  if (!reloaded.loaded.ok) {
+    return;
+  }
+  assert.equal(reloaded.selectedView, "story");
+  const after = await diagramOf(reloaded.loaded, reloaded.selectedView);
+  assert.ok(after);
+  assert.match(after.svg, /data-layout-engine="manual"/);
+  assert.match(after.svg, /data-layout-auto="off"/);
+  const afterLayout = await layoutViewpoint(reloaded.loaded.model, "story");
+  const afterPlaced = afterLayout.nodes
+    .map((node) => [node.id, node.x, node.y])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  assert.deepEqual(afterPlaced, beforePlaced);
+
+  const recomputed = await layoutViewpoint(reloaded.loaded.model, "story", {
+    autoLayout: "auto",
+  });
+  assert.equal(recomputed.auto, true);
+  assert.match(renderViewpointSvg(recomputed), /data-layout-engine="elk-layered"/);
+  const recomputedPlaced = recomputed.nodes
+    .map((node) => [node.id, node.x, node.y])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  assert.notDeepEqual(recomputedPlaced, beforePlaced);
+});

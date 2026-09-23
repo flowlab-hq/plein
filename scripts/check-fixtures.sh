@@ -33,6 +33,7 @@ GOLDEN=(
   fixtures/valid-catalogue-layers.plein
   fixtures/valid-layer-bands.plein
   fixtures/valid-organic-grid.plein
+  fixtures/valid-manual-layout.plein
   fixtures/valid-capability-value-stream.plein
   fixtures/valid-value-stream-stages.plein
   fixtures/samples/value-stream-demo.plein

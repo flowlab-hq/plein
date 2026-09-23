@@ -6,6 +6,7 @@ export {
   type ElementDecl,
   type RelationshipDecl,
   type ViewDecl,
+  type PositionDecl,
 } from "./parser.js";
 export {
   loadPleinSource,
@@ -44,6 +45,8 @@ export {
   resolveLayoutDirection,
   resolveLayoutMode,
   resolveEdgeRouting,
+  isAutoLayoutEnabled,
+  resolveAutoLayout,
   edgeId,
   LAYOUT_ENGINE,
   LAYOUT_DIRECTIONS,
@@ -63,6 +66,8 @@ export {
   type LayerBand,
   type NestingMode,
   type LayoutOptions,
+  type ManualPosition,
+  type AutoLayoutSetting,
   type LayoutNode,
   type LayoutEdge,
   type ViewpointLayout,

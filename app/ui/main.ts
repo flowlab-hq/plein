@@ -16,6 +16,7 @@ import { elementStyle } from "../../src/archimate-style.ts";
 import {
   edgeId,
   EDGE_ROUTINGS,
+  isAutoLayoutEnabled,
   LAYOUT_DIRECTIONS,
   LAYOUT_MODES,
   edgeRoutingTitle,
@@ -26,7 +27,9 @@ import {
   type LayoutDirection,
   type LayoutMode,
   type LayoutOptions,
+  type ManualPosition,
   type NestingMode,
+  type ViewpointLayout,
 } from "../../src/layout.ts";
 import {
   retainSelection,
@@ -64,6 +67,7 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
+const autoLayoutSwitcher = document.querySelector("#auto-layout-switcher") as HTMLElement;
 const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
 const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
@@ -83,8 +87,32 @@ let directionOverride: "file" | LayoutDirection = "file";
 let modeOverride: "file" | LayoutMode = "file";
 /** `file` follows the view’s `autoLayout`; orthogonal/polyline is local preview only. */
 let routingOverride: "file" | EdgeRouting = "file";
+/**
+ * `file` follows the view. `auto` recomputes with ELK. `off` freezes positions.
+ * Not written back to the file. Survives Reload; cleared when another file is opened.
+ */
+let autoLayoutOverride: "file" | "auto" | "off" = "file";
+/**
+ * Frozen top-lefts per view, from turning auto-layout off or from dragging.
+ * Survives Reload so a disabled view does not jump. Cleared when auto-layout
+ * is turned back on for that view, or when a different file is opened.
+ */
+const manualPositions = new Map<string, Map<string, { x: number; y: number; width?: number; height?: number }>>();
+/** Last diagram laid out, so a drag can move from the coordinates on screen. */
+let lastLayout: ViewpointLayout | null = null;
 /** Drop stale ELK results when the user switches views mid-layout. */
 let renderSeq = 0;
+/** Drop a slow Off-snapshot if the user picks File or On first. */
+let autoSelectSeq = 0;
+/** Pointer drag of a node while auto-layout is off. */
+let nodeDrag: {
+  id: string;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  moved: boolean;
+  origins: Map<string, { x: number; y: number }>;
+} | null = null;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -193,7 +221,31 @@ function namedViewForDiagram(): string | null {
   return lastNamedView ?? firstNamedView(loaded.model);
 }
 
-function previewLayoutOptions(): LayoutOptions | undefined {
+function currentViewDecl(viewName: string | null) {
+  if (!loaded?.ok || !viewName) {
+    return undefined;
+  }
+  return loaded.model.views.find((view) => view.name === viewName);
+}
+
+/** True when the diagram should run ELK. `force` is the toolbar choice being applied. */
+function autoIsOn(viewName: string | null, force?: "auto" | "off"): boolean {
+  if (force === "auto") {
+    return true;
+  }
+  if (force === "off") {
+    return false;
+  }
+  if (autoLayoutOverride === "auto") {
+    return true;
+  }
+  if (autoLayoutOverride === "off") {
+    return false;
+  }
+  return isAutoLayoutEnabled(currentViewDecl(viewName)?.autoLayout);
+}
+
+function previewLayoutOptions(force?: "auto" | "off"): LayoutOptions | undefined {
   const options: LayoutOptions = {};
   if (nestingOverride !== "file") {
     options.nesting = nestingOverride;
@@ -207,7 +259,72 @@ function previewLayoutOptions(): LayoutOptions | undefined {
   if (routingOverride !== "file") {
     options.routing = routingOverride;
   }
-  return options.nesting || options.direction || options.mode || options.routing ? options : undefined;
+  const viewName = namedViewForDiagram();
+  if (force === "auto" || (!force && autoLayoutOverride === "auto")) {
+    options.autoLayout = "auto";
+  } else if (force === "off" || (!force && autoLayoutOverride === "off")) {
+    options.autoLayout = "off";
+  }
+  if (!autoIsOn(viewName, force) && viewName) {
+    const session = manualPositions.get(viewName);
+    if (session && session.size > 0) {
+      options.autoLayout = "off";
+      const positions: ManualPosition[] = [];
+      for (const [id, point] of session) {
+        positions.push({
+          id,
+          x: point.x,
+          y: point.y,
+          ...(point.width !== undefined ? { width: point.width } : {}),
+          ...(point.height !== undefined ? { height: point.height } : {}),
+        });
+      }
+      options.manualPositions = positions;
+    }
+  }
+  return options.nesting ||
+    options.direction ||
+    options.mode ||
+    options.routing ||
+    options.autoLayout ||
+    options.manualPositions
+    ? options
+    : undefined;
+}
+
+/**
+ * Turning auto-layout off snapshots the current ELK placement so reload
+ * restores those coordinates. Turning it back on (File or On) drops the
+ * snapshot and the next render recomputes from the model.
+ */
+async function selectAutoLayout(next: "file" | "auto" | "off"): Promise<void> {
+  const seq = ++autoSelectSeq;
+  const viewName = namedViewForDiagram();
+  if (next === "auto" && viewName) {
+    manualPositions.delete(viewName);
+  } else if (next === "file" && autoLayoutOverride !== "file" && viewName) {
+    manualPositions.delete(viewName);
+  }
+  if (next === "off" && viewName && loaded?.ok && autoIsOn(viewName)) {
+    try {
+      const browsed = await browseNamedView(loaded.model, viewName, previewLayoutOptions("auto"));
+      if (seq !== autoSelectSeq) {
+        return;
+      }
+      const map = new Map<string, { x: number; y: number; width?: number; height?: number }>();
+      for (const node of browsed.layout.nodes) {
+        map.set(node.id, { x: node.x, y: node.y, width: node.width, height: node.height });
+      }
+      manualPositions.set(viewName, map);
+    } catch {
+      // File positions or the stable fallback column still apply.
+    }
+  }
+  if (seq !== autoSelectSeq) {
+    return;
+  }
+  autoLayoutOverride = next;
+  void render();
 }
 
 function radioButton(
@@ -224,6 +341,33 @@ function radioButton(
   button.setAttribute("aria-checked", checked ? "true" : "false");
   button.addEventListener("click", onSelect);
   return button;
+}
+
+function renderAutoLayoutSwitcher(): void {
+  const choices: Array<{ id: "file" | "auto" | "off"; label: string; title: string }> = [
+    {
+      id: "file",
+      label: "File",
+      title: "Follow autoLayout in the open view. off or manual keeps position clauses; anything else is automatic.",
+    },
+    {
+      id: "auto",
+      label: "On",
+      title: "Recompute placement from the model. Saved positions are ignored.",
+    },
+    {
+      id: "off",
+      label: "Off",
+      title: "Freeze element positions. They stay put across Reload until you turn auto-layout back on.",
+    },
+  ];
+  autoLayoutSwitcher.replaceChildren(
+    ...choices.map((choice) =>
+      radioButton(choice.id === autoLayoutOverride, choice.label, choice.title, () => {
+        void selectAutoLayout(choice.id);
+      }),
+    ),
+  );
 }
 
 function renderModeSwitcher(): void {
@@ -318,6 +462,7 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
 }
 
 async function renderDiagram(seq: number): Promise<void> {
+  renderAutoLayoutSwitcher();
   renderModeSwitcher();
   renderDirectionSwitcher();
   renderRoutingSwitcher();
@@ -325,6 +470,8 @@ async function renderDiagram(seq: number): Promise<void> {
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);
     diagram.replaceChildren();
+    lastLayout = null;
+    delete diagram.dataset.manualLayout;
     return;
   }
 
@@ -336,6 +483,8 @@ async function renderDiagram(seq: number): Promise<void> {
     hint.className = "diagram-empty";
     hint.textContent = "This file has no named viewpoint in the views block.";
     diagram.replaceChildren(hint);
+    lastLayout = null;
+    delete diagram.dataset.manualLayout;
     return;
   }
 
@@ -346,6 +495,12 @@ async function renderDiagram(seq: number): Promise<void> {
     }
     setCurrentViewChrome(browsed.title, browsed.viewName);
     diagram.innerHTML = browsed.svg;
+    lastLayout = browsed.layout;
+    if (browsed.layout.auto === false) {
+      diagram.dataset.manualLayout = "true";
+    } else {
+      delete diagram.dataset.manualLayout;
+    }
     const svg = diagram.querySelector("svg");
     if (svg) {
       enhanceEdgeHits(svg);
@@ -358,6 +513,8 @@ async function renderDiagram(seq: number): Promise<void> {
     hint.className = "diagram-empty";
     hint.textContent = error instanceof Error ? error.message : String(error);
     diagram.replaceChildren(hint);
+    lastLayout = null;
+    delete diagram.dataset.manualLayout;
   }
 }
 
@@ -520,6 +677,9 @@ function escapeHtml(value: string): string {
 
 function openSource(source: string, file: string): void {
   lastSource = source;
+  manualPositions.clear();
+  autoLayoutOverride = "file";
+  lastLayout = null;
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
@@ -631,7 +791,191 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+let suppressDiagramClick = false;
+
+function svgLocalPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } | null {
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const matrix = svg.getScreenCTM();
+  if (!matrix) {
+    return null;
+  }
+  const local = point.matrixTransform(matrix.inverse());
+  return { x: local.x, y: local.y };
+}
+
+function idsMovedWith(rootId: string): string[] {
+  const nodes = lastLayout?.nodes ?? [];
+  const ids = [rootId];
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const parent = queue.shift();
+    if (!parent) {
+      break;
+    }
+    for (const node of nodes) {
+      if (node.parentId === parent) {
+        ids.push(node.id);
+        queue.push(node.id);
+      }
+    }
+  }
+  return ids;
+}
+
+function dragShift(
+  svg: SVGSVGElement,
+  drag: NonNullable<typeof nodeDrag>,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const start = svgLocalPoint(svg, drag.startClientX, drag.startClientY);
+  const now = svgLocalPoint(svg, clientX, clientY);
+  if (!start || !now) {
+    return null;
+  }
+  let shiftX = now.x - start.x;
+  let shiftY = now.y - start.y;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  for (const origin of drag.origins.values()) {
+    minX = Math.min(minX, origin.x + shiftX);
+    minY = Math.min(minY, origin.y + shiftY);
+  }
+  if (minX < 0) {
+    shiftX -= minX;
+  }
+  if (minY < 0) {
+    shiftY -= minY;
+  }
+  return { x: shiftX, y: shiftY };
+}
+
+diagram.addEventListener("pointerdown", (event) => {
+  if (lastLayout?.auto !== false || event.button !== 0) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const nodeEl = target.closest("[data-node-id]");
+  if (!nodeEl || !diagram.contains(nodeEl)) {
+    return;
+  }
+  const id = nodeEl.getAttribute("data-node-id");
+  if (!id || !lastLayout) {
+    return;
+  }
+  const origins = new Map<string, { x: number; y: number }>();
+  for (const movedId of idsMovedWith(id)) {
+    const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
+    if (node) {
+      origins.set(movedId, { x: node.x, y: node.y });
+    }
+  }
+  if (!origins.has(id)) {
+    return;
+  }
+  nodeDrag = {
+    id,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    moved: false,
+    origins,
+  };
+  try {
+    diagram.setPointerCapture(event.pointerId);
+  } catch {
+    // Capture is best-effort; move and up still reach the diagram.
+  }
+  event.preventDefault();
+});
+
+diagram.addEventListener("pointermove", (event) => {
+  if (!nodeDrag || event.pointerId !== nodeDrag.pointerId || !lastLayout) {
+    return;
+  }
+  const travel = Math.hypot(event.clientX - nodeDrag.startClientX, event.clientY - nodeDrag.startClientY);
+  if (!nodeDrag.moved && travel < 4) {
+    return;
+  }
+  nodeDrag.moved = true;
+  diagram.classList.add("is-dragging");
+  const svg = diagram.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  const shift = dragShift(svg, nodeDrag, event.clientX, event.clientY);
+  if (!shift) {
+    return;
+  }
+  for (const [movedId, origin] of nodeDrag.origins) {
+    const group = findByAttr(svg, "data-node-id", movedId);
+    group?.setAttribute(
+      "transform",
+      `translate(${Math.round(origin.x + shift.x)} ${Math.round(origin.y + shift.y)})`,
+    );
+  }
+});
+
+diagram.addEventListener("pointerup", (event) => {
+  if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
+    return;
+  }
+  const drag = nodeDrag;
+  nodeDrag = null;
+  diagram.classList.remove("is-dragging");
+  try {
+    if (diagram.hasPointerCapture(event.pointerId)) {
+      diagram.releasePointerCapture(event.pointerId);
+    }
+  } catch {
+    // Pointer capture was not taken.
+  }
+  if (!drag.moved) {
+    return;
+  }
+  suppressDiagramClick = true;
+  const viewName = namedViewForDiagram();
+  const svg = diagram.querySelector("svg");
+  if (!viewName || !(svg instanceof SVGSVGElement) || !lastLayout) {
+    return;
+  }
+  const shift = dragShift(svg, drag, event.clientX, event.clientY);
+  if (!shift) {
+    return;
+  }
+  const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
+  for (const [movedId, origin] of drag.origins) {
+    const existing = session.get(movedId);
+    const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
+    session.set(movedId, {
+      x: Math.round(origin.x + shift.x),
+      y: Math.round(origin.y + shift.y),
+      ...(existing?.width !== undefined ? { width: existing.width } : node ? { width: node.width } : {}),
+      ...(existing?.height !== undefined ? { height: existing.height } : node ? { height: node.height } : {}),
+    });
+  }
+  manualPositions.set(viewName, session);
+  void render();
+});
+
+diagram.addEventListener("pointercancel", (event) => {
+  if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
+    return;
+  }
+  nodeDrag = null;
+  diagram.classList.remove("is-dragging");
+});
+
 diagram.addEventListener("click", (event) => {
+  if (suppressDiagramClick) {
+    suppressDiagramClick = false;
+    return;
+  }
   const target = event.target;
   if (!(target instanceof Element)) {
     return;

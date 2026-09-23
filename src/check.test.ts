@@ -90,6 +90,14 @@ test("plein check exits 0 on fixtures/samples/research-data.plein with ≥2 view
   assert.match(result.stdout, /3 views/);
 });
 
+test("plein check exits 0 on fixtures/valid-manual-layout.plein", () => {
+  const result = runCheck("fixtures/valid-manual-layout.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-manual-layout\.plein/);
+  assert.match(result.stdout, /4 elements/);
+  assert.match(result.stdout, /2 views/);
+});
+
 test("plein check exits 0 on fixtures/valid-value-stream-stages.plein", () => {
   const result = runCheck("fixtures/valid-value-stream-stages.plein");
   assert.equal(result.status, 0, result.stderr);
