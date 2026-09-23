@@ -9,18 +9,24 @@ import {
   type ExportFormat,
 } from "./export.js";
 import { loadPleinSource } from "./list-model.js";
+import { formatImportReport, importOpenExchange, ImportError } from "./open-exchange.js";
 import { checkPlein, ParseError } from "./parser.js";
 
 function usage(): never {
   console.error(`Usage:
   plein check <file.plein>
   plein export <file.plein> [--view <name>] [--format html|svg|both] [-o <file>]
+  plein import <file.xml> [-o <file.plein>]
 
 Export one named viewpoint to a self-contained HTML page and/or SVG.
 Open the file in a browser; the Mac app does not need to be running.
 --view is a viewpoint name or its title (default: the first named view).
 --format defaults to html. both writes .html and .svg and requires -o.
-Without -o, html or svg is written to stdout.`);
+Without -o, html or svg is written to stdout.
+
+Import an Open Exchange XML model (documented subset) into .plein.
+Without -o, the .plein source is written to stdout.
+See docs/open-exchange-import.md for the subset and known gaps.`);
   process.exit(2);
 }
 
@@ -229,6 +235,79 @@ function isEnoent(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
+type ImportArgs = {
+  file: string;
+  output?: string;
+};
+
+function parseImportArgs(argv: string[]): ImportArgs {
+  let output: string | undefined;
+  const positionals: string[] = [];
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--help" || arg === "-h") {
+      usage();
+    }
+    if (arg.startsWith("--output=")) {
+      output = requireValue(arg.slice("--output=".length));
+      continue;
+    }
+    if (arg === "-o" || arg === "--output") {
+      output = requireValue(argv[++i]);
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      usage();
+    }
+    positionals.push(arg);
+  }
+
+  if (positionals.length !== 1) {
+    usage();
+  }
+  return { file: positionals[0]!, output };
+}
+
+function importOutputPath(output: string, xmlFile: string): string {
+  if (!isDirectoryPath(output)) {
+    return output;
+  }
+  const dir = output.replace(/[\\/]+$/, "");
+  return join(dir, `${xmlStem(xmlFile)}.plein`);
+}
+
+function xmlStem(file: string): string {
+  const base = file.split(/[\\/]/).pop() ?? "imported";
+  const stem = base.replace(/\.xml$/i, "");
+  return stem.length > 0 ? stem : "imported";
+}
+
+function runImport(argv: string[]): void {
+  const args = parseImportArgs(argv);
+  const xml = readSource(args.file);
+  let imported;
+  try {
+    imported = importOpenExchange(xml, args.file);
+  } catch (error) {
+    if (error instanceof ImportError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  if (!args.output) {
+    process.stdout.write(imported.source);
+    console.error(formatImportReport(args.file, imported.report));
+    return;
+  }
+
+  const target = importOutputPath(args.output, args.file);
+  writeText(target, imported.source);
+  console.log(formatImportReport(args.file, imported.report, target));
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -241,6 +320,10 @@ async function main(): Promise<void> {
   }
   if (command === "export") {
     await runExport(args.slice(1));
+    return;
+  }
+  if (command === "import") {
+    runImport(args.slice(1));
     return;
   }
   usage();

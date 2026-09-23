@@ -98,6 +98,15 @@ test("plein check exits 0 on fixtures/valid-value-stream-stages.plein", () => {
   assert.match(result.stdout, /5 relationships/);
 });
 
+test("plein check exits 0 on fixtures/open-exchange/booking.plein", () => {
+  const result = runCheck("fixtures/open-exchange/booking.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/open-exchange\/booking\.plein/);
+  assert.match(result.stdout, /17 elements/);
+  assert.match(result.stdout, /15 relationships/);
+  assert.match(result.stdout, /2 views/);
+});
+
 test("plein check exits non-zero on invalid value stream nesting with line diagnostic", () => {
   const result = runCheck("fixtures/invalid-value-stream-nesting.plein");
   assert.notEqual(result.status, 0);

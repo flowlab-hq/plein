@@ -2,7 +2,7 @@
 
 Plein colours ArchiMate elements by **layer** and draws a compact **type glyph** on each box. The Mac app (and any caller of `renderViewpointSvg`) uses one shared map: [`src/archimate-style.ts`](../src/archimate-style.ts) plus glyphs in [`src/archimate-icons.ts`](../src/archimate-icons.ts).
 
-This is rectangle + decorator-icon notation, not full Archi figure skins, not custom themes, and not Open Exchange styling. The `.plein` `styles { }` block is still ignored.
+This is rectangle + decorator-icon notation, not full Archi figure skins, not custom themes, and not Open Exchange styling. The `.plein` `styles { }` block is still ignored. `plein import` drops Open Exchange fill and line colours; see [Open Exchange import](open-exchange-import.md).
 
 Language-reference keywords: [Plein DSL (ArchiMate 4)](plein-dsl-archimate-4.md). Parser extras `grouping` and `location` are included here as composite.
 

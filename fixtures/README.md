@@ -27,6 +27,8 @@ CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run che
 - `samples/research-data.plein` — Mac / README demo of the **research-data / ePrints / Arkivum** ArchiMate view: business actor and find/request-access processes, application project / paper / research-data concept / Sussex Research Online – ePrints, technology artifact / file storage / archive / Research Storage Platform / Arkivum. Relationships: aggregation, realization, triggering, serving, association (including the Manual Process link). Three named views so Arran can exercise S4 view-jump. Expected to pass with exit code 0.
 - `golden-nested-quote-to-cash.json` — expected membership plus nested children for that sample (`src/layout.test.ts`). Default (omit `nesting`) remains side-by-side; see `valid-value-stream-stages.plein`.
 - `basic.plein` — larger NordFreight-style model still loaded by parser / list tests; expected to parse. Prefer `valid-basic.plein` for new `plein check` coverage.
+- `open-exchange/booking.xml` — representative **Open Exchange** model for `plein import` (elements across layers, all eleven relationship types, two diagrams, plus junction / geometry / style / folder gaps). Mapping and gaps: [docs/open-exchange-import.md](../docs/open-exchange-import.md).
+- `open-exchange/booking.plein` — pinned `plein import` of that XML. Expected to pass `plein check` with exit code 0 (17 elements, 15 relationships, 2 views). `src/open-exchange.test.ts` asserts the import matches this file.
 
 ## Expected-fail (expect non-zero + `file:line:column`)
 

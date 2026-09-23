@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run `plein check` against the fixture catalogue in fixtures/README.md.
 #
-#   golden        — valid-*.plein and samples/  → expect exit 0
+#   golden        — valid-*.plein, samples/, and open-exchange/booking.plein → expect exit 0
 #   expected-fail — broken / unknown / malformed → expect non-zero
 #
 # The script (and CI) fails if a golden fixture does not pass, or if an
@@ -37,6 +37,7 @@ GOLDEN=(
   fixtures/valid-value-stream-stages.plein
   fixtures/samples/value-stream-demo.plein
   fixtures/samples/research-data.plein
+  fixtures/open-exchange/booking.plein
 )
 
 # Expected-fail fixtures (non-zero). Matches fixtures/README.md.

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Representative Open Exchange 3.1 model for `plein import`.
+  Covers the documented subset in docs/open-exchange-import.md.
+  Junctions, diagram labels/containers, geometry, styles, and organization
+  folders are present on purpose — import drops them.
+-->
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate_model.xsd" identifier="id-nordfreight" version="4.0.0">
+  <name xml:lang="en">NordFreight booking</name>
+  <documentation xml:lang="en">Representative Open Exchange subset for Plein import.</documentation>
+  <elements>
+    <element identifier="id-planning" xsi:type="Capability">
+      <name xml:lang="en">Network planning</name>
+      <properties>
+        <property propertyDefinitionRef="prop-owner">
+          <value xml:lang="en">NordFreight</value>
+        </property>
+      </properties>
+    </element>
+    <element identifier="id-qtc" xsi:type="ValueStream">
+      <name xml:lang="en">Quote to cash</name>
+      <documentation xml:lang="en">Stages from quote through cash collection.</documentation>
+    </element>
+    <element identifier="id-ontime" xsi:type="Goal">
+      <name xml:lang="en">On-time delivery</name>
+    </element>
+    <element identifier="id-risk" xsi:type="Assessment">
+      <name xml:lang="en">Late risk</name>
+    </element>
+    <element identifier="id-shipper" xsi:type="BusinessActor">
+      <name xml:lang="nl">Verlader</name>
+      <name xml:lang="en">Shipper &amp; Co</name>
+    </element>
+    <element identifier="id-clerk" xsi:type="BusinessRole">
+      <name xml:lang="en">Booking clerk</name>
+    </element>
+    <element identifier="id-book" xsi:type="BusinessProcess">
+      <name xml:lang="en">Book freight</name>
+    </element>
+    <element identifier="id-placed" xsi:type="BusinessEvent">
+      <name xml:lang="en">Order placed</name>
+    </element>
+    <element identifier="id-booking" xsi:type="BusinessService">
+      <name xml:lang="en">Booking service</name>
+    </element>
+    <element identifier="id-order" xsi:type="BusinessObject">
+      <name xml:lang="en">Freight order</name>
+    </element>
+    <element identifier="id-express" xsi:type="BusinessObject">
+      <name xml:lang="en">Express order</name>
+    </element>
+    <element identifier="id-rates" xsi:type="ApplicationComponent">
+      <name xml:lang="en">Rate engine</name>
+    </element>
+    <element identifier="id-ratecard" xsi:type="DataObject">
+      <name xml:lang="en">Rate card</name>
+    </element>
+    <element identifier="id-cloud" xsi:type="Node">
+      <name xml:lang="en">NordFreight cloud</name>
+    </element>
+    <element identifier="id-rotterdam" xsi:type="Location">
+      <name xml:lang="en">Rotterdam</name>
+    </element>
+    <element identifier="id-rollout" xsi:type="WorkPackage">
+      <name xml:lang="en">Booking rollout</name>
+    </element>
+    <element identifier="id-context" xsi:type="Grouping">
+      <name xml:lang="en">Context</name>
+    </element>
+    <element identifier="id-junction" xsi:type="AndJunction">
+      <name xml:lang="en">and</name>
+    </element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-realize-plan" source="id-rollout" target="id-planning" xsi:type="Realization"/>
+    <relationship identifier="id-compose-book" source="id-qtc" target="id-book" xsi:type="Composition"/>
+    <relationship identifier="id-influence" source="id-risk" target="id-ontime" xsi:type="Influence" modifier="-"/>
+    <relationship identifier="id-serve" source="id-booking" target="id-shipper" xsi:type="Serving"/>
+    <relationship identifier="id-assign" source="id-clerk" target="id-book" xsi:type="Assignment"/>
+    <relationship identifier="id-trigger" source="id-book" target="id-placed" xsi:type="Triggering"/>
+    <relationship identifier="id-flow" source="id-book" target="id-order" xsi:type="Flow"/>
+    <relationship identifier="id-access-order" source="id-booking" target="id-order" xsi:type="Access" accessType="Write"/>
+    <relationship identifier="id-realize-booking" source="id-rates" target="id-booking" xsi:type="Realization"/>
+    <relationship identifier="id-access-card" source="id-rates" target="id-ratecard" xsi:type="Access"/>
+    <relationship identifier="id-compose-rates" source="id-cloud" target="id-rates" xsi:type="Composition"/>
+    <relationship identifier="id-specialize" source="id-express" target="id-order" xsi:type="Specialization"/>
+    <relationship identifier="id-associate-clerk" source="id-shipper" target="id-clerk" xsi:type="Association"/>
+    <relationship identifier="id-associate-site" source="id-rotterdam" target="id-cloud" xsi:type="Association"/>
+    <relationship identifier="id-aggregate" source="id-context" target="id-shipper" xsi:type="Aggregation"/>
+    <relationship identifier="id-junction-in" source="id-shipper" target="id-junction" xsi:type="Association"/>
+    <relationship identifier="id-junction-out" source="id-junction" target="id-booking" xsi:type="Triggering"/>
+  </relationships>
+  <organizations>
+    <item>
+      <label xml:lang="en">Business</label>
+      <item identifierRef="id-shipper"/>
+      <item identifierRef="id-booking"/>
+    </item>
+  </organizations>
+  <propertyDefinitions>
+    <propertyDefinition identifier="prop-owner" type="string">
+      <name xml:lang="en">Owner</name>
+    </propertyDefinition>
+  </propertyDefinitions>
+  <views>
+    <viewpoints>
+      <viewpoint identifier="id-vp-coop">
+        <name xml:lang="en">Application Cooperation</name>
+      </viewpoint>
+      <viewpoint identifier="id-vp-strategy">
+        <name xml:lang="en">Strategy</name>
+      </viewpoint>
+    </viewpoints>
+    <diagrams>
+      <view identifier="id-booking-context" xsi:type="Diagram" viewpoint="Application Cooperation">
+        <name xml:lang="en">Booking context</name>
+        <node identifier="id-note" xsi:type="Label" x="16" y="16" w="140" h="40">
+          <label xml:lang="en">Manual note</label>
+        </node>
+        <node identifier="id-n-shipper" xsi:type="Element" elementRef="id-shipper" x="40" y="80" w="120" h="55">
+          <style>
+            <fillColor r="255" g="255" b="181" a="100"/>
+            <lineColor r="92" g="92" b="92"/>
+          </style>
+        </node>
+        <node identifier="id-n-booking" xsi:type="Element" elementRef="id-booking" x="220" y="80" w="120" h="55"/>
+        <node identifier="id-n-order" xsi:type="Element" elementRef="id-order" x="400" y="80" w="120" h="55"/>
+        <node identifier="id-box" xsi:type="Container" x="200" y="180" w="180" h="120">
+          <label>Visual group</label>
+          <node identifier="id-n-rates" xsi:type="Element" elementRef="id-rates" x="220" y="210" w="120" h="55"/>
+        </node>
+        <connection identifier="id-c-serve" xsi:type="Relationship" relationshipRef="id-serve" source="id-n-booking" target="id-n-shipper">
+          <bendpoint x="180" y="70"/>
+        </connection>
+        <connection identifier="id-c-access" xsi:type="Relationship" relationshipRef="id-access-order" source="id-n-booking" target="id-n-order"/>
+      </view>
+      <view identifier="id-quote-flow" xsi:type="Diagram" viewpointRef="id-vp-strategy">
+        <name xml:lang="en">Quote to cash</name>
+        <node identifier="id-n-qtc" xsi:type="Element" elementRef="id-qtc" x="40" y="40" w="320" h="160">
+          <node identifier="id-n-book" xsi:type="Element" elementRef="id-book" x="60" y="80" w="120" h="55"/>
+        </node>
+        <node identifier="id-n-planning" xsi:type="Element" elementRef="id-planning" x="400" y="40" w="140" h="55"/>
+      </view>
+    </diagrams>
+  </views>
+</model>
