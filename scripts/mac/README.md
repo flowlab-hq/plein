@@ -3,7 +3,7 @@
 Plein ships two Apple Silicon channels:
 
 1. **Mac app `.dmg`** — open a `.plein` and browse named viewpoints. No Node/npm at runtime.
-2. **Homebrew formula** — `plein check` and `plein export` on the CLI. Homebrew provides Node.
+2. **Homebrew formula** — `plein check`, `plein export`, and `plein import` on the CLI. Homebrew provides Node.
 
 ## What we ship
 
@@ -92,6 +92,10 @@ plein check path/to/file.plein
 # 4. Export a named view (open the HTML in a browser; the Mac app is not required)
 plein export path/to/file.plein --view "View title" -o view.html
 open view.html
+
+# 5. Import an Open Exchange XML model into .plein (documented subset; no export)
+plein import path/to/model.xml -o model.plein
+plein check model.plein
 ```
 
 There is no separate `homebrew-plein` tap repo. `brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein` uses this repository’s `Formula/plein.rb`.

@@ -17,10 +17,11 @@ plein/
     invalid-*.plein         expected-fail (nesting / validity)
     golden-*.json           asserted membership / parse
     golden-*.html           static HTML export snapshot (`plein export`)
+    open-exchange/          Open Exchange XML fixture + imported `.plein`
     README.md               fixture catalogue
   src/                      TypeScript CLI, parser, layout, tests
   app/                      Mac Tauri UI
-  docs/                     language reference, ArchiMate style map, and this note
+  docs/                     language reference, ArchiMate style map, Open Exchange import, and this note
   scripts/mac/              Apple Silicon packaging and smoke
   Formula/plein.rb          Homebrew CLI
 ```
@@ -32,7 +33,7 @@ Canonical golden / fail pair for `plein check`:
 | Golden | [`fixtures/valid-basic.plein`](../fixtures/valid-basic.plein) | exit 0, `ok fixtures/valid-basic.plein (...)` |
 | Expected-fail | [`fixtures/broken-syntax.plein`](../fixtures/broken-syntax.plein) | non-zero, `file:line:column` diagnostic on stderr |
 
-Other golden files (`valid-views.plein`, `valid-catalogue-layers.plein`, `valid-layer-bands.plein`, `valid-organic-grid.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`, `samples/research-data.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md). Render colours/icons: [`docs/archimate-style.md`](archimate-style.md).
+Other golden files (`valid-views.plein`, `valid-catalogue-layers.plein`, `valid-layer-bands.plein`, `valid-organic-grid.plein`, `valid-capability-value-stream.plein`, `valid-value-stream-stages.plein`, `samples/value-stream-demo.plein`, `samples/research-data.plein`, `open-exchange/booking.plein`) and fail files (`malformed-views.plein`, `unknown-keyword.plein`, `invalid-value-stream-nesting.plein`, `unknown-value-stream-step.plein`) extend the same contract. Catalogue: [`fixtures/README.md`](../fixtures/README.md). Language: [`docs/plein-dsl-archimate-4.md`](plein-dsl-archimate-4.md). Render colours/icons: [`docs/archimate-style.md`](archimate-style.md). Open Exchange import: [`docs/open-exchange-import.md`](open-exchange-import.md).
 
 `.plein` files are UTF-8 text with `/` paths. Use those relative paths from the repo root on macOS and Linux. Do not use Windows `\` paths or `C:\` prefixes.
 
@@ -47,7 +48,7 @@ Keep fixtures compact so a PR can review the markup as architecture, not as a du
 5. List the file in [`fixtures/README.md`](../fixtures/README.md) with the expected exit and diagnostic class.
 6. Do not change existing golden JSON or fail diagnostics unless the PR is intentionally changing that contract.
 
-Product models that are not check fixtures still belong under `fixtures/samples/` until a later layout split. Do not add a parallel tree without a backlog item.
+Product models that are not check fixtures still belong under `fixtures/samples/` until a later layout split. Do not add a parallel tree without a backlog item. The Open Exchange pair is [`fixtures/open-exchange/`](../fixtures/open-exchange/) (source XML plus the imported `.plein`); that is the import contract, not a second models tree.
 
 ## How PRs review them
 

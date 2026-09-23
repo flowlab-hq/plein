@@ -89,6 +89,16 @@ export {
   type ExportedView,
 } from "./export.js";
 export {
+  OPEN_EXCHANGE_NS,
+  ImportError,
+  importOpenExchange,
+  formatImportReport,
+  openExchangeElementTypes,
+  openExchangeRelationshipTypes,
+  type ImportReport,
+  type ImportedPlein,
+} from "./open-exchange.js";
+export {
   ELEMENT_KEYWORDS,
   COMPOSITE_ELEMENT_KEYWORDS,
   RELATIONSHIP_KEYWORDS,

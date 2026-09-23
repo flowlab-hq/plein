@@ -442,6 +442,14 @@ That sample follows the same patterns as the golden fixtures: `plein {`, kebab-c
 4. Every `viewpoint` id unique; ≥2 if the story needs S4 smoke.
 5. Prefer matching patterns in [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) and [`fixtures/valid-views.plein`](../fixtures/valid-views.plein).
 
+## Open Exchange import
+
+`plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. The mapping, the representative fixture, and the gaps are [Open Exchange import](open-exchange-import.md).
+
+Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, and diagram membership as viewpoints. Documentation, properties, extra languages, `accessType`, and influence modifiers are comments, not first-class syntax.
+
+Not this story: export to Open Exchange and round-trip. Also not imported: diagram geometry and styles, organization folders, junctions, and `value-stream-stage` reconstruction (a `ValueStream` stays one element; composition stays a relationship).
+
 ## Validation notes
 
 A validator should check, at minimum:
