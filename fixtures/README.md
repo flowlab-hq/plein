@@ -31,6 +31,8 @@ CI (`.github/workflows/check-fixtures.yml`) builds the CLI and runs `npm run che
 - `basic.plein` — larger NordFreight-style model still loaded by parser / list tests; expected to parse. Prefer `valid-basic.plein` for new `plein check` coverage.
 - `open-exchange/booking.xml` — representative **Open Exchange** model for `plein import` (elements across layers, all eleven relationship types, two diagrams, plus junction / geometry / style / folder gaps). Mapping and gaps: [docs/open-exchange-import.md](../docs/open-exchange-import.md).
 - `open-exchange/booking.plein` — pinned `plein import` of that XML. Expected to pass `plein check` with exit code 0 (17 elements, 15 relationships, 2 views). `src/open-exchange.test.ts` asserts the import matches this file.
+- `open-exchange/booking.export.xml` — pinned `plein export-open-exchange` of `booking.plein` (same subset; no junctions, geometry, styles, or comment breadcrumbs).
+- `open-exchange/booking.roundtrip.plein` — pinned `plein import` of that export. Same elements, relationships, and views as `booking.plein`; comments and the original model name are gone. Expected to pass `plein check` with exit code 0.
 
 ## Expected-fail (expect non-zero + `file:line:column`)
 

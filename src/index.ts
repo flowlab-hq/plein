@@ -98,10 +98,15 @@ export {
   ImportError,
   importOpenExchange,
   formatImportReport,
+  exportOpenExchange,
+  formatOpenExchangeExportReport,
   openExchangeElementTypes,
   openExchangeRelationshipTypes,
   type ImportReport,
   type ImportedPlein,
+  type OpenExchangeExportOptions,
+  type OpenExchangeExportReport,
+  type ExportedOpenExchange,
 } from "./open-exchange.js";
 export {
   ELEMENT_KEYWORDS,

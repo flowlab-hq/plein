@@ -1,0 +1,50 @@
+// Imported from Open Exchange "booking" (model-booking).
+// Diagram geometry, styles, and organization folders are not imported.
+
+plein {
+  model {
+    capability "Network planning" as id-planning
+    value-stream "Quote to cash" as id-qtc
+    goal "On-time delivery" as id-ontime
+    assessment "Late risk" as id-risk
+    business-actor "Shipper & Co" as id-shipper
+    business-role "Booking clerk" as id-clerk
+    business-process "Book freight" as id-book
+    business-event "Order placed" as id-placed
+    business-service "Booking service" as id-booking
+    business-object "Freight order" as id-order
+    business-object "Express order" as id-express
+    application-component "Rate engine" as id-rates
+    data-object "Rate card" as id-ratecard
+    node "NordFreight cloud" as id-cloud
+    location "Rotterdam" as id-rotterdam
+    work-package "Booking rollout" as id-rollout
+    grouping "Context" as id-context
+
+    id-rollout -> id-planning: realization
+    id-qtc -> id-book: composition
+    id-risk -> id-ontime: influence
+    id-booking -> id-shipper: serving
+    id-clerk -> id-book: assignment
+    id-book -> id-placed: triggering
+    id-book -> id-order: flow
+    id-booking -> id-order: access
+    id-rates -> id-booking: realization
+    id-rates -> id-ratecard: access
+    id-cloud -> id-rates: composition
+    id-express -> id-order: specialization
+    id-shipper -> id-clerk: association
+    id-rotterdam -> id-cloud: association
+    id-context -> id-shipper: aggregation
+  }
+
+  views {
+    viewpoint id-booking-context "Booking context" {
+      include id-shipper, id-booking, id-order, id-rates
+    }
+    viewpoint id-quote-flow "Quote to cash" {
+      nesting nested
+      include id-qtc, id-book, id-planning
+    }
+  }
+}

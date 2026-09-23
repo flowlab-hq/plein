@@ -471,13 +471,13 @@ That sample follows the same patterns as the golden fixtures: `plein {`, kebab-c
 4. Every `viewpoint` id unique; ≥2 if the story needs S4 smoke.
 5. Prefer matching patterns in [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) and [`fixtures/valid-views.plein`](../fixtures/valid-views.plein).
 
-## Open Exchange import
+## Open Exchange import and export
 
-`plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. The mapping, the representative fixture, and the gaps are [Open Exchange import](open-exchange-import.md).
+`plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. `plein export-open-exchange` writes that same subset back to XML. The mapping, the representative fixture, and the gaps are [Open Exchange import and export](open-exchange-import.md). HTML/SVG export is a different command (`plein export`).
 
-Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, and diagram membership as viewpoints. Documentation, properties, extra languages, `accessType`, and influence modifiers are comments, not first-class syntax.
+Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, and diagram membership as viewpoints. Documentation, properties, extra languages, `accessType`, and influence modifiers are comments, not first-class syntax. Export does not read those comments.
 
-Not this story: export to Open Exchange and round-trip. Also not imported: diagram geometry and styles, organization folders, junctions, and `value-stream-stage` reconstruction (a `ValueStream` stays one element; composition stays a relationship).
+Not imported, and not written on export: diagram geometry and styles, organization folders, junctions, and `value-stream-stage` reconstruction (a `ValueStream` stays one element; composition stays a relationship). Round-trip of the booking fixture keeps elements, relationships, and views; the known text deltas are in that doc.
 
 ## Validation notes
 

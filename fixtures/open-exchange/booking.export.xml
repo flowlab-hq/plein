@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Exported from .plein. Subset and round-trip deltas: docs/open-exchange-import.md. -->
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate_model.xsd" identifier="model-booking">
+  <name xml:lang="en">booking</name>
+  <elements>
+    <element identifier="id-planning" xsi:type="Capability">
+      <name xml:lang="en">Network planning</name>
+    </element>
+    <element identifier="id-qtc" xsi:type="ValueStream">
+      <name xml:lang="en">Quote to cash</name>
+    </element>
+    <element identifier="id-ontime" xsi:type="Goal">
+      <name xml:lang="en">On-time delivery</name>
+    </element>
+    <element identifier="id-risk" xsi:type="Assessment">
+      <name xml:lang="en">Late risk</name>
+    </element>
+    <element identifier="id-shipper" xsi:type="BusinessActor">
+      <name xml:lang="en">Shipper &amp; Co</name>
+    </element>
+    <element identifier="id-clerk" xsi:type="BusinessRole">
+      <name xml:lang="en">Booking clerk</name>
+    </element>
+    <element identifier="id-book" xsi:type="BusinessProcess">
+      <name xml:lang="en">Book freight</name>
+    </element>
+    <element identifier="id-placed" xsi:type="BusinessEvent">
+      <name xml:lang="en">Order placed</name>
+    </element>
+    <element identifier="id-booking" xsi:type="BusinessService">
+      <name xml:lang="en">Booking service</name>
+    </element>
+    <element identifier="id-order" xsi:type="BusinessObject">
+      <name xml:lang="en">Freight order</name>
+    </element>
+    <element identifier="id-express" xsi:type="BusinessObject">
+      <name xml:lang="en">Express order</name>
+    </element>
+    <element identifier="id-rates" xsi:type="ApplicationComponent">
+      <name xml:lang="en">Rate engine</name>
+    </element>
+    <element identifier="id-ratecard" xsi:type="DataObject">
+      <name xml:lang="en">Rate card</name>
+    </element>
+    <element identifier="id-cloud" xsi:type="Node">
+      <name xml:lang="en">NordFreight cloud</name>
+    </element>
+    <element identifier="id-rotterdam" xsi:type="Location">
+      <name xml:lang="en">Rotterdam</name>
+    </element>
+    <element identifier="id-rollout" xsi:type="WorkPackage">
+      <name xml:lang="en">Booking rollout</name>
+    </element>
+    <element identifier="id-context" xsi:type="Grouping">
+      <name xml:lang="en">Context</name>
+    </element>
+  </elements>
+  <relationships>
+    <relationship identifier="id-rel-1" source="id-rollout" target="id-planning" xsi:type="Realization"/>
+    <relationship identifier="id-rel-2" source="id-qtc" target="id-book" xsi:type="Composition"/>
+    <relationship identifier="id-rel-3" source="id-risk" target="id-ontime" xsi:type="Influence"/>
+    <relationship identifier="id-rel-4" source="id-booking" target="id-shipper" xsi:type="Serving"/>
+    <relationship identifier="id-rel-5" source="id-clerk" target="id-book" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-6" source="id-book" target="id-placed" xsi:type="Triggering"/>
+    <relationship identifier="id-rel-7" source="id-book" target="id-order" xsi:type="Flow"/>
+    <relationship identifier="id-rel-8" source="id-booking" target="id-order" xsi:type="Access"/>
+    <relationship identifier="id-rel-9" source="id-rates" target="id-booking" xsi:type="Realization"/>
+    <relationship identifier="id-rel-10" source="id-rates" target="id-ratecard" xsi:type="Access"/>
+    <relationship identifier="id-rel-11" source="id-cloud" target="id-rates" xsi:type="Composition"/>
+    <relationship identifier="id-rel-12" source="id-express" target="id-order" xsi:type="Specialization"/>
+    <relationship identifier="id-rel-13" source="id-shipper" target="id-clerk" xsi:type="Association"/>
+    <relationship identifier="id-rel-14" source="id-rotterdam" target="id-cloud" xsi:type="Association"/>
+    <relationship identifier="id-rel-15" source="id-context" target="id-shipper" xsi:type="Aggregation"/>
+  </relationships>
+  <views>
+    <diagrams>
+      <view identifier="id-booking-context" xsi:type="Diagram">
+        <name xml:lang="en">Booking context</name>
+        <node identifier="id-node-1" xsi:type="Element" elementRef="id-shipper"/>
+        <node identifier="id-node-2" xsi:type="Element" elementRef="id-booking"/>
+        <node identifier="id-node-3" xsi:type="Element" elementRef="id-order"/>
+        <node identifier="id-node-4" xsi:type="Element" elementRef="id-rates"/>
+      </view>
+      <view identifier="id-quote-flow" xsi:type="Diagram">
+        <name xml:lang="en">Quote to cash</name>
+        <node identifier="id-node-5" xsi:type="Element" elementRef="id-qtc">
+          <node identifier="id-node-6" xsi:type="Element" elementRef="id-book"/>
+        </node>
+        <node identifier="id-node-7" xsi:type="Element" elementRef="id-planning"/>
+      </view>
+    </diagrams>
+  </views>
+</model>

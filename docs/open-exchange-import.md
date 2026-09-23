@@ -1,10 +1,10 @@
-# Open Exchange import (S5a)
+# Open Exchange import and export (S5a / S5b)
 
-`plein import` reads an [ArchiMate Model Exchange File Format](https://www.opengroup.org/xsd/archimate/) 3.1 document and writes `.plein`. The namespace is `http://www.opengroup.org/xsd/archimate/3.0/` — the 3.1 schema Archi and other tools still emit. Types map onto the [Plein ArchiMate 4 catalogue](plein-dsl-archimate-4.md).
+`plein import` reads an [ArchiMate Model Exchange File Format](https://www.opengroup.org/xsd/archimate/) 3.1 document and writes `.plein`. `plein export-open-exchange` writes that same subset back to XML. The namespace is `http://www.opengroup.org/xsd/archimate/3.0/` — the 3.1 schema Archi and other tools still emit. Types map onto the [Plein ArchiMate 4 catalogue](plein-dsl-archimate-4.md).
 
-**Export back to Open Exchange, and any round-trip, is S5b.** This command does not write XML.
+`plein export` is a different command: one named viewpoint as HTML or SVG. Open Exchange export does not use it.
 
-## Command
+## Import
 
 From a Homebrew install or a source checkout (`npx plein`), on macOS or Linux. The supported Mac target is Apple Silicon; the CLI is Node 18+ and does not need the Mac app.
 
@@ -22,6 +22,24 @@ Open `booking.plein` in the Mac app the same way as any other model.
 ```bash
 plein import fixtures/open-exchange/booking.xml > booking.plein
 ```
+
+## Export
+
+Same machines as import: Homebrew or `npx plein`, Node 18+. The supported Mac target is Apple Silicon. The Mac app has no Export menu for this format.
+
+```bash
+plein export-open-exchange booking.plein -o booking.xml
+plein import booking.xml -o booking-again.plein
+```
+
+- Without `-o`, the XML is written to stdout. Gap notes go to stderr so a pipe stays well-formed XML.
+- `-o path.xml` writes that file. A directory (or a path ending in `/`) writes `<plein-stem>.xml` inside it.
+- The model `<name>` is the `.plein` file stem (`booking` for `booking.plein`). `model/@identifier` is `model-` plus that stem (`model-booking`). If an element already uses that id, a numeric suffix is added. A viewpoint name that collides with an element id or the model identifier is suffixed the same way.
+- The command has no flags for the model name or identifier. Both come from the path.
+
+The XML is a `model` in the 3.1 namespace, with `xsi:type` in PascalCase, English `<name>` elements, relationships in model order, and `views/diagrams/view` diagrams (`xsi:type="Diagram"`). A viewpoint title becomes the view `<name>`. `include` ids become `element` nodes. `nesting nested` (or `inside`) nests a child element node inside its parent when a `composition` or `aggregation` joins two included elements — composition wins, one parent per child, same rule as the diagram. Relationship and node identifiers are generated (`id-rel-N`, `id-node-N`). There are no coordinates, styles, connections, folders, or junctions.
+
+An empty `include` exports every element. `*`, an element id, and a type keyword expand to element ids; `exclude` removes matches. Relationship selectors are not diagram connections. A view with no elements is omitted.
 
 ## Supported subset
 
@@ -107,28 +125,66 @@ Import keeps some dropped fields as `//` comments so a reviewer can see them:
 - the ArchiMate viewpoint name
 - an identifier that had to be rewritten
 
-S5b should treat the Open Exchange file as the source for those fields. Do not parse these comments as a schema.
+Export does not read these comments. The Open Exchange file is the source for those fields. A `.plein` that was imported and then exported drops them. See [Round-trip deltas](#round-trip-deltas).
 
 ## Fixture
 
-[`fixtures/open-exchange/booking.xml`](../fixtures/open-exchange/booking.xml) is the representative model (NordFreight booking: strategy through implementation, all eleven relationship types, two diagrams). The pinned result is [`fixtures/open-exchange/booking.plein`](../fixtures/open-exchange/booking.plein).
+[`fixtures/open-exchange/booking.xml`](../fixtures/open-exchange/booking.xml) is the representative model (NordFreight booking: strategy through implementation, all eleven relationship types, two diagrams). The pinned import is [`fixtures/open-exchange/booking.plein`](../fixtures/open-exchange/booking.plein).
+
+[`fixtures/open-exchange/booking.export.xml`](../fixtures/open-exchange/booking.export.xml) is `plein export-open-exchange` of that `.plein`. [`fixtures/open-exchange/booking.roundtrip.plein`](../fixtures/open-exchange/booking.roundtrip.plein) is `plein import` of the export. Elements, relationships, viewpoint names, titles, include lists, and `nesting nested` match `booking.plein`. The comments do not.
 
 ```bash
 plein import fixtures/open-exchange/booking.xml -o booking.plein
 diff -u fixtures/open-exchange/booking.plein booking.plein
+plein export-open-exchange fixtures/open-exchange/booking.plein -o booking.export.xml
+diff -u fixtures/open-exchange/booking.export.xml booking.export.xml
+plein import booking.export.xml -o booking.roundtrip.plein
+diff -u fixtures/open-exchange/booking.roundtrip.plein booking.roundtrip.plein
 plein check fixtures/open-exchange/booking.plein
+plein check fixtures/open-exchange/booking.roundtrip.plein
 ```
 
-`npm test` asserts that diff. `npm run check:fixtures` asserts the `.plein` still passes `plein check`.
+`npm test` asserts those diffs and that the parsed models match. `npm run check:fixtures` asserts both `.plein` files still pass `plein check`.
 
 The XML includes, on purpose, things the subset drops: an `AndJunction` and the relationships that touch it, a diagram label, a visual container, coordinates, fill colours, a bendpoint, and an organization folder. It also includes a property, documentation, a Dutch name beside the English label, `accessType="Write"`, an influence `modifier`, and one element node nested inside another.
 
 ## Known gaps
 
-### S5b — do not implement here
+### Round-trip deltas
 
-- Export `.plein` to Open Exchange XML.
-- Round-trip. Import then export is not a goal of S5a, and the comment breadcrumbs above are not an exchange format.
+Import → export → import keeps the parsed model for the booking fixture: element keyword, label, and id; relationship type and endpoints; viewpoint name, title, include list, and `nesting nested`. It does not reproduce `booking.plein` byte for byte, and it does not reproduce `booking.xml`.
+
+Lost because `.plein` never stored them (import dropped them, export cannot put them back):
+
+- Junctions and relationships that reference them.
+- Diagram geometry, z-order, bendpoints, and connection routing.
+- Styles.
+- Organization / folder trees.
+- Property definitions and property values (comments only on import).
+- Documentation (comments only).
+- The ArchiMate viewpoint kind (`Application Cooperation`, `Strategy`).
+- Names in languages other than the chosen label.
+- `accessType` and influence `modifier`.
+- Relationship identifiers, profiles, metadata, and non-diagram views.
+
+Lost because export does not parse `//` comments:
+
+- The import banner's model name and identifier (`NordFreight booking`, `id-nordfreight`). Export writes the file stem and `model-<stem>` instead (`booking`, `model-booking` for the fixture).
+- Every other comment listed under [Comments are breadcrumbs](#comments-are-breadcrumbs-not-a-round-trip-format).
+
+Other deltas:
+
+- Generated relationship and diagram-node ids (`id-rel-N`, `id-node-N`). Import drops them again.
+- A `"` in a name becomes `'` on import. `.plein` strings have no escape syntax.
+- Import collapses whitespace in names.
+- A model with no viewpoints exports no diagrams. The next import writes viewpoint `imported` when the file has elements.
+- `view name { title "…" }` comes back as `viewpoint name "…"`, so the parser's viewpoint field becomes the view name.
+- `nesting nested` with no composition or aggregation between included elements exports flat nodes. The flag does not come back.
+- Include order follows the parent, then its nested children. A child listed before its parent moves under the parent.
+- `autoLayout` is not in the subset.
+- `*`, a type keyword, and `exclude` become an explicit id list. Relationship selectors are not written.
+- An element id that is a keyword or a view clause (`node`, `include`, …) is rewritten on import (`xe-node`). Export writes the `.plein` id as-is.
+- A `value-stream-stage` is already a `value-stream` element plus `composition` in the parser. Export writes `ValueStream` and `Composition`. It does not invent stage bodies.
 
 ### Dropped on import
 
@@ -151,10 +207,12 @@ The XML includes, on purpose, things the subset drops: an `AndJunction` and the 
 
 ### Other
 
-- The Mac app has no Import menu. Run the CLI, then open the `.plein` file.
+- The Mac app has no Import menu and no Open Exchange export menu. Run the CLI, then open the `.plein` file.
 - `DOCTYPE` is rejected so the reader does not resolve external entities.
 - A `"` in a name is stored as `'`.
 
 ## Errors
 
 Unknown types, missing endpoints, self-relationships, a non-`model` root, an unsupported namespace, and malformed XML fail the import. The message is `file:line:column: …` on stderr and the exit code is non-zero, the same class as `plein check`. Junctions are skipped instead of failed, and the summary says so.
+
+`plein export-open-exchange` fails the same way as `plein check` when the `.plein` file is missing or invalid. It does not write a partial file.

@@ -9,7 +9,7 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
 * [Mac-app / LLM formatting pitfalls](docs/plein-dsl-archimate-4.md#mac-app-authoring-wrong-vs-right) — header is only `plein {`; labeled elements need `as id`; kebab-case keywords; `id -> id: serving`; unique `viewpoint` ids; copy-paste example with two views.
 * [ArchiMate type colours and icons](docs/archimate-style.md) — layer fills and decorator glyphs used by the Mac SVG renderer.
-* [Open Exchange import](docs/open-exchange-import.md) — `plein import` of a documented ArchiMate exchange subset into `.plein` (export is a later story).
+* [Open Exchange import and export](docs/open-exchange-import.md) — `plein import` and `plein export-open-exchange` for a documented ArchiMate exchange subset.
 * [Repo layout — models, fixtures, and PR review](docs/repo-layout.md) — where `.plein` files live, how to add golden/fail fixtures, and how pull requests review them (Mac-friendly).
 
 Plein source files use the `.plein` extension.
@@ -122,11 +122,12 @@ plein export fixtures/valid-basic.plein --view booking-context -o booking-contex
 open booking-context.html
 plein import fixtures/open-exchange/booking.xml -o booking.plein
 plein check booking.plein
+plein export-open-exchange booking.plein -o booking.xml
 ```
 
 `plein export` writes a self-contained HTML page (or SVG) for one named view. Open that file in a browser; the Mac app does not need to be running. Details: [Export a named view](#export-a-named-view).
 
-`plein import` reads an Open Exchange XML model and writes `.plein`. Details: [Import Open Exchange XML](#import-open-exchange-xml).
+`plein import` reads an Open Exchange XML model and writes `.plein`. `plein export-open-exchange` writes that same subset back to XML. Details: [Import and export Open Exchange XML](#import-and-export-open-exchange-xml).
 
 Expected walkthrough:
 
@@ -164,7 +165,7 @@ npm run check:fixtures
 npm test
 ```
 
-GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the export golden and the Open Exchange import golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
+GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the HTML/SVG export golden and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases).
 
@@ -194,17 +195,19 @@ Without `-o`, HTML or SVG is written to stdout (`--format both` requires `-o`). 
 
 Golden snapshot: [fixtures/golden-booking-context.html](fixtures/golden-booking-context.html) is `plein export fixtures/valid-basic.plein --view booking-context --format html`. `npm test` / `./scripts/assert-export.sh` fails if that file drifts. The research-data sample asserts that `--view` selects one viewpoint (landscape vs published access vs storage).
 
-### Import Open Exchange XML
+### Import and export Open Exchange XML
 
-`plein import` reads an ArchiMate Model Exchange File Format 3.1 document and writes `.plein` for the subset in [docs/open-exchange-import.md](docs/open-exchange-import.md). Export back to Open Exchange, and round-trip, are a later story (S5b) and are not part of this command.
+`plein import` reads an ArchiMate Model Exchange File Format 3.1 document and writes `.plein` for the subset in [docs/open-exchange-import.md](docs/open-exchange-import.md). `plein export-open-exchange` writes that same subset back to XML. This is not `plein export` (HTML/SVG of one viewpoint).
 
 ```bash
 plein import fixtures/open-exchange/booking.xml -o booking.plein
 plein check booking.plein
 open -a Plein booking.plein
+plein export-open-exchange fixtures/open-exchange/booking.plein -o booking.xml
+plein import booking.xml -o booking-again.plein
 ```
 
-Without `-o`, the `.plein` source goes to stdout (gap notes stay on stderr). The booking fixture is the representative model: elements across layers, all eleven relationship types, and two diagrams. Import drops junctions, diagram geometry, styles, and organization folders, and says so in the summary. The pinned result is [fixtures/open-exchange/booking.plein](fixtures/open-exchange/booking.plein).
+Without `-o`, import writes `.plein` to stdout and export writes XML to stdout (gap notes stay on stderr). The booking fixture is the representative model: elements across layers, all eleven relationship types, and two diagrams. Import drops junctions, diagram geometry, styles, and organization folders, and says so in the summary. The pinned import is [fixtures/open-exchange/booking.plein](fixtures/open-exchange/booking.plein). The pinned export is [fixtures/open-exchange/booking.export.xml](fixtures/open-exchange/booking.export.xml). Importing that XML again yields [fixtures/open-exchange/booking.roundtrip.plein](fixtures/open-exchange/booking.roundtrip.plein): the same elements, relationships, and views, without the comment breadcrumbs (documentation, properties, `accessType`, the ArchiMate viewpoint kind, and the original model name).
 
 ### Golden viewpoint layout
 

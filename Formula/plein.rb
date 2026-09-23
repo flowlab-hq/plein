@@ -6,7 +6,7 @@
 #   brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein
 #   brew install plein
 class Plein < Formula
-  desc "Check and export Plein ArchiMate model files"
+  desc "Check, render, and exchange Plein ArchiMate model files"
   homepage "https://github.com/flowlab-hq/plein"
   # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
   # Additional Competing Use terms in LICENSE. GitHub may show Other / View license.
@@ -42,6 +42,7 @@ class Plein < Formula
       Plein is a command-line tool (no GUI).
       Apple Silicon is the supported Mac target. Intel Macs are out of scope.
       plein export writes a self-contained HTML or SVG file you can open in a browser.
+      plein import and plein export-open-exchange read and write the documented Open Exchange subset.
     EOS
   end
 
@@ -84,5 +85,10 @@ class Plein < Formula
     assert_match(/<!DOCTYPE html>/, html)
     assert_match(/data-view="booking-context"/, html)
     assert_no_match(/<script/, html)
+
+    xml = shell_output("#{bin}/plein export-open-exchange #{export_model}")
+    assert_match(/xsi:type="BusinessActor"/, xml)
+    assert_match(/elementRef="shipper"/, xml)
+    assert_match(%r{http://www.opengroup.org/xsd/archimate/3.0/}, xml)
   end
 end
