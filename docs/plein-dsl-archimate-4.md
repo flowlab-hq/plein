@@ -88,7 +88,7 @@ An element has a keyword, a quoted label, and an identifier after `as`. The iden
 
 The parser accepts every keyword listed above. Layer-specific names stay distinct: `business-process`, `application-process`, and `technology-process` are different types (same for function, event, service, collaboration, and interaction).
 
-Unknown element types fail with a `file:line:column` diagnostic (`unknown keyword '…' (undeclared specialization)`). `fixtures/unknown-keyword.plein` is the reject fixture for a name that is not in the catalogue; `fixtures/unknown-specialization.plein` is the same failure for a custom concept that was never declared. `src/keywords.test.ts` generates a model with all 58 language-reference types. A name that is not in the catalogue is accepted only after a [concept specialization](#concept-specializations) declaration.
+Unknown element types fail with a `file:line:column` diagnostic (`unknown keyword '…' (undeclared specialization)`). `fixtures/unknown-keyword.plein` is the reject fixture for a name that is not in the catalogue; `fixtures/unknown-specialization.plein` is the same failure for a custom concept that was never declared. `src/keywords.test.ts` generates a model with all 58 language-reference types. A name that is not in the catalogue is accepted only after a [concept specialization](#concept-specializations) declaration, including one declared as a [profile hook](#profile-and-organization-extension-hooks).
 
 `fixtures/valid-catalogue-layers.plein` is a compact golden sample: one element per ArchiMate layer (Strategy, Motivation, Business, Application, Technology, Physical, Implementation and migration). Technology and Physical are sampled separately even though this reference groups them in one section. That per-layer sample is the documented choice; the generated 58-keyword catalogue is not duplicated as a `.plein` fixture.
 
@@ -112,7 +112,7 @@ specialization customer specializes business-actor
 customer "Acme Freight" as acme
 ```
 
-`customer` specializes the catalogue concept `business-actor`. The element keeps that catalogue type (layer colour, icon, and Open Exchange `xsi:type`). The instance relationship `id -> id: specialization` is unchanged. Chains are allowed (`premium-customer specializes customer`) and resolve to the same catalogue type. Not in this slice: profile and organization extension packs, stereotype labels, and profile round-trip (C1b). Export writes the catalogue type and does not emit a profile.
+`customer` specializes the catalogue concept `business-actor`. The element keeps that catalogue type (layer colour, icon, and Open Exchange `xsi:type`). The instance relationship `id -> id: specialization` is unchanged. Chains are allowed (`premium-customer specializes customer`) and resolve to the same catalogue type. Grouping those specializations into an organization pack is a [profile](#profile-and-organization-extension-hooks). Export writes the catalogue type and does not emit a profile.
 
 Declare + use: `fixtures/valid-specialization.plein`. Reject: `fixtures/unknown-specialization.plein`.
 
@@ -156,7 +156,7 @@ These are rejected with `file:line:column`:
 
 `fixtures/valid-specialization.plein` declares `customer`, `express-order`, and `premium-customer` and uses them. `fixtures/unknown-specialization.plein` uses `customer` with no declaration and must fail `plein check`.
 
-This is declare + validate only. It does not load profile or organization extension packs, draw stereotype labels, or round-trip profiles through Open Exchange. `plein export-open-exchange` writes the catalogue `xsi:type` (for example `BusinessActor`) and does not emit a profile.
+A specialization declared directly in `model` is not a profile hook. `hook <name>` accepts only a specialization declared inside a [profile](#profile-and-organization-extension-hooks). `plein export-open-exchange` writes the catalogue `xsi:type` (for example `BusinessActor`) and does not emit a profile.
 
 An identifier may still be named `specialization`. Write the relationship with `->` (or the existing infix verb). That is a relationship source, not a type declaration:
 
@@ -164,6 +164,85 @@ An identifier may still be named `specialization`. Write the relationship with `
 business-actor "Specialization" as specialization
 business-role "Role" as role
 specialization -> role: assignment
+```
+
+## Profile and organization extension hooks
+
+### Story note
+
+Paste onto the C1b Notion page:
+
+Architects declare a profile (alias `organization`) inside `model` and put concept specializations in it. Those specializations are the profile's hooks. `plein check` accepts a hook used as an element keyword, or attached with `hook <name>` on a catalogue element of the same type. An undeclared hook fails with `undeclared profile hook '…'`. A specialization declared outside any profile stays a C1a specialization and is not a hook.
+
+```plein
+profile nordfreight {
+  specialization customer specializes business-actor
+}
+customer "Acme Freight" as acme
+business-actor "Priority desk" as desk hook customer
+```
+
+`nordfreight` is an in-file organization pack, not a downloaded profile. `customer` and `desk` keep the catalogue type `business-actor` (layer colour, icon, and Open Exchange `xsi:type`). There is no profile marketplace, and the core metamodel is unchanged. Export still writes the catalogue type and does not emit a profile.
+
+Declare + use: `fixtures/valid-profile.plein`. Reject: `fixtures/unknown-profile-hook.plein`.
+
+### Declaration
+
+A profile names an organization extension pack. The only statements in its body are specialization declarations. Each of those specializations is a hook of that profile. Hook names share the model's specialization namespace: the same name cannot be declared twice, in or out of a profile.
+
+```plein
+model {
+  profile nordfreight {
+    specialization customer specializes business-actor
+    specialization express-order specializes business-object
+    specialization premium-customer specializes customer
+  }
+
+  organization planning {
+    specialization planner specializes business-role
+  }
+
+  customer "Acme Freight" as acme
+  business-actor "Priority desk" as desk hook customer
+  business-role "Lane planner" as lane hook planner
+}
+```
+
+* Write `profile <name> { ... }` in `model`, before any element that uses its hooks. `organization` is an alias of `profile`.
+* `<name>` is an identifier. Prefer kebab-case (`nordfreight`). It must not be a catalogue keyword, a relationship verb, a structural word (`include`, `hook`, `profile`, …), or an existing specialization name.
+* Inside the braces, write `specialization <hook> specializes <parent>` using the same rules as a [concept specialization](#concept-specializations). A hook may specialize a catalogue keyword or an earlier specialization, including one from a previous profile in the same file.
+* Use a hook as an element keyword: `customer "Acme Freight" as acme`. The element keeps the catalogue type and records `specialization` plus `profile`.
+* Or keep the catalogue keyword and attach one hook: `business-actor "Priority desk" as desk hook customer`. The hook's catalogue type must be that element's type. `hook` cannot be combined with a specialization keyword.
+* `include <hook>` selects elements that use that hook, whether they were declared with the hook keyword or with `hook <name>`. A profile name is not a view selector.
+* A hook that specializes `value-stream` may be applied with `hook <name>` on a `value-stream`, which may still nest `value-stream-stage` steps. Do not declare a profile inside a value-stream body.
+* A specialization written directly in `model`, outside every profile, is unchanged and is not a profile hook.
+
+These are rejected with `file:line:column`:
+
+| Situation | Diagnostic |
+| --- | --- |
+| `hook <name>` and `<name>` was never declared | `undeclared profile hook '<name>'` |
+| `hook <name>` and `<name>` is a specialization outside every profile | `specialization '<name>' is not a profile hook` |
+| Hook specializes a different catalogue type than the element | `profile hook '<name>' specializes '<catalogue-type>', not '<element-type>'` |
+| `hook` is written after a specialization keyword | `hook cannot be combined with specialization keyword '<name>'` |
+| Profile name is a catalogue keyword | `profile '<name>' collides with catalogue keyword '<name>'` |
+| Profile name is reserved (`include`, `hook`, `profile`, …) | `profile name '<name>' is reserved` |
+| The same profile name is declared twice | `duplicate profile '<name>'` |
+| Profile name matches a specialization, or a hook matches the profile name | `profile '<name>' collides with specialization '<name>'` or `specialization '<name>' collides with profile '<name>'` |
+| Profile body contains something other than a specialization | `profile '<name>' may only declare specializations` |
+| Declaration sits inside a `value-stream` body | `profile declarations belong in the model, not inside a valueStream` |
+| `profile` is not followed by `<name> {` | `expected '{' after profile name` or `expected profile name and '{' after profile` |
+
+`fixtures/valid-profile.plein` declares profiles `nordfreight` and `planning` (the second with the `organization` alias), uses hooks as keywords and with `hook`, and keeps one model-level specialization beside them. `fixtures/unknown-profile-hook.plein` attaches `hook warehouse` with no such declaration and must fail `plein check`.
+
+This is an in-file pack only. It does not load a marketplace of profiles, draw stereotype labels, or round-trip profiles through Open Exchange. `plein export-open-exchange` writes the catalogue `xsi:type` and does not emit a profile.
+
+An identifier may still be named `profile`. Write the relationship with `->` (or the existing infix verb). That is a relationship source, not a pack:
+
+```plein
+business-actor "Profile" as profile
+business-role "Role" as role
+profile -> role: assignment
 ```
 
 ## Relationships
@@ -553,7 +632,7 @@ A validator should check, at minimum:
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
 3. Each relationship uses one of the eleven supported types and has exactly one source and target.
-4. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`.
+4. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`, including hooks inside `profile <name> { ... }`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`. `hook <name>` is accepted only for a specialization declared in a profile; an undeclared hook is `undeclared profile hook '…'`.
 5. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.
 6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
 7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.

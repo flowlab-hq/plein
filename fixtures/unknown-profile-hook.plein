@@ -1,0 +1,9 @@
+plein {
+  model {
+    profile nordfreight {
+      specialization customer specializes business-actor
+    }
+
+    business-actor "Warehouse" as hub hook warehouse
+  }
+}

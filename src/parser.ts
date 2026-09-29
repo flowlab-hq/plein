@@ -4,6 +4,7 @@ import {
   isValueStreamStageLink,
   resolveElementKeyword,
   resolveRelationshipKeyword,
+  toKebabCaseKeyword,
   type ElementKeyword,
   type RelationshipKeyword,
 } from "./keywords.js";
@@ -28,23 +29,40 @@ export type ElementDecl = {
   id: string;
   line: number;
   /**
-   * Set when the element is declared with a specialization name.
-   * `keyword` stays the catalogue concept that name specializes, so style,
-   * layout, and Open Exchange keep using the ArchiMate 4 type.
+   * Set when the element is declared with a specialization name, or when a
+   * profile hook is attached with `hook <name>`. `keyword` stays the catalogue
+   * concept, so style, layout, and Open Exchange keep using the ArchiMate 4 type.
    */
   specialization?: string;
+  /**
+   * Profile (organization pack) that declared `specialization`.
+   * Absent for catalogue elements and for specializations declared directly
+   * in the model.
+   */
+  profile?: string;
 };
 
 /**
  * A concept specialization declared in the model.
  * `keyword` is the catalogue concept (walked through any chain of
- * specializations). Profile and organization packs are out of scope.
+ * specializations). `profile` is set when the declaration sits inside a profile.
  */
 export type SpecializationDecl = {
   name: string;
   /** Spelling after `specializes` (a catalogue keyword or an earlier specialization). */
   parent: string;
   keyword: ElementKeyword;
+  line: number;
+  /** Set when this specialization is a hook inside a profile. */
+  profile?: string;
+};
+
+/**
+ * A named profile: an in-file organization extension pack.
+ * Its hooks are the specializations declared in the profile body.
+ */
+export type ProfileDecl = {
+  name: string;
   line: number;
 };
 
@@ -90,6 +108,7 @@ export type PleinModel = {
   relationships: RelationshipDecl[];
   views: ViewDecl[];
   specializations: SpecializationDecl[];
+  profiles: ProfileDecl[];
 };
 
 type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "other" | "eof";
@@ -167,6 +186,9 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "nesting",
   "as",
   "of",
+  "profile",
+  "organization",
+  "hook",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -299,6 +321,10 @@ class Parser {
   private readonly views: ViewDecl[] = [];
   private readonly specializations: SpecializationDecl[] = [];
   private readonly specializationByName = new Map<string, SpecializationDecl>();
+  private readonly profiles: ProfileDecl[] = [];
+  private readonly profileByName = new Map<string, ProfileDecl>();
+  /** Profile whose body is currently being parsed, if any. */
+  private currentProfile: string | undefined;
 
   constructor(source: string, file: string) {
     this.file = file;
@@ -320,6 +346,7 @@ class Parser {
       relationships: this.relationships,
       views: this.views,
       specializations: this.specializations,
+      profiles: this.profiles,
     };
   }
 
@@ -371,7 +398,93 @@ class Parser {
       this.parseSpecialization(first);
       return;
     }
+    if (this.isProfileKeyword(first.value) && this.isProfileDeclaration()) {
+      this.parseProfile(first);
+      return;
+    }
     this.parseElementOrRelationship(first, { valueStreamBody: false });
+  }
+
+  private isProfileKeyword(value: string): boolean {
+    return value === "profile" || value === "organization";
+  }
+
+  /**
+   * `profile <name> { ... }` (alias `organization`) declares an org pack.
+   * `profile -> target: type` and infix `profile serves target` stay relationships.
+   */
+  private isProfileDeclaration(): boolean {
+    const name = this.peek();
+    if (name.kind !== "ident") {
+      return false;
+    }
+    return this.tokens[this.index + 1]?.kind === "{";
+  }
+
+  private parseProfile(start: Token): void {
+    const name = this.expect("ident", "expected profile name");
+    this.expect("{", "expected '{' after profile name");
+    this.addProfile(start, name);
+    this.currentProfile = name.value;
+    while (!this.check("}") && !this.check("eof")) {
+      const first = this.expect("ident", "expected specialization in profile");
+      if (first.value === "specialization" && this.isSpecializationDeclaration()) {
+        this.parseSpecialization(first);
+        continue;
+      }
+      throw new ParseError(
+        `profile '${name.value}' may only declare specializations`,
+        this.file,
+        first.line,
+        first.column,
+      );
+    }
+    this.expect("}", `expected '}' to close profile '${name.value}'`);
+    this.currentProfile = undefined;
+  }
+
+  private addProfile(start: Token, name: Token): void {
+    if (resolveElementKeyword(name.value) !== undefined || isValueStreamStageKeyword(name.value)) {
+      throw new ParseError(
+        `profile '${name.value}' collides with catalogue keyword '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    if (
+      resolveRelationshipKeyword(name.value) !== undefined ||
+      RESERVED_SPECIALIZATION_NAMES.has(name.value)
+    ) {
+      throw new ParseError(
+        `profile name '${name.value}' is reserved`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    if (this.profileByName.has(name.value)) {
+      throw new ParseError(
+        `duplicate profile '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    if (this.specializationByName.has(name.value)) {
+      throw new ParseError(
+        `profile '${name.value}' collides with specialization '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    const decl: ProfileDecl = {
+      name: name.value,
+      line: start.line,
+    };
+    this.profiles.push(decl);
+    this.profileByName.set(name.value, decl);
   }
 
   /**
@@ -451,12 +564,23 @@ class Parser {
         name.column,
       );
     }
+    if (this.profileByName.has(name.value)) {
+      throw new ParseError(
+        `specialization '${name.value}' collides with profile '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
     const decl: SpecializationDecl = {
       name: name.value,
       parent,
       keyword,
       line: start.line,
     };
+    if (this.currentProfile) {
+      decl.profile = this.currentProfile;
+    }
     this.specializations.push(decl);
     this.specializationByName.set(name.value, decl);
   }
@@ -471,6 +595,18 @@ class Parser {
       : this.specializationByName.get(first.value);
 
     if (this.check("string")) {
+      if (
+        !options.valueStreamBody &&
+        this.isProfileKeyword(first.value) &&
+        !specialization
+      ) {
+        throw new ParseError(
+          "expected profile name and '{' after profile",
+          this.file,
+          first.line,
+          first.column,
+        );
+      }
       if (options.valueStreamBody && !isValueStreamStageKeyword(first.value)) {
         throw new ParseError(
           `unknown step keyword '${first.value}'`,
@@ -502,6 +638,15 @@ class Parser {
           this.peek().column,
         );
       }
+      const hookName = this.takeProfileHook();
+      if (options.valueStreamBody && this.check("{")) {
+        throw new ParseError(
+          "valueStreamStage cannot nest a body",
+          this.file,
+          this.peek().line,
+          this.peek().column,
+        );
+      }
       const keyword = options.valueStreamBody
         ? "valueStream"
         : (specialization?.keyword ?? elementKeyword!);
@@ -511,8 +656,22 @@ class Parser {
         id: id.value,
         line: first.line,
       };
+      if (hookName && specialization) {
+        throw new ParseError(
+          `hook cannot be combined with specialization keyword '${specialization.name}'`,
+          this.file,
+          hookName.line,
+          hookName.column,
+        );
+      }
       if (specialization) {
         element.specialization = specialization.name;
+        if (specialization.profile) {
+          element.profile = specialization.profile;
+        }
+      }
+      if (hookName) {
+        this.applyProfileHook(element, hookName);
       }
       this.elements.push(element);
       if (options.valueStreamBody && options.parentId) {
@@ -585,12 +744,70 @@ class Parser {
       );
     }
 
+    if (this.isProfileKeyword(first.value) && this.check("ident")) {
+      const name = this.peek();
+      throw new ParseError(
+        "expected '{' after profile name",
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+
+    if (first.value === "hook") {
+      throw new ParseError(
+        "profile hook must follow the element id ('as <id> hook <name>')",
+        this.file,
+        first.line,
+        first.column,
+      );
+    }
+
     throw new ParseError(
       `expected '->' or a typed relationship after '${first.value}'`,
       this.file,
       first.line,
       first.column,
     );
+  }
+
+  /** `hook <name>` after an element id. The name token is the hook. */
+  private takeProfileHook(): Token | undefined {
+    if (!this.checkIdent("hook")) {
+      return undefined;
+    }
+    this.advance();
+    return this.expect("ident", "expected profile hook name after 'hook'");
+  }
+
+  private applyProfileHook(element: ElementDecl, hookName: Token): void {
+    const decl = this.specializationByName.get(hookName.value);
+    if (!decl) {
+      throw new ParseError(
+        `undeclared profile hook '${hookName.value}'`,
+        this.file,
+        hookName.line,
+        hookName.column,
+      );
+    }
+    if (!decl.profile) {
+      throw new ParseError(
+        `specialization '${hookName.value}' is not a profile hook`,
+        this.file,
+        hookName.line,
+        hookName.column,
+      );
+    }
+    if (decl.keyword !== element.keyword) {
+      throw new ParseError(
+        `profile hook '${hookName.value}' specializes '${toKebabCaseKeyword(decl.keyword)}', not '${toKebabCaseKeyword(element.keyword)}'`,
+        this.file,
+        hookName.line,
+        hookName.column,
+      );
+    }
+    element.specialization = decl.name;
+    element.profile = decl.profile;
   }
 
   private parseValueStreamBody(parentId: string): void {
@@ -600,6 +817,14 @@ class Parser {
       if (first.value === "specialization" && this.isSpecializationDeclaration()) {
         throw new ParseError(
           "specialization declarations belong in the model, not inside a valueStream",
+          this.file,
+          first.line,
+          first.column,
+        );
+      }
+      if (this.isProfileKeyword(first.value) && this.isProfileDeclaration()) {
+        throw new ParseError(
+          "profile declarations belong in the model, not inside a valueStream",
           this.file,
           first.line,
           first.column,

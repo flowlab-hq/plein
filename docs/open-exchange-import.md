@@ -198,7 +198,7 @@ Other deltas:
 - Diagram-only labels, notes, and visual containers.
 - `accessType` and influence `modifier` as typed data.
 - Relationship identifiers.
-- Profiles, specializations, and stereotypes in the exchange file. The base `xsi:type` is imported when it is a catalogue type. A custom type is an error, not a skip. In-file concept specializations (`specialization <name> specializes <catalogue-type>`, see [the language reference](plein-dsl-archimate-4.md#concept-specializations)) are markup only. Export writes the catalogue `xsi:type` and does not emit a profile.
+- Profiles, specializations, and stereotypes in the exchange file. The base `xsi:type` is imported when it is a catalogue type. A custom type is an error, not a skip. In-file concept specializations and profile hooks (`profile <name> { specialization … }`, see [the language reference](plein-dsl-archimate-4.md#profile-and-organization-extension-hooks)) are markup only. Export writes the catalogue `xsi:type` and does not emit a profile.
 - Metadata and Dublin Core.
 - Languages other than the chosen label (English if present, otherwise the first name).
 - Value-stream stage nesting. A `ValueStream` stays a single element. Composition to another concept stays a top-level `composition`. Import does not invent a `value-stream-stage` body. Nested diagram nodes only set `nesting nested`.

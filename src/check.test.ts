@@ -64,6 +64,25 @@ test("plein check exits 0 on fixtures/valid-specialization.plein", () => {
   assert.match(result.stdout, /3 specializations/);
 });
 
+test("plein check exits 0 on fixtures/valid-profile.plein", () => {
+  const result = runCheck("fixtures/valid-profile.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-profile\.plein/);
+  assert.match(result.stdout, /7 elements/);
+  assert.match(result.stdout, /4 relationships/);
+  assert.match(result.stdout, /5 specializations/);
+  assert.match(result.stdout, /2 profiles/);
+});
+
+test("plein check exits non-zero on fixtures/unknown-profile-hook.plein", () => {
+  const result = runCheck("fixtures/unknown-profile-hook.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /unknown-profile-hook\.plein:\d+:\d+: undeclared profile hook 'warehouse'/,
+  );
+});
+
 test("plein check exits non-zero on fixtures/unknown-specialization.plein", () => {
   const result = runCheck("fixtures/unknown-specialization.plein");
   assert.notEqual(result.status, 0);

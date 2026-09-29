@@ -173,7 +173,7 @@ npm test
 
 GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the inspect JSON golden, the HTML/SVG export golden, and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
-See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases). A custom concept is a declared specialization (`specialization customer specializes business-actor`); an undeclared name is rejected.
+See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases). A custom concept is a declared specialization (`specialization customer specializes business-actor`); an undeclared name is rejected. An organization pack is a `profile` (alias `organization`) of those specializations; `hook <name>` applies a declared profile hook, and an undeclared hook is rejected.
 
 ### Inspect a model
 
