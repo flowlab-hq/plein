@@ -36,6 +36,12 @@ import {
   selectionFromDiagramHit,
   type DiagramSelection,
 } from "../../src/selection.ts";
+import {
+  clampCanvasZoom,
+  nextCanvasZoom,
+  placeZoomAnchor,
+  wheelGestureIsZoom,
+} from "../../src/canvas-zoom.ts";
 
 type TauriBridge = {
   core: {
@@ -117,6 +123,24 @@ let nodeDrag: {
   moved: boolean;
   origins: Map<string, { x: number; y: number }>;
 } | null = null;
+/**
+ * Viewport scale for the SVG on screen. 1 is the laid-out size used on open.
+ * Plain wheel pans (`overflow: auto`); ⌘/Ctrl+wheel changes this and keeps
+ * the diagram point under the pointer. Reset when the file or named view changes.
+ */
+let canvasZoom = 1;
+/** Named view `canvasZoom` applies to. A different view opens at 100%. */
+let canvasZoomView: string | null = null;
+/**
+ * CSS pixel size of the SVG at zoom 1. Captured from the on-screen box
+ * (including the pane’s min-height) so the first zoom does not collapse
+ * that letterboxing and shove the point under the cursor.
+ */
+let zoomBasisWidth = 0;
+let zoomBasisHeight = 0;
+/** Shift used when zoom-out would otherwise scroll above the top-left. */
+let canvasMarginLeft = 0;
+let canvasMarginTop = 0;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -494,6 +518,47 @@ function syncLayoutOptionsButton(): void {
       : "Direction, routing, and nesting. Local preview only — not written back to the file.";
 }
 
+function forgetCanvasZoom(): void {
+  canvasZoom = 1;
+  canvasZoomView = null;
+  zoomBasisWidth = 0;
+  zoomBasisHeight = 0;
+  canvasMarginLeft = 0;
+  canvasMarginTop = 0;
+  delete diagram.dataset.zoom;
+}
+
+/** Size the SVG in CSS pixels. Layout user units stay put, so drag math still matches. */
+function applyCanvasZoom(svg: SVGSVGElement): boolean {
+  if (canvasZoom === 1) {
+    svg.style.removeProperty("width");
+    svg.style.removeProperty("height");
+    svg.style.removeProperty("margin-left");
+    svg.style.removeProperty("margin-top");
+    delete diagram.dataset.zoom;
+    zoomBasisWidth = 0;
+    zoomBasisHeight = 0;
+    canvasMarginLeft = 0;
+    canvasMarginTop = 0;
+    return true;
+  }
+  if (!(zoomBasisWidth > 0) || !(zoomBasisHeight > 0)) {
+    const width = Number(svg.getAttribute("width"));
+    const height = Number(svg.getAttribute("height"));
+    if (!(width > 0) || !(height > 0)) {
+      return false;
+    }
+    zoomBasisWidth = width;
+    zoomBasisHeight = height;
+  }
+  svg.style.width = `${zoomBasisWidth * canvasZoom}px`;
+  svg.style.height = `${zoomBasisHeight * canvasZoom}px`;
+  svg.style.marginLeft = canvasMarginLeft > 0 ? `${canvasMarginLeft}px` : "";
+  svg.style.marginTop = canvasMarginTop > 0 ? `${canvasMarginTop}px` : "";
+  diagram.dataset.zoom = canvasZoom.toFixed(4);
+  return true;
+}
+
 function setCurrentViewChrome(title: string, viewName: string | null): void {
   diagramHeading.textContent = title;
   if (viewName) {
@@ -517,6 +582,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren();
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
     return;
   }
 
@@ -530,6 +596,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren(hint);
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
     return;
   }
 
@@ -539,6 +606,13 @@ async function renderDiagram(seq: number): Promise<void> {
       return;
     }
     setCurrentViewChrome(browsed.title, browsed.viewName);
+    const sameView = canvasZoomView !== null && browsed.viewName === canvasZoomView;
+    const scrollLeft = diagram.scrollLeft;
+    const scrollTop = diagram.scrollTop;
+    if (!sameView) {
+      canvasZoom = 1;
+    }
+    canvasZoomView = browsed.viewName;
     diagram.innerHTML = browsed.svg;
     lastLayout = browsed.layout;
     if (browsed.layout.auto === false) {
@@ -547,8 +621,15 @@ async function renderDiagram(seq: number): Promise<void> {
       delete diagram.dataset.manualLayout;
     }
     const svg = diagram.querySelector("svg");
-    if (svg) {
+    if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
+      if (!applyCanvasZoom(svg)) {
+        canvasZoom = 1;
+        delete diagram.dataset.zoom;
+      } else if (sameView) {
+        diagram.scrollLeft = scrollLeft;
+        diagram.scrollTop = scrollTop;
+      }
     }
   } catch (error) {
     if (seq !== renderSeq) {
@@ -560,6 +641,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren(hint);
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
   }
 }
 
@@ -725,6 +807,7 @@ function openSource(source: string, file: string): void {
   manualPositions.clear();
   autoLayoutOverride = "file";
   lastLayout = null;
+  forgetCanvasZoom();
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
@@ -866,6 +949,18 @@ window.addEventListener("keydown", (event) => {
 });
 
 let suppressDiagramClick = false;
+
+function clientFromUser(svg: SVGSVGElement, x: number, y: number): { x: number; y: number } | null {
+  const point = svg.createSVGPoint();
+  point.x = x;
+  point.y = y;
+  const matrix = svg.getScreenCTM();
+  if (!matrix) {
+    return null;
+  }
+  const screen = point.matrixTransform(matrix);
+  return { x: screen.x, y: screen.y };
+}
 
 function svgLocalPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } | null {
   const point = svg.createSVGPoint();
@@ -1044,6 +1139,92 @@ diagram.addEventListener("pointercancel", (event) => {
   nodeDrag = null;
   diagram.classList.remove("is-dragging");
 });
+
+/**
+ * Plain wheel keeps panning the overflow pane. ⌘/Ctrl+wheel (and trackpad pinch,
+ * which the webview reports as Ctrl+wheel) zooms toward the pointer.
+ * Clicks and node drags are untouched — this listener never handles pointer buttons.
+ */
+function zoomDiagramFromWheel(event: WheelEvent): void {
+  if (!wheelGestureIsZoom(event)) {
+    return;
+  }
+  const svg = diagram.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  event.preventDefault();
+  if (nodeDrag) {
+    return;
+  }
+  const previous = clampCanvasZoom(canvasZoom);
+  const next = nextCanvasZoom(previous, event.deltaY, event.deltaMode, event.deltaX);
+  if (next === previous) {
+    return;
+  }
+  const pane = diagram.getBoundingClientRect();
+  const box = svg.getBoundingClientRect();
+  const pointerX = event.clientX - pane.left - diagram.clientLeft;
+  const pointerY = event.clientY - pane.top - diagram.clientTop;
+  const placed = placeZoomAnchor({
+    localX: event.clientX - box.left,
+    localY: event.clientY - box.top,
+    pointerX,
+    pointerY,
+    scale: next / previous,
+  });
+  const anchor = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!(zoomBasisWidth > 0) || !(zoomBasisHeight > 0)) {
+    zoomBasisWidth = box.width / previous;
+    zoomBasisHeight = box.height / previous;
+  }
+  canvasZoom = next;
+  canvasMarginLeft = placed.marginLeft;
+  canvasMarginTop = placed.marginTop;
+  if (!applyCanvasZoom(svg)) {
+    canvasZoom = previous;
+    canvasMarginLeft = 0;
+    canvasMarginTop = 0;
+    return;
+  }
+  diagram.scrollLeft = placed.scrollLeft;
+  diagram.scrollTop = placed.scrollTop;
+  if (!anchor) {
+    return;
+  }
+  const moved = clientFromUser(svg, anchor.x, anchor.y);
+  if (!moved) {
+    return;
+  }
+  nudgeZoomAxis(svg, "scrollLeft", "marginLeft", moved.x - event.clientX);
+  nudgeZoomAxis(svg, "scrollTop", "marginTop", moved.y - event.clientY);
+  canvasMarginLeft = Number.parseFloat(svg.style.marginLeft) || 0;
+  canvasMarginTop = Number.parseFloat(svg.style.marginTop) || 0;
+}
+
+/** Slide the diagram if the anchor is still off the pointer after the scale. */
+function nudgeZoomAxis(
+  svg: SVGSVGElement,
+  scrollKey: "scrollLeft" | "scrollTop",
+  marginKey: "marginLeft" | "marginTop",
+  delta: number,
+): void {
+  if (Math.abs(delta) < 0.5) {
+    return;
+  }
+  const before = diagram[scrollKey];
+  diagram[scrollKey] = before + delta;
+  const applied = diagram[scrollKey] - before;
+  const leftover = delta - applied;
+  if (Math.abs(leftover) < 0.5) {
+    return;
+  }
+  const margin = Number.parseFloat(svg.style[marginKey]) || 0;
+  const next = margin - leftover;
+  svg.style[marginKey] = next > 0.5 ? `${next}px` : "";
+}
+
+diagram.addEventListener("wheel", zoomDiagramFromWheel, { passive: false });
 
 diagram.addEventListener("click", (event) => {
   if (suppressDiagramClick) {
