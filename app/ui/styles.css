@@ -289,8 +289,7 @@ button:disabled {
 .layout-overflow {
   position: relative;
   z-index: 2;
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   max-width: 100%;
 }
 
@@ -310,6 +309,11 @@ button:disabled {
   background: #e8f1ff;
   border-color: #0b57d0;
   color: #0b57d0;
+}
+
+.layout-options-label,
+.layout-options-chevron {
+  flex: 0 0 auto;
 }
 
 .layout-options-summary {
