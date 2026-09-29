@@ -90,6 +90,25 @@ Single-item, bidirectional. Click a box or edge on the canvas to highlight the m
 
 Assert without opening the app: `./scripts/assert-selection-sync.sh` (or `npm test`).
 
+## Canvas pan and zoom
+
+The diagram is one SVG in a scrollable pane (`#diagram`). Gestures over that pane:
+
+- **Scroll** (mouse wheel or trackpad) **pans**. The **View** name stays in the chrome above the canvas.
+- **⌘/Ctrl + scroll zooms** toward the pointer, so the diagram point under the cursor stays put. Trackpad pinch is delivered as Ctrl+scroll and zooms the same way. Zoom is limited to **25%–400%**.
+- Zoom scales the whole viewpoint, including nested containers, in auto-layout and in manual placement (`autoLayout off` / toolbar **Off**). It does not take pointer clicks: selection and node drag are unchanged.
+- Opening a file or switching named views returns the canvas to **100%** (the laid-out size; fit-to-view on open is unchanged). Reload of the same view keeps the current zoom.
+
+Hover empty canvas for the same note. Limits and pointer anchoring are `npm test` (`src/canvas-zoom.test.ts`).
+
+Manual smoke (`npm run app:preview` or `Plein.app`):
+
+1. Open [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein) (Quote, Book, and Collect nested in Quote to cash).
+2. Scroll over the diagram — it pans. Click a nested stage — the matching Elements row still highlights. Drag is unchanged while auto-layout is on (boxes are not draggable).
+3. Hold **⌘** (Mac) or **Ctrl** and scroll over a nested box — that box stays under the pointer while the view zooms. Further scrolling stops at a readable maximum and a minimum where boxes are still visible.
+4. Turn **Auto layout** **Off**, drag a box, then ⌘/Ctrl+scroll again — the drag still moves the box, and zoom still centres on the pointer.
+5. Switch to another named view, or open another file — the canvas returns to normal size.
+
 ## Reload after edit
 
 Edit the open `.plein` in any text editor, save, then reload. The app re-reads the file from disk and redraws the **current** viewpoint — you do not quit `Plein.app`.
@@ -121,7 +140,7 @@ Mac app checklist for named-view navigation. Static HTML/SVG of a view is `plein
 1. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein) (≥2 named views). The **View** chrome reads **Application Structure**. The matching Views row is marked **Showing**. Do not reopen the file for the rest of this list.
 2. Click **Application Cooperation** in the left **Views** list (not along the top of the canvas). The canvas switches (TMS + Booking API). The **View** chrome reads **Application Cooperation**. There is no view-switcher tablist above the diagram.
 3. Click **Application Structure**. Golden membership returns. The **View** name follows. Same file still open.
-4. Scroll the canvas and the Views list. The **View** name above the diagram stays visible.
+4. Scroll the canvas (plain scroll pans; ⌘/Ctrl+scroll zooms) and the Views list. The **View** name above the diagram stays visible.
 5. Click **All**. Sidebar lists the whole model. The **View** chrome still names the last named viewpoint.
 
 Assert without the app: `./scripts/assert-multi-view-browser.sh` (or `npm test`).

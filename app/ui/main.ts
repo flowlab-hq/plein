@@ -36,6 +36,12 @@ import {
   selectionFromDiagramHit,
   type DiagramSelection,
 } from "../../src/selection.ts";
+import {
+  clampCanvasZoom,
+  nextCanvasZoom,
+  scrollToKeepPoint,
+  wheelGestureIsZoom,
+} from "../../src/canvas-zoom.ts";
 
 type TauriBridge = {
   core: {
@@ -117,6 +123,14 @@ let nodeDrag: {
   moved: boolean;
   origins: Map<string, { x: number; y: number }>;
 } | null = null;
+/**
+ * Viewport scale for the SVG on screen. 1 is the laid-out size used on open.
+ * Plain wheel pans (`overflow: auto`); ⌘/Ctrl+wheel changes this and keeps
+ * the diagram point under the pointer. Reset when the file or named view changes.
+ */
+let canvasZoom = 1;
+/** Named view `canvasZoom` applies to. A different view opens at 100%. */
+let canvasZoomView: string | null = null;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -494,6 +508,31 @@ function syncLayoutOptionsButton(): void {
       : "Direction, routing, and nesting. Local preview only — not written back to the file.";
 }
 
+function forgetCanvasZoom(): void {
+  canvasZoom = 1;
+  canvasZoomView = null;
+  delete diagram.dataset.zoom;
+}
+
+/** Size the SVG in CSS pixels. Layout user units stay put, so drag math still matches. */
+function applyCanvasZoom(svg: SVGSVGElement): boolean {
+  if (canvasZoom === 1) {
+    svg.style.removeProperty("width");
+    svg.style.removeProperty("height");
+    delete diagram.dataset.zoom;
+    return true;
+  }
+  const width = Number(svg.getAttribute("width"));
+  const height = Number(svg.getAttribute("height"));
+  if (!(width > 0) || !(height > 0)) {
+    return false;
+  }
+  svg.style.width = `${width * canvasZoom}px`;
+  svg.style.height = `${height * canvasZoom}px`;
+  diagram.dataset.zoom = canvasZoom.toFixed(4);
+  return true;
+}
+
 function setCurrentViewChrome(title: string, viewName: string | null): void {
   diagramHeading.textContent = title;
   if (viewName) {
@@ -517,6 +556,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren();
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
     return;
   }
 
@@ -530,6 +570,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren(hint);
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
     return;
   }
 
@@ -539,6 +580,13 @@ async function renderDiagram(seq: number): Promise<void> {
       return;
     }
     setCurrentViewChrome(browsed.title, browsed.viewName);
+    const sameView = canvasZoomView !== null && browsed.viewName === canvasZoomView;
+    const scrollLeft = diagram.scrollLeft;
+    const scrollTop = diagram.scrollTop;
+    if (!sameView) {
+      canvasZoom = 1;
+    }
+    canvasZoomView = browsed.viewName;
     diagram.innerHTML = browsed.svg;
     lastLayout = browsed.layout;
     if (browsed.layout.auto === false) {
@@ -547,8 +595,15 @@ async function renderDiagram(seq: number): Promise<void> {
       delete diagram.dataset.manualLayout;
     }
     const svg = diagram.querySelector("svg");
-    if (svg) {
+    if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
+      if (!applyCanvasZoom(svg)) {
+        canvasZoom = 1;
+        delete diagram.dataset.zoom;
+      } else if (sameView) {
+        diagram.scrollLeft = scrollLeft;
+        diagram.scrollTop = scrollTop;
+      }
     }
   } catch (error) {
     if (seq !== renderSeq) {
@@ -560,6 +615,7 @@ async function renderDiagram(seq: number): Promise<void> {
     diagram.replaceChildren(hint);
     lastLayout = null;
     delete diagram.dataset.manualLayout;
+    forgetCanvasZoom();
   }
 }
 
@@ -725,6 +781,7 @@ function openSource(source: string, file: string): void {
   manualPositions.clear();
   autoLayoutOverride = "file";
   lastLayout = null;
+  forgetCanvasZoom();
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
@@ -866,6 +923,18 @@ window.addEventListener("keydown", (event) => {
 });
 
 let suppressDiagramClick = false;
+
+function clientFromUser(svg: SVGSVGElement, x: number, y: number): { x: number; y: number } | null {
+  const point = svg.createSVGPoint();
+  point.x = x;
+  point.y = y;
+  const matrix = svg.getScreenCTM();
+  if (!matrix) {
+    return null;
+  }
+  const screen = point.matrixTransform(matrix);
+  return { x: screen.x, y: screen.y };
+}
 
 function svgLocalPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } | null {
   const point = svg.createSVGPoint();
@@ -1044,6 +1113,67 @@ diagram.addEventListener("pointercancel", (event) => {
   nodeDrag = null;
   diagram.classList.remove("is-dragging");
 });
+
+/**
+ * Plain wheel keeps panning the overflow pane. ⌘/Ctrl+wheel (and trackpad pinch,
+ * which the webview reports as Ctrl+wheel) zooms toward the pointer.
+ * Clicks and node drags are untouched — this listener never handles pointer buttons.
+ */
+function zoomDiagramFromWheel(event: WheelEvent): void {
+  if (!wheelGestureIsZoom(event)) {
+    return;
+  }
+  const svg = diagram.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  event.preventDefault();
+  if (nodeDrag) {
+    return;
+  }
+  const previous = clampCanvasZoom(canvasZoom);
+  const next = nextCanvasZoom(previous, event.deltaY, event.deltaMode, event.deltaX);
+  if (next === previous) {
+    return;
+  }
+  const pane = diagram.getBoundingClientRect();
+  const pointerX = event.clientX - pane.left - diagram.clientLeft;
+  const pointerY = event.clientY - pane.top - diagram.clientTop;
+  const anchored = scrollToKeepPoint({
+    scrollLeft: diagram.scrollLeft,
+    scrollTop: diagram.scrollTop,
+    pointerX,
+    pointerY,
+    scale: next / previous,
+  });
+  const anchor = svgLocalPoint(svg, event.clientX, event.clientY);
+  canvasZoom = next;
+  if (!applyCanvasZoom(svg)) {
+    canvasZoom = previous;
+    return;
+  }
+  diagram.scrollLeft = anchored.scrollLeft;
+  diagram.scrollTop = anchored.scrollTop;
+  if (!anchor) {
+    return;
+  }
+  const moved = clientFromUser(svg, anchor.x, anchor.y);
+  if (!moved) {
+    return;
+  }
+  // Correct leftover error when the SVG box was letterboxed at 100%
+  // (`min-height: 100%`) and this step locked it to the layout aspect.
+  const dx = moved.x - event.clientX;
+  const dy = moved.y - event.clientY;
+  if (Math.abs(dx) >= 0.5) {
+    diagram.scrollLeft += dx;
+  }
+  if (Math.abs(dy) >= 0.5) {
+    diagram.scrollTop += dy;
+  }
+}
+
+diagram.addEventListener("wheel", zoomDiagramFromWheel, { passive: false });
 
 diagram.addEventListener("click", (event) => {
   if (suppressDiagramClick) {

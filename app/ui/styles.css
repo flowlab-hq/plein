@@ -389,6 +389,13 @@ button:disabled {
   min-height: 100%;
 }
 
+/* Zoom sets an explicit size; the default min-height would block zooming out. */
+.diagram[data-zoom] svg {
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+}
+
 .diagram[data-manual-layout="true"] [data-node-id] {
   cursor: grab;
   touch-action: none;
