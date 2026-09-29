@@ -87,6 +87,8 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const chrome = html.indexOf('class="diagram-chrome"');
   const autoLayout = html.indexOf('id="auto-layout-switcher"');
   const mode = html.indexOf('id="mode-switcher"');
+  const options = html.indexOf('id="layout-options"');
+  const optionsPanel = html.indexOf('id="layout-options-panel"');
   const direction = html.indexOf('id="direction-switcher"');
   const routing = html.indexOf('id="routing-switcher"');
   const nesting = html.indexOf('id="nesting-switcher"');
@@ -94,22 +96,34 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.notEqual(chrome, -1);
   assert.notEqual(autoLayout, -1, "auto-layout switcher is present");
   assert.notEqual(mode, -1, "mode switcher is present");
+  assert.notEqual(options, -1, "layout options disclosure is present");
+  assert.notEqual(optionsPanel, -1, "layout options panel is present");
   assert.notEqual(direction, -1, "direction switcher is present");
   assert.notEqual(routing, -1, "routing switcher is present");
   assert.notEqual(nesting, -1, "nesting switcher remains");
   assert.ok(
     chrome < autoLayout &&
       autoLayout < mode &&
-      mode < direction &&
+      mode < options &&
+      options < optionsPanel &&
+      optionsPanel < direction &&
       direction < routing &&
       routing < nesting &&
       nesting < canvas,
-    "auto layout + mode + direction + routing + nesting sit in the chrome above the canvas",
+    "auto layout and mode stay on the chrome; direction, routing, and nesting sit in Options above the canvas",
   );
+  const panel = html.slice(optionsPanel, canvas);
+  assert.match(panel, /id="direction-switcher"/);
+  assert.match(panel, /id="routing-switcher"/);
+  assert.match(panel, /id="nesting-switcher"/);
+  assert.equal(panel.includes('id="auto-layout-switcher"'), false, "auto layout stays one click away");
+  assert.equal(panel.includes('id="mode-switcher"'), false, "mode stays one click away");
+  assert.match(html, /class="layout-primary"/);
   assert.match(html, /aria-label="Auto layout"/);
   assert.match(html, /aria-label="Layout mode"/);
   assert.match(html, /aria-label="Layout direction"/);
   assert.match(html, /aria-label="Edge routing"/);
+  assert.match(html, /aria-controls="layout-options-panel"/);
   assert.match(html, /class="layout-controls"/);
   assert.equal(html.includes('class="view-switcher"'), false);
 
@@ -126,6 +140,8 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.match(ui, /renderModeSwitcher/);
   assert.match(ui, /renderDirectionSwitcher/);
   assert.match(ui, /renderRoutingSwitcher/);
+  assert.match(ui, /syncLayoutOptionsButton/);
+  assert.match(ui, /setLayoutOptionsOpen/);
   assert.match(ui, /pointerdown/);
   assert.match(css, /data-manual-layout/);
 
@@ -139,6 +155,9 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   );
   assert.match(css, /\.layout-controls\s*\{/);
   assert.match(css, /\.layout-switcher\s*,/);
+  assert.match(css, /\.layout-options-panel\s*\{/);
+  assert.match(css, /\.layout-options-panel\[hidden\]\s*\{[^}]*display:\s*none/);
+  assert.match(css, /\.layout-primary\s*\{/);
 });
 
 test("Mac UI switches named views from the left sidebar only", () => {

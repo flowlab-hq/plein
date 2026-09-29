@@ -57,55 +57,79 @@
               role="toolbar"
               aria-label="Diagram layout"
             >
-              <div class="layout-group">
-                <span class="layout-kicker">Auto layout</span>
-                <div
-                  id="auto-layout-switcher"
-                  class="layout-switcher"
-                  role="radiogroup"
-                  aria-label="Auto layout"
-                  title="File follows autoLayout in the .plein. Off freezes positions across Reload. On recomputes from the model."
-                ></div>
+              <div class="layout-primary">
+                <div class="layout-group">
+                  <span class="layout-kicker">Auto layout</span>
+                  <div
+                    id="auto-layout-switcher"
+                    class="layout-switcher"
+                    role="radiogroup"
+                    aria-label="Auto layout"
+                    title="File follows autoLayout in the .plein. Off freezes positions across Reload. On recomputes from the model."
+                  ></div>
+                </div>
+                <div class="layout-group">
+                  <span class="layout-kicker">Mode</span>
+                  <div
+                    id="mode-switcher"
+                    class="layout-switcher"
+                    role="radiogroup"
+                    aria-label="Layout mode"
+                    title="File default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
+                  ></div>
+                </div>
               </div>
-              <div class="layout-group">
-                <span class="layout-kicker">Mode</span>
+              <div class="layout-overflow">
+                <button
+                  type="button"
+                  id="layout-options"
+                  class="layout-options"
+                  aria-expanded="false"
+                  aria-controls="layout-options-panel"
+                  title="Direction, routing, and nesting. Local preview only — not written back to the file."
+                >
+                  <span class="layout-options-label">Options</span>
+                  <span id="layout-options-summary" class="layout-options-summary" hidden></span>
+                  <span class="layout-options-chevron" aria-hidden="true"></span>
+                </button>
                 <div
-                  id="mode-switcher"
-                  class="layout-switcher"
-                  role="radiogroup"
-                  aria-label="Layout mode"
-                  title="File default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
-                ></div>
-              </div>
-              <div class="layout-group">
-                <span class="layout-kicker">Direction</span>
-                <div
-                  id="direction-switcher"
-                  class="layout-switcher"
-                  role="radiogroup"
-                  aria-label="Layout direction"
-                  title="File default follows autoLayout in the .plein (tb, bt, lr, rl). Other choices override for local preview only."
-                ></div>
-              </div>
-              <div class="layout-group">
-                <span class="layout-kicker">Routing</span>
-                <div
-                  id="routing-switcher"
-                  class="layout-switcher"
-                  role="radiogroup"
-                  aria-label="Edge routing"
-                  title="File default follows autoLayout in the .plein (orthogonal or polyline). Other choices override for local preview only."
-                ></div>
-              </div>
-              <div class="layout-group">
-                <span class="layout-kicker">Nesting</span>
-                <div
-                  id="nesting-switcher"
-                  class="layout-switcher nesting-switcher"
-                  role="radiogroup"
-                  aria-label="Nesting layout"
-                  title="File default is source of truth for PRs. Nested/Beside override is local preview only."
-                ></div>
+                  id="layout-options-panel"
+                  class="layout-options-panel"
+                  role="group"
+                  aria-label="Direction, routing, and nesting"
+                  hidden
+                >
+                  <div class="layout-group">
+                    <span class="layout-kicker">Direction</span>
+                    <div
+                      id="direction-switcher"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Layout direction"
+                      title="File default follows autoLayout in the .plein (tb, bt, lr, rl). Other choices override for local preview only."
+                    ></div>
+                  </div>
+                  <div class="layout-group">
+                    <span class="layout-kicker">Routing</span>
+                    <div
+                      id="routing-switcher"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Edge routing"
+                      title="File default follows autoLayout in the .plein (orthogonal or polyline). Other choices override for local preview only."
+                    ></div>
+                  </div>
+                  <div class="layout-group">
+                    <span class="layout-kicker">Nesting</span>
+                    <div
+                      id="nesting-switcher"
+                      class="layout-switcher nesting-switcher"
+                      role="radiogroup"
+                      aria-label="Nesting layout"
+                      title="File default is source of truth for PRs. Nested/Beside override is local preview only."
+                    ></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

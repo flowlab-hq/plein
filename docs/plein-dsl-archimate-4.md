@@ -312,6 +312,8 @@ Direction is optional. The Mac viewer defaults to **ELK Layered** (not organic) 
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
+The Mac chrome previews direction from **Options** (File / TB / BT / LR / RL) without rewriting the file. **Auto layout** and **Mode** stay on the diagram chrome, one click away.
+
 ### Turning auto-layout off
 
 Declaring `autoLayout` (bare, or with a direction, a mode such as `layers` / `organic` / `grid`, or a routing token) **keeps automatic placement**. That is the default. To freeze a view so a later reload does not reflow it, set `autoLayout off` (alias `manual`) and give each element a top-left with `position`:
@@ -331,7 +333,7 @@ viewpoint story "Story" {
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
-The Mac diagram chrome **Auto layout** control (File / On / Off) previews this without rewriting the file:
+The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away and previews this without rewriting the file:
 
 | Choice | Effect |
 | --- | --- |
@@ -366,7 +368,7 @@ viewpoint applicationProcess "Application Process" {
 
 Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
 
-The Mac diagram chrome can override **Auto layout** (File / On / Off), **Mode**, **Direction**, and **Routing** (File / Orthogonal / Polyline) for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload.
+The Mac diagram chrome keeps **Auto layout** (File / On / Off) and **Mode** (File / Layered / Layers / Organic / Grid) one click away. **Options** groups **Direction** (File / TB / BT / LR / RL) and **Routing** (File / Orthogonal / Polyline) for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload.
 
 ### Layer bands (`autoLayout layers`)
 
@@ -395,7 +397,7 @@ Nested containers are assigned **one** band as a whole: children stay inside the
 
 Within a band, disconnected nodes keep a deterministic kind-then-declaration order (all `business-actor` boxes before `business-process`, and so on) so catalogues stay stable.
 
-The Mac chrome **Mode** control (File / Layered / Layers / Organic / Grid) previews a mode without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
+The Mac chrome **Mode** control (File / Layered / Layers / Organic / Grid) sits on the diagram chrome, one click away, and previews a mode without rewriting the file. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
 
 ### When to use each layout mode
 
@@ -457,7 +459,7 @@ view quote-to-cash {
 
 `nesting beside` is equivalent to omitting the clause. Aliases: `inside` → nested; `side-by-side` / `sideBySide` → beside. Bare `nesting` means nested.
 
-This is the **file default**. The `.plein` directive is the source of truth for pull requests. The Mac app may override Nested vs Beside for local preview only; that override is not written back to the file (Flow Team Chat, 11 Sep 2026).
+This is the **file default**. The `.plein` directive is the source of truth for pull requests. The Mac app’s **Options** menu overrides **Nesting** (File default / Nested / Beside) for local preview only; that override is not written back to the file (Flow Team Chat, 11 Sep 2026).
 
 Nested mode applies to `composition` / `composedOf` and `aggregation` / `aggregates` when both ends are in the view. Other relationships (including `flow` / `triggering` between nested children) still draw as edges. Containment stands in for the nested composition/aggregation line.
 

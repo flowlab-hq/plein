@@ -72,6 +72,10 @@ const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
 const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
+const layoutOverflow = document.querySelector(".layout-overflow") as HTMLElement;
+const layoutOptionsButton = document.querySelector("#layout-options") as HTMLButtonElement;
+const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HTMLElement;
+const layoutOptionsSummary = document.querySelector("#layout-options-summary") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
@@ -450,6 +454,46 @@ function renderNestingSwitcher(): void {
   );
 }
 
+/** Direction, routing, and nesting stay in Options. Show a non-file preview on the button. */
+function secondaryLayoutSummary(): string {
+  const parts: string[] = [];
+  if (directionOverride !== "file") {
+    parts.push(directionOverride.toUpperCase());
+  }
+  if (routingOverride !== "file") {
+    parts.push(routingOverride === "orthogonal" ? "Orthogonal" : "Polyline");
+  }
+  if (nestingOverride !== "file") {
+    parts.push(nestingOverride === "nested" ? "Nested" : "Beside");
+  }
+  return parts.join(" · ");
+}
+
+function layoutOptionsOpen(): boolean {
+  return layoutOptionsButton.getAttribute("aria-expanded") === "true";
+}
+
+function setLayoutOptionsOpen(open: boolean): void {
+  layoutOptionsButton.setAttribute("aria-expanded", open ? "true" : "false");
+  layoutOptionsPanel.hidden = !open;
+}
+
+function syncLayoutOptionsButton(): void {
+  const summary = secondaryLayoutSummary();
+  layoutOptionsSummary.textContent = summary;
+  layoutOptionsSummary.hidden = summary.length === 0;
+  layoutOptionsButton.classList.toggle("is-active", summary.length > 0);
+  const detail =
+    summary.length > 0
+      ? `Options. Direction, routing, and nesting. Current preview: ${summary}.`
+      : "Options. Direction, routing, and nesting. File follows the open view.";
+  layoutOptionsButton.setAttribute("aria-label", detail);
+  layoutOptionsButton.title =
+    summary.length > 0
+      ? `Direction, routing, and nesting (${summary}). Local preview only.`
+      : "Direction, routing, and nesting. Local preview only — not written back to the file.";
+}
+
 function setCurrentViewChrome(title: string, viewName: string | null): void {
   diagramHeading.textContent = title;
   if (viewName) {
@@ -467,6 +511,7 @@ async function renderDiagram(seq: number): Promise<void> {
   renderDirectionSwitcher();
   renderRoutingSwitcher();
   renderNestingSwitcher();
+  syncLayoutOptionsButton();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);
     diagram.replaceChildren();
@@ -768,8 +813,37 @@ fileInput.addEventListener("change", async () => {
   fileInput.value = "";
 });
 
+layoutOptionsButton.addEventListener("click", () => {
+  const next = !layoutOptionsOpen();
+  setLayoutOptionsOpen(next);
+  if (!next) {
+    return;
+  }
+  const selected = layoutOptionsPanel.querySelector('[aria-checked="true"]');
+  if (selected instanceof HTMLElement) {
+    selected.focus();
+  }
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (!layoutOptionsOpen()) {
+    return;
+  }
+  const target = event.target;
+  if (target instanceof Node && layoutOverflow.contains(target)) {
+    return;
+  }
+  setLayoutOptionsOpen(false);
+});
+
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (layoutOptionsOpen()) {
+      event.preventDefault();
+      setLayoutOptionsOpen(false);
+      layoutOptionsButton.focus();
+      return;
+    }
     if (selectedItem) {
       event.preventDefault();
       setSelection(null);
