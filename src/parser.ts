@@ -27,6 +27,25 @@ export type ElementDecl = {
   label: string;
   id: string;
   line: number;
+  /**
+   * Set when the element is declared with a specialization name.
+   * `keyword` stays the catalogue concept that name specializes, so style,
+   * layout, and Open Exchange keep using the ArchiMate 4 type.
+   */
+  specialization?: string;
+};
+
+/**
+ * A concept specialization declared in the model.
+ * `keyword` is the catalogue concept (walked through any chain of
+ * specializations). Profile and organization packs are out of scope.
+ */
+export type SpecializationDecl = {
+  name: string;
+  /** Spelling after `specializes` (a catalogue keyword or an earlier specialization). */
+  parent: string;
+  keyword: ElementKeyword;
+  line: number;
 };
 
 export type RelationshipDecl = {
@@ -70,6 +89,7 @@ export type PleinModel = {
   elements: ElementDecl[];
   relationships: RelationshipDecl[];
   views: ViewDecl[];
+  specializations: SpecializationDecl[];
 };
 
 type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "other" | "eof";
@@ -127,6 +147,26 @@ const LAYOUT_DIRECTION_TOKENS = new Set([
   "bottom-top",
   "bottomTop",
   "bottom_top",
+]);
+/**
+ * Identifiers that would swallow a model or view clause if used as a
+ * specialization name. Relationship verbs are rejected separately.
+ */
+const RESERVED_SPECIALIZATION_NAMES = new Set([
+  "plein",
+  "model",
+  "views",
+  "styles",
+  "view",
+  "viewpoint",
+  "include",
+  "exclude",
+  "title",
+  "autoLayout",
+  "position",
+  "nesting",
+  "as",
+  "of",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -257,6 +297,8 @@ class Parser {
   private readonly elements: ElementDecl[] = [];
   private readonly relationships: RelationshipDecl[] = [];
   private readonly views: ViewDecl[] = [];
+  private readonly specializations: SpecializationDecl[] = [];
+  private readonly specializationByName = new Map<string, SpecializationDecl>();
 
   constructor(source: string, file: string) {
     this.file = file;
@@ -277,6 +319,7 @@ class Parser {
       elements: this.elements,
       relationships: this.relationships,
       views: this.views,
+      specializations: this.specializations,
     };
   }
 
@@ -324,7 +367,98 @@ class Parser {
         first.column,
       );
     }
+    if (first.value === "specialization" && this.isSpecializationDeclaration()) {
+      this.parseSpecialization(first);
+      return;
+    }
     this.parseElementOrRelationship(first, { valueStreamBody: false });
+  }
+
+  /**
+   * `specialization <name> specializes <parent>` declares a concept.
+   * `specialization -> target: type` and infix `specialization serves target`
+   * stay relationships: the verb is the immediate next token.
+   */
+  private isSpecializationDeclaration(): boolean {
+    if (this.check("->") || this.check("string") || this.check("}") || this.check("eof")) {
+      return false;
+    }
+    const name = this.peek();
+    if (name.kind !== "ident") {
+      return false;
+    }
+    if (resolveRelationshipKeyword(name.value) !== undefined) {
+      return false;
+    }
+    return true;
+  }
+
+  private parseSpecialization(start: Token): void {
+    const name = this.expect("ident", "expected specialization name");
+    const verb = this.expect("ident", "expected 'specializes' after specialization name");
+    if (resolveRelationshipKeyword(verb.value) !== "specializes") {
+      throw new ParseError(
+        `expected 'specializes' after specialization name (got '${verb.value}')`,
+        this.file,
+        verb.line,
+        verb.column,
+      );
+    }
+    const parentToken = this.expect("ident", "expected catalogue type after specializes");
+    const catalogue = resolveElementKeyword(parentToken.value);
+    const parentDecl = this.specializationByName.get(parentToken.value);
+    if (!catalogue && !parentDecl) {
+      throw new ParseError(
+        `specialization '${name.value}' specializes unknown keyword '${parentToken.value}'`,
+        this.file,
+        parentToken.line,
+        parentToken.column,
+      );
+    }
+    this.addSpecialization(start, name, parentToken.value, catalogue ?? parentDecl!.keyword);
+  }
+
+  private addSpecialization(
+    start: Token,
+    name: Token,
+    parent: string,
+    keyword: ElementKeyword,
+  ): void {
+    if (resolveElementKeyword(name.value) !== undefined || isValueStreamStageKeyword(name.value)) {
+      throw new ParseError(
+        `specialization '${name.value}' collides with catalogue keyword '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    if (
+      resolveRelationshipKeyword(name.value) !== undefined ||
+      RESERVED_SPECIALIZATION_NAMES.has(name.value)
+    ) {
+      throw new ParseError(
+        `specialization name '${name.value}' is reserved`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    if (this.specializationByName.has(name.value)) {
+      throw new ParseError(
+        `duplicate specialization '${name.value}'`,
+        this.file,
+        name.line,
+        name.column,
+      );
+    }
+    const decl: SpecializationDecl = {
+      name: name.value,
+      parent,
+      keyword,
+      line: start.line,
+    };
+    this.specializations.push(decl);
+    this.specializationByName.set(name.value, decl);
   }
 
   private parseElementOrRelationship(
@@ -332,6 +466,9 @@ class Parser {
     options: { valueStreamBody: boolean; parentId?: string },
   ): void {
     const elementKeyword = resolveElementKeyword(first.value);
+    const specialization = options.valueStreamBody
+      ? undefined
+      : this.specializationByName.get(first.value);
 
     if (this.check("string")) {
       if (options.valueStreamBody && !isValueStreamStageKeyword(first.value)) {
@@ -342,9 +479,9 @@ class Parser {
           first.column,
         );
       }
-      if (!options.valueStreamBody && !elementKeyword) {
+      if (!options.valueStreamBody && !elementKeyword && !specialization) {
         throw new ParseError(
-          `unknown keyword '${first.value}'`,
+          `unknown keyword '${first.value}' (undeclared specialization)`,
           this.file,
           first.line,
           first.column,
@@ -365,12 +502,19 @@ class Parser {
           this.peek().column,
         );
       }
-      this.elements.push({
-        keyword: options.valueStreamBody ? "valueStream" : elementKeyword!,
+      const keyword = options.valueStreamBody
+        ? "valueStream"
+        : (specialization?.keyword ?? elementKeyword!);
+      const element: ElementDecl = {
+        keyword,
         label,
         id: id.value,
         line: first.line,
-      });
+      };
+      if (specialization) {
+        element.specialization = specialization.name;
+      }
+      this.elements.push(element);
       if (options.valueStreamBody && options.parentId) {
         this.relationships.push({
           type: "composedOf",
@@ -379,7 +523,7 @@ class Parser {
           line: first.line,
         });
       }
-      if (!options.valueStreamBody && elementKeyword === "valueStream" && this.check("{")) {
+      if (!options.valueStreamBody && keyword === "valueStream" && this.check("{")) {
         this.parseValueStreamBody(id.value);
       }
       return;
@@ -453,6 +597,14 @@ class Parser {
     this.expect("{", "expected '{' after valueStream");
     while (!this.check("}") && !this.check("eof")) {
       const first = this.expect("ident", "expected valueStreamStage or relationship source");
+      if (first.value === "specialization" && this.isSpecializationDeclaration()) {
+        throw new ParseError(
+          "specialization declarations belong in the model, not inside a valueStream",
+          this.file,
+          first.line,
+          first.column,
+        );
+      }
       this.parseElementOrRelationship(first, { valueStreamBody: true, parentId });
     }
     this.expect("}", "expected '}' to close valueStream");
@@ -848,6 +1000,7 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
     }
   }
 
+  const specializationNames = new Set(model.specializations.map((item) => item.name));
   const viewNames = new Map<string, ViewDecl>();
   for (const view of model.views) {
     const existing = viewNames.get(view.name);
@@ -857,7 +1010,7 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
     viewNames.set(view.name, view);
 
     for (const selector of [...view.includes, ...view.excludes]) {
-      if (!isResolvableViewSelector(selector)) {
+      if (!isResolvableViewSelector(selector, specializationNames)) {
         continue;
       }
       if (!seen.has(selector)) {
@@ -885,9 +1038,15 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
   return model;
 }
 
-function isResolvableViewSelector(selector: string): boolean {
+function isResolvableViewSelector(
+  selector: string,
+  specializations: ReadonlySet<string>,
+): boolean {
   if (selector.includes("*") || selector.includes("->") || selector.startsWith("tag:")) {
     return false;
   }
-  return resolveElementKeyword(selector) === undefined;
+  if (resolveElementKeyword(selector) !== undefined) {
+    return false;
+  }
+  return !specializations.has(selector);
 }

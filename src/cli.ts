@@ -45,8 +45,14 @@ function runCheck(fileArg: string): void {
   try {
     const source = readFileSync(file, "utf8");
     const model = checkPlein(source, fileArg);
+    const specializationNote =
+      model.specializations.length === 0
+        ? ""
+        : model.specializations.length === 1
+          ? ", 1 specialization"
+          : `, ${model.specializations.length} specializations`;
     console.log(
-      `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views)`,
+      `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views${specializationNote})`,
     );
   } catch (error) {
     if (error instanceof ParseError) {

@@ -1,0 +1,8 @@
+plein {
+  model {
+    customer "Acme Freight" as acme
+    business-actor "Carrier" as carrier
+
+    acme -> carrier: specialization
+  }
+}

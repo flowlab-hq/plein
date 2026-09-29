@@ -409,6 +409,7 @@ test("export records known round-trip deltas for views, quotes, and nesting orde
     elements: [{ keyword: "businessActor", label: 'A "quoted" & co', id: "actor", line: 1 }],
     relationships: [],
     views: [],
+    specializations: [],
   };
   const quotedXml = exportOpenExchange(quoted, { file: "quoted.plein" }).xml;
   assert.match(quotedXml, /A &quot;quoted&quot; &amp; co/);

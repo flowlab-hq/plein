@@ -55,6 +55,24 @@ test("plein check exits 0 on fixtures/valid-capability-value-stream.plein", () =
   assert.match(result.stdout, /2 elements/);
 });
 
+test("plein check exits 0 on fixtures/valid-specialization.plein", () => {
+  const result = runCheck("fixtures/valid-specialization.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-specialization\.plein/);
+  assert.match(result.stdout, /5 elements/);
+  assert.match(result.stdout, /3 relationships/);
+  assert.match(result.stdout, /3 specializations/);
+});
+
+test("plein check exits non-zero on fixtures/unknown-specialization.plein", () => {
+  const result = runCheck("fixtures/unknown-specialization.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /unknown-specialization\.plein:\d+:\d+: unknown keyword 'customer' \(undeclared specialization\)/,
+  );
+});
+
 test("plein check exits non-zero on fixtures/unknown-keyword.plein mentioning unknown keyword", () => {
   const result = runCheck("fixtures/unknown-keyword.plein");
   assert.notEqual(result.status, 0);
