@@ -9,6 +9,15 @@ export {
   type PositionDecl,
 } from "./parser.js";
 export {
+  formatInspect,
+  inspectModel,
+  type InspectDump,
+  type InspectElement,
+  type InspectPosition,
+  type InspectRelationship,
+  type InspectView,
+} from "./inspect.js";
+export {
   loadPleinSource,
   reloadPleinSource,
   filterModel,

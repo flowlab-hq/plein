@@ -8,6 +8,7 @@ import {
   isExportFormat,
   type ExportFormat,
 } from "./export.js";
+import { formatInspect, inspectModel } from "./inspect.js";
 import { loadPleinSource } from "./list-model.js";
 import {
   exportOpenExchange,
@@ -21,9 +22,13 @@ import { checkPlein, ParseError } from "./parser.js";
 function usage(): never {
   console.error(`Usage:
   plein check <file.plein>
+  plein inspect <file.plein>
   plein export <file.plein> [--view <name>] [--format html|svg|both] [-o <file>]
   plein import <file.xml> [-o <file.plein>]
   plein export-open-exchange <file.plein> [-o <file.xml>]
+
+Inspect writes the loaded model as JSON (elements, relationships, and views).
+No diagram is rendered.
 
 Export one named viewpoint to a self-contained HTML page and/or SVG.
 Open the file in a browser; the Mac app does not need to be running.
@@ -48,6 +53,25 @@ function runCheck(fileArg: string): void {
     console.log(
       `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views)`,
     );
+  } catch (error) {
+    if (error instanceof ParseError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    if (isEnoent(error)) {
+      console.error(`file not found: ${fileArg}`);
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+
+function runInspect(fileArg: string): void {
+  const file = resolve(fileArg);
+  try {
+    const source = readFileSync(file, "utf8");
+    const model = checkPlein(source, fileArg);
+    process.stdout.write(formatInspect(inspectModel(model, fileArg)));
   } catch (error) {
     if (error instanceof ParseError) {
       console.error(error.message);
@@ -357,6 +381,13 @@ async function main(): Promise<void> {
       usage();
     }
     runCheck(args[1]);
+    return;
+  }
+  if (command === "inspect") {
+    if (args.length !== 2 || !args[1]) {
+      usage();
+    }
+    runInspect(args[1]);
     return;
   }
   if (command === "export") {
