@@ -9,6 +9,7 @@ import {
   MIN_CANVAS_ZOOM,
   clampCanvasZoom,
   nextCanvasZoom,
+  placeZoomAnchor,
   scrollToKeepPoint,
   wheelGestureIsZoom,
 } from "./canvas-zoom.js";
@@ -62,6 +63,32 @@ test("zoom keeps the content point under the pointer", () => {
   assert.equal(zoomOut.scrollTop + pointerY, (before.scrollTop + pointerY) * 0.5);
 });
 
+test("zoom-out at the top-left uses margin so the pointer can stay put", () => {
+  const placed = placeZoomAnchor({
+    localX: 40,
+    localY: 30,
+    pointerX: 200,
+    pointerY: 160,
+    scale: 0.5,
+  });
+  assert.equal(placed.scrollLeft, 0);
+  assert.equal(placed.scrollTop, 0);
+  assert.equal(placed.marginLeft + 40 * 0.5, placed.scrollLeft + 200);
+  assert.equal(placed.marginTop + 30 * 0.5, placed.scrollTop + 160);
+
+  const zoomIn = placeZoomAnchor({
+    localX: 100,
+    localY: 80,
+    pointerX: 100,
+    pointerY: 80,
+    scale: 2,
+  });
+  assert.equal(zoomIn.marginLeft, 0);
+  assert.equal(zoomIn.marginTop, 0);
+  assert.equal(zoomIn.scrollLeft + 100, 100 * 2);
+  assert.equal(zoomIn.scrollTop + 80, 80 * 2);
+});
+
 test("plain scroll is not a zoom gesture; command or ctrl scroll is", () => {
   assert.equal(wheelGestureIsZoom({ metaKey: false, ctrlKey: false, altKey: false }), false);
   assert.equal(wheelGestureIsZoom({ metaKey: true, ctrlKey: false, altKey: false }), true);
@@ -89,7 +116,7 @@ test("Mac canvas wires modifier-zoom without taking over pan, selection, or drag
 
   assert.match(ui, /wheelGestureIsZoom/);
   assert.match(ui, /nextCanvasZoom/);
-  assert.match(ui, /scrollToKeepPoint/);
+  assert.match(ui, /placeZoomAnchor/);
   assert.match(ui, /addEventListener\("wheel"/);
   assert.match(ui, /passive:\s*false/);
   assert.match(ui, /pointerdown/);

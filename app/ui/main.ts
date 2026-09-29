@@ -39,7 +39,7 @@ import {
 import {
   clampCanvasZoom,
   nextCanvasZoom,
-  scrollToKeepPoint,
+  placeZoomAnchor,
   wheelGestureIsZoom,
 } from "../../src/canvas-zoom.ts";
 
@@ -131,6 +131,16 @@ let nodeDrag: {
 let canvasZoom = 1;
 /** Named view `canvasZoom` applies to. A different view opens at 100%. */
 let canvasZoomView: string | null = null;
+/**
+ * CSS pixel size of the SVG at zoom 1. Captured from the on-screen box
+ * (including the pane’s min-height) so the first zoom does not collapse
+ * that letterboxing and shove the point under the cursor.
+ */
+let zoomBasisWidth = 0;
+let zoomBasisHeight = 0;
+/** Shift used when zoom-out would otherwise scroll above the top-left. */
+let canvasMarginLeft = 0;
+let canvasMarginTop = 0;
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -511,6 +521,10 @@ function syncLayoutOptionsButton(): void {
 function forgetCanvasZoom(): void {
   canvasZoom = 1;
   canvasZoomView = null;
+  zoomBasisWidth = 0;
+  zoomBasisHeight = 0;
+  canvasMarginLeft = 0;
+  canvasMarginTop = 0;
   delete diagram.dataset.zoom;
 }
 
@@ -519,16 +533,28 @@ function applyCanvasZoom(svg: SVGSVGElement): boolean {
   if (canvasZoom === 1) {
     svg.style.removeProperty("width");
     svg.style.removeProperty("height");
+    svg.style.removeProperty("margin-left");
+    svg.style.removeProperty("margin-top");
     delete diagram.dataset.zoom;
+    zoomBasisWidth = 0;
+    zoomBasisHeight = 0;
+    canvasMarginLeft = 0;
+    canvasMarginTop = 0;
     return true;
   }
-  const width = Number(svg.getAttribute("width"));
-  const height = Number(svg.getAttribute("height"));
-  if (!(width > 0) || !(height > 0)) {
-    return false;
+  if (!(zoomBasisWidth > 0) || !(zoomBasisHeight > 0)) {
+    const width = Number(svg.getAttribute("width"));
+    const height = Number(svg.getAttribute("height"));
+    if (!(width > 0) || !(height > 0)) {
+      return false;
+    }
+    zoomBasisWidth = width;
+    zoomBasisHeight = height;
   }
-  svg.style.width = `${width * canvasZoom}px`;
-  svg.style.height = `${height * canvasZoom}px`;
+  svg.style.width = `${zoomBasisWidth * canvasZoom}px`;
+  svg.style.height = `${zoomBasisHeight * canvasZoom}px`;
+  svg.style.marginLeft = canvasMarginLeft > 0 ? `${canvasMarginLeft}px` : "";
+  svg.style.marginTop = canvasMarginTop > 0 ? `${canvasMarginTop}px` : "";
   diagram.dataset.zoom = canvasZoom.toFixed(4);
   return true;
 }
@@ -1137,23 +1163,32 @@ function zoomDiagramFromWheel(event: WheelEvent): void {
     return;
   }
   const pane = diagram.getBoundingClientRect();
+  const box = svg.getBoundingClientRect();
   const pointerX = event.clientX - pane.left - diagram.clientLeft;
   const pointerY = event.clientY - pane.top - diagram.clientTop;
-  const anchored = scrollToKeepPoint({
-    scrollLeft: diagram.scrollLeft,
-    scrollTop: diagram.scrollTop,
+  const placed = placeZoomAnchor({
+    localX: event.clientX - box.left,
+    localY: event.clientY - box.top,
     pointerX,
     pointerY,
     scale: next / previous,
   });
   const anchor = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!(zoomBasisWidth > 0) || !(zoomBasisHeight > 0)) {
+    zoomBasisWidth = box.width / previous;
+    zoomBasisHeight = box.height / previous;
+  }
   canvasZoom = next;
+  canvasMarginLeft = placed.marginLeft;
+  canvasMarginTop = placed.marginTop;
   if (!applyCanvasZoom(svg)) {
     canvasZoom = previous;
+    canvasMarginLeft = 0;
+    canvasMarginTop = 0;
     return;
   }
-  diagram.scrollLeft = anchored.scrollLeft;
-  diagram.scrollTop = anchored.scrollTop;
+  diagram.scrollLeft = placed.scrollLeft;
+  diagram.scrollTop = placed.scrollTop;
   if (!anchor) {
     return;
   }
@@ -1161,16 +1196,32 @@ function zoomDiagramFromWheel(event: WheelEvent): void {
   if (!moved) {
     return;
   }
-  // Correct leftover error when the SVG box was letterboxed at 100%
-  // (`min-height: 100%`) and this step locked it to the layout aspect.
-  const dx = moved.x - event.clientX;
-  const dy = moved.y - event.clientY;
-  if (Math.abs(dx) >= 0.5) {
-    diagram.scrollLeft += dx;
+  nudgeZoomAxis(svg, "scrollLeft", "marginLeft", moved.x - event.clientX);
+  nudgeZoomAxis(svg, "scrollTop", "marginTop", moved.y - event.clientY);
+  canvasMarginLeft = Number.parseFloat(svg.style.marginLeft) || 0;
+  canvasMarginTop = Number.parseFloat(svg.style.marginTop) || 0;
+}
+
+/** Slide the diagram if the anchor is still off the pointer after the scale. */
+function nudgeZoomAxis(
+  svg: SVGSVGElement,
+  scrollKey: "scrollLeft" | "scrollTop",
+  marginKey: "marginLeft" | "marginTop",
+  delta: number,
+): void {
+  if (Math.abs(delta) < 0.5) {
+    return;
   }
-  if (Math.abs(dy) >= 0.5) {
-    diagram.scrollTop += dy;
+  const before = diagram[scrollKey];
+  diagram[scrollKey] = before + delta;
+  const applied = diagram[scrollKey] - before;
+  const leftover = delta - applied;
+  if (Math.abs(leftover) < 0.5) {
+    return;
   }
+  const margin = Number.parseFloat(svg.style[marginKey]) || 0;
+  const next = margin - leftover;
+  svg.style[marginKey] = next > 0.5 ? `${next}px` : "";
 }
 
 diagram.addEventListener("wheel", zoomDiagramFromWheel, { passive: false });

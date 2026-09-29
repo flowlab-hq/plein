@@ -71,10 +71,10 @@ export function nextCanvasZoom(
 }
 
 /**
- * Scroll offsets that keep the content point under the pointer fixed.
- * `pointerX/Y` are CSS pixels from the pane’s padding edge.
- * `scale` is `nextZoom / previousZoom`. The content origin is the top-left
- * of the diagram SVG.
+ * Scroll offsets that keep the content point under the pointer fixed
+ * when the SVG sits at the scroll-content origin and the result is not
+ * negative. `pointerX/Y` are CSS pixels from the pane’s padding edge.
+ * `scale` is `nextZoom / previousZoom`.
  */
 export function scrollToKeepPoint(input: {
   scrollLeft: number;
@@ -83,11 +83,48 @@ export function scrollToKeepPoint(input: {
   pointerY: number;
   scale: number;
 }): { scrollLeft: number; scrollTop: number } {
-  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
-  const contentX = input.scrollLeft + input.pointerX;
-  const contentY = input.scrollTop + input.pointerY;
+  const placed = placeZoomAnchor({
+    localX: input.scrollLeft + input.pointerX,
+    localY: input.scrollTop + input.pointerY,
+    pointerX: input.pointerX,
+    pointerY: input.pointerY,
+    scale: input.scale,
+  });
   return {
-    scrollLeft: contentX * scale - input.pointerX,
-    scrollTop: contentY * scale - input.pointerY,
+    scrollLeft: placed.scrollLeft - placed.marginLeft,
+    scrollTop: placed.scrollTop - placed.marginTop,
   };
+}
+
+/**
+ * Place the scaled SVG so the point under the pointer stays put.
+ * `localX/Y` are CSS pixels from the SVG’s top-left to the pointer.
+ * `pointerX/Y` are CSS pixels from the pane’s padding edge to the pointer.
+ * Negative scroll is expressed as margin so zoom-out still centres when
+ * the diagram is already at the top-left of the pane.
+ */
+export function placeZoomAnchor(input: {
+  localX: number;
+  localY: number;
+  pointerX: number;
+  pointerY: number;
+  scale: number;
+}): { scrollLeft: number; scrollTop: number; marginLeft: number; marginTop: number } {
+  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
+  const x = placeAxis(input.localX, input.pointerX, scale);
+  const y = placeAxis(input.localY, input.pointerY, scale);
+  return {
+    scrollLeft: x.scroll,
+    scrollTop: y.scroll,
+    marginLeft: x.margin,
+    marginTop: y.margin,
+  };
+}
+
+function placeAxis(local: number, pointer: number, scale: number): { scroll: number; margin: number } {
+  const scroll = local * scale - pointer;
+  if (scroll >= 0) {
+    return { scroll, margin: 0 };
+  }
+  return { scroll: 0, margin: -scroll };
 }
