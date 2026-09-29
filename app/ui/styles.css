@@ -197,21 +197,24 @@ button:disabled {
 
 .layout-controls {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px 12px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
   margin-left: auto;
 }
 
 .layout-primary {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px 14px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 100%;
 }
 
 .layout-group {
@@ -286,13 +289,16 @@ button:disabled {
 .layout-overflow {
   position: relative;
   z-index: 2;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .layout-options {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
   padding: 4px 10px;
   font-size: 12px;
   background: var(--panel);
@@ -304,6 +310,12 @@ button:disabled {
   background: #e8f1ff;
   border-color: #0b57d0;
   color: #0b57d0;
+}
+
+.layout-options-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .layout-options-summary[hidden] {
