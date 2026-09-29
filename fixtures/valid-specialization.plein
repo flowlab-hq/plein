@@ -1,0 +1,25 @@
+plein {
+  model {
+    specialization customer specializes business-actor
+    specialization express-order specializes business-object
+    specialization premium-customer specializes customer
+
+    customer "Acme Freight" as acme
+    premium-customer "Acme Priority" as priority
+    business-actor "Carrier" as carrier
+    express-order "Rush booking" as rush
+    business-service "Booking" as booking
+
+    acme -> rush: access
+    priority -> acme: specialization
+    booking -> acme: serving
+  }
+
+  views {
+    viewpoint customers "Customers" {
+      title "Declared specializations"
+      include acme priority carrier rush booking
+      autoLayout tb
+    }
+  }
+}

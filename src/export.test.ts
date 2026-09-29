@@ -53,6 +53,7 @@ test("resolveNamedView prefers a viewpoint name, then a unique title", () => {
       { name: "access", title: "Same", includes: [], excludes: [], line: 2 },
       { name: "archive", title: "Archive", includes: [], excludes: [], line: 3 },
     ],
+    specializations: [],
   };
   assert.equal(resolveNamedView(model).name, "landscape");
   assert.equal(resolveNamedView(model, "access").name, "access");
@@ -60,7 +61,7 @@ test("resolveNamedView prefers a viewpoint name, then a unique title", () => {
   assert.throws(() => resolveNamedView(model, "Same"), /ambiguous view 'Same'/);
   assert.throws(() => resolveNamedView(model, "missing"), /unknown view 'missing'/);
   assert.throws(
-    () => resolveNamedView({ elements: [], relationships: [], views: [] }),
+    () => resolveNamedView({ elements: [], relationships: [], views: [], specializations: [] }),
     /file has no named view/,
   );
 });

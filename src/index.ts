@@ -5,6 +5,7 @@ export {
   type PleinModel,
   type ElementDecl,
   type RelationshipDecl,
+  type SpecializationDecl,
   type ViewDecl,
   type PositionDecl,
 } from "./parser.js";

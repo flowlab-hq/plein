@@ -88,7 +88,7 @@ An element has a keyword, a quoted label, and an identifier after `as`. The iden
 
 The parser accepts every keyword listed above. Layer-specific names stay distinct: `business-process`, `application-process`, and `technology-process` are different types (same for function, event, service, collaboration, and interaction).
 
-Unknown element types fail with a `file:line:column` diagnostic (`unknown keyword '…'`). `fixtures/unknown-keyword.plein` is the reject fixture; `src/keywords.test.ts` generates a model with all 58 language-reference types.
+Unknown element types fail with a `file:line:column` diagnostic (`unknown keyword '…' (undeclared specialization)`). `fixtures/unknown-keyword.plein` is the reject fixture for a name that is not in the catalogue; `fixtures/unknown-specialization.plein` is the same failure for a custom concept that was never declared. `src/keywords.test.ts` generates a model with all 58 language-reference types. A name that is not in the catalogue is accepted only after a [concept specialization](#concept-specializations) declaration.
 
 `fixtures/valid-catalogue-layers.plein` is a compact golden sample: one element per ArchiMate layer (Strategy, Motivation, Business, Application, Technology, Physical, Implementation and migration). Technology and Physical are sampled separately even though this reference groups them in one section. That per-layer sample is the documented choice; the generated 58-keyword catalogue is not duplicated as a `.plein` fixture.
 
@@ -98,6 +98,73 @@ Unknown element types fail with a `file:line:column` diagnostic (`unknown keywor
 * Short aliases `process`, `function`, `event`, `service`, `role`, and `collaboration` resolve to the Business-layer concrete types (`business-process`, and so on).
 * Nested `value-stream-stage` / `valueStreamStage` inside a `value-stream` body (see Strategy). It is an authoring keyword, not a catalogue element.
 * CamelCase spellings of the canonical types (`businessActor`, `workPackage`, and so on).
+
+## Concept specializations
+
+### Story note
+
+Paste onto the C1a Notion page:
+
+Architects declare a concept specialization inside `model`, then use that name as an element keyword. `plein check` accepts the name only when it was declared earlier in the file. An undeclared name fails with `unknown keyword '…' (undeclared specialization)`.
+
+```plein
+specialization customer specializes business-actor
+customer "Acme Freight" as acme
+```
+
+`customer` specializes the catalogue concept `business-actor`. The element keeps that catalogue type (layer colour, icon, and Open Exchange `xsi:type`). The instance relationship `id -> id: specialization` is unchanged. Chains are allowed (`premium-customer specializes customer`) and resolve to the same catalogue type. Not in this slice: profile and organization extension packs, stereotype labels, and profile round-trip (C1b). Export writes the catalogue type and does not emit a profile.
+
+Declare + use: `fixtures/valid-specialization.plein`. Reject: `fixtures/unknown-specialization.plein`.
+
+### Declaration
+
+A specialization names a more specific concept derived from a catalogue element keyword (or from a specialization already declared in the same model). It is a type declaration, not the specialization relationship between two elements.
+
+```plein
+model {
+  specialization customer specializes business-actor
+  specialization express-order specializes business-object
+
+  customer "Acme Freight" as acme
+  business-actor "Carrier" as carrier
+  express-order "Rush booking" as rush
+
+  acme -> rush: access
+  acme -> carrier: specialization
+}
+```
+
+* Write `specialization <name> specializes <parent>` in `model`, before any element that uses `<name>`.
+* `<name>` is an identifier. Prefer kebab-case (`express-order`), the same convention as catalogue keywords. The declared spelling is the only spelling; there is no automatic camelCase alias.
+* `<parent>` is a catalogue keyword (kebab-case or the camelCase spelling the parser already accepts) or the name of an earlier specialization. The catalogue concept at the end of the chain is the element's type.
+* The verb `specialization` is an alias of `specializes`, matching the relationship alias. Any other verb fails (`expected 'specializes' after specialization name`).
+* A declared name is used like a keyword: `customer "Acme Freight" as acme`. The parsed element keeps `keyword` as the catalogue type and records `specialization` as the declared name.
+* `include <name>` selects elements declared with that specialization. `include <catalogue-keyword>` still selects every element of that catalogue type, including specialized ones.
+* A specialization of `value-stream` may nest `value-stream-stage` steps. The stages stay value streams. Do not declare a specialization inside a value-stream body.
+
+These are rejected with `file:line:column`:
+
+| Situation | Diagnostic |
+| --- | --- |
+| Element keyword was never declared and is not in the catalogue | `unknown keyword '<name>' (undeclared specialization)` |
+| Parent is not a catalogue keyword or an earlier specialization | `specialization '<name>' specializes unknown keyword '<parent>'` |
+| Name is already a catalogue keyword or a short alias (`process`, `business-actor`, …) | `specialization '<name>' collides with catalogue keyword '<name>'` |
+| Name is a structural word (`include`, `as`, `model`, …) | `specialization name '<name>' is reserved` |
+| Name is a relationship verb (`serves`, `specializes`, …) | Not a type declaration. The verb is parsed as a relationship whose source identifier is `specialization` |
+| The same name is declared twice | `duplicate specialization '<name>'` |
+| Declaration sits inside a `value-stream` body | `specialization declarations belong in the model, not inside a valueStream` |
+
+`fixtures/valid-specialization.plein` declares `customer`, `express-order`, and `premium-customer` and uses them. `fixtures/unknown-specialization.plein` uses `customer` with no declaration and must fail `plein check`.
+
+This is declare + validate only. It does not load profile or organization extension packs, draw stereotype labels, or round-trip profiles through Open Exchange. `plein export-open-exchange` writes the catalogue `xsi:type` (for example `BusinessActor`) and does not emit a profile.
+
+An identifier may still be named `specialization`. Write the relationship with `->` (or the existing infix verb). That is a relationship source, not a type declaration:
+
+```plein
+business-actor "Specialization" as specialization
+business-role "Role" as role
+specialization -> role: assignment
+```
 
 ## Relationships
 
@@ -486,7 +553,7 @@ A validator should check, at minimum:
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
 3. Each relationship uses one of the eleven supported types and has exactly one source and target.
-4. Element keywords are valid ArchiMate 4 concepts, labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules.
+4. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`.
 5. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.
 6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
 7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.

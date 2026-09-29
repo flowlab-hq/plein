@@ -634,7 +634,10 @@ function selectorElementIds(model: PleinModel, selector: string): string[] {
   const keyword = resolveElementKeyword(selector);
   return model.elements
     .filter(
-      (element) => element.id === selector || (keyword !== undefined && element.keyword === keyword),
+      (element) =>
+        element.id === selector ||
+        element.specialization === selector ||
+        (keyword !== undefined && element.keyword === keyword),
     )
     .map((element) => element.id);
 }

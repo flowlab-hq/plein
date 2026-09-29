@@ -174,7 +174,7 @@ function elementMatches(element: ElementDecl, selector: string): boolean {
   if (selector === "*") {
     return true;
   }
-  if (element.id === selector) {
+  if (element.id === selector || element.specialization === selector) {
     return true;
   }
   const keyword = resolveElementKeyword(selector);
