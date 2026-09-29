@@ -118,6 +118,7 @@ brew install plein
 git clone https://github.com/flowlab-hq/plein.git
 cd plein
 plein check fixtures/valid-basic.plein
+plein inspect fixtures/valid-basic.plein
 plein export fixtures/valid-basic.plein --view booking-context -o booking-context.html
 open booking-context.html
 plein import fixtures/open-exchange/booking.xml -o booking.plein
@@ -133,7 +134,9 @@ Expected walkthrough:
 
 * `plein check fixtures/samples/value-stream-demo.plein` prints `ok fixtures/samples/value-stream-demo.plein (...)` and exits 0.
 * `plein check fixtures/valid-basic.plein` prints `ok fixtures/valid-basic.plein (...)` and exits 0.
+* `plein inspect fixtures/valid-basic.plein` prints JSON for that model (`"id": "shipper"`, `"name": "booking-context"`) and exits 0.
 * `plein check fixtures/broken-syntax.plein` prints a line-oriented diagnostic (for example `expected '}' to close plein`) and exits non-zero.
+* `plein inspect fixtures/broken-syntax.plein` prints that same class of diagnostic and exits non-zero.
 
 Packaging notes and `scripts/mac/smoke.sh` are in [scripts/mac/README.md](scripts/mac/README.md).
 
@@ -154,6 +157,8 @@ Until the `.dmg` is published, the same steps work from a local `Plein.app` (`np
 
 Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. The `styles` block is still ignored; diagram colours come from the built-in type/layer map ([docs/archimate-style.md](docs/archimate-style.md)).
 
+`plein inspect` writes that same loaded model as JSON on stdout (elements, relationships, and views, in document order). It does not render a diagram. Parse errors use the same diagnostics and a non-zero exit as `plein check`. See [Inspect a model](#inspect-a-model).
+
 Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 
 ```bash
@@ -161,13 +166,30 @@ npm install
 npm run build
 npx plein check fixtures/samples/value-stream-demo.plein
 npx plein check fixtures/valid-basic.plein
+npx plein inspect fixtures/valid-basic.plein
 npm run check:fixtures
 npm test
 ```
 
-GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the HTML/SVG export golden and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
+GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the inspect JSON golden, the HTML/SVG export golden, and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases). A custom concept is a declared specialization (`specialization customer specializes business-actor`); an undeclared name is rejected.
+
+### Inspect a model
+
+`plein inspect` loads a `.plein` file with the same check as `plein check` and writes JSON to stdout. The document has `file`, `elements`, `relationships`, and `views`, in source order. Keywords and relationship types are canonical camelCase (`serving` is written as `serves`). Every view has the same keys: `viewpoint`, `title`, `autoLayout`, and `nesting` are `null` when the file omits them, and `positions` is always an array (including when auto-layout is on and those coordinates are not used for drawing). No HTML, SVG, or Mac app is involved.
+
+```bash
+plein inspect fixtures/valid-basic.plein
+```
+
+Exit 0 on a valid file. A missing file prints `file not found: <path>` on stderr and exits non-zero. Syntax errors, unknown keywords, and malformed views print a `file:line:column` diagnostic on stderr and exit non-zero — the same class as `plein check`.
+
+Golden snapshot: [fixtures/golden-inspect-valid-basic.json](fixtures/golden-inspect-valid-basic.json) is `plein inspect fixtures/valid-basic.plein`. `npm test` (`src/inspect.test.ts`) fails if that file drifts. Refresh it with:
+
+```bash
+npx plein inspect fixtures/valid-basic.plein > fixtures/golden-inspect-valid-basic.json
+```
 
 ### Export a named view
 

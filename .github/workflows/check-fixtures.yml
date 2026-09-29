@@ -1,5 +1,5 @@
-# M5: build the CLI, run unit/golden tests (including `plein export`, `plein import`,
-# and `plein export-open-exchange`),
+# M5: build the CLI, run unit/golden tests (including `plein inspect`, `plein export`,
+# `plein import`, and `plein export-open-exchange`),
 # and run `plein check` on the fixture catalogue.
 #
 # Golden fixtures must exit 0. Expected-fail fixtures must exit non-zero.

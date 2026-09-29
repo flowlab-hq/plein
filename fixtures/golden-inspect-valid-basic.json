@@ -1,0 +1,73 @@
+{
+  "file": "fixtures/valid-basic.plein",
+  "elements": [
+    {
+      "keyword": "businessActor",
+      "label": "Shipper",
+      "id": "shipper",
+      "line": 3
+    },
+    {
+      "keyword": "businessService",
+      "label": "Booking service",
+      "id": "booking",
+      "line": 4
+    },
+    {
+      "keyword": "businessObject",
+      "label": "Freight order",
+      "id": "order",
+      "line": 5
+    },
+    {
+      "keyword": "applicationComponent",
+      "label": "Rate engine",
+      "id": "rates",
+      "line": 6
+    }
+  ],
+  "relationships": [
+    {
+      "type": "serves",
+      "source": "shipper",
+      "target": "booking",
+      "line": 8
+    },
+    {
+      "type": "accesses",
+      "source": "booking",
+      "target": "order",
+      "line": 9
+    },
+    {
+      "type": "serves",
+      "source": "booking",
+      "target": "rates",
+      "line": 10
+    },
+    {
+      "type": "realizes",
+      "source": "rates",
+      "target": "order",
+      "line": 11
+    }
+  ],
+  "views": [
+    {
+      "name": "booking-context",
+      "viewpoint": null,
+      "title": "Booking context",
+      "includes": [
+        "shipper",
+        "booking",
+        "order",
+        "rates"
+      ],
+      "excludes": [],
+      "autoLayout": null,
+      "positions": [],
+      "nesting": null,
+      "line": 15
+    }
+  ]
+}

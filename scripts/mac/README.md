@@ -3,7 +3,7 @@
 Plein ships two Apple Silicon channels:
 
 1. **Mac app `.dmg`** — open a `.plein` and browse named viewpoints. No Node/npm at runtime.
-2. **Homebrew formula** — `plein check`, `plein export`, `plein import`, and `plein export-open-exchange` on the CLI. Homebrew provides Node.
+2. **Homebrew formula** — `plein check`, `plein inspect`, `plein export`, `plein import`, and `plein export-open-exchange` on the CLI. Homebrew provides Node.
 
 ## What we ship
 
@@ -86,8 +86,9 @@ Homebrew installs the Node runtime as a dependency and wraps `dist/cli.js`. The 
 brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein
 brew install plein
 
-# 3. Check a model
+# 3. Check a model, or dump it as JSON (no diagram)
 plein check path/to/file.plein
+plein inspect path/to/file.plein
 
 # 4. Export a named view (open the HTML in a browser; the Mac app is not required)
 plein export path/to/file.plein --view "View title" -o view.html
