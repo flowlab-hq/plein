@@ -56,8 +56,14 @@ function runCheck(fileArg: string): void {
         : model.specializations.length === 1
           ? ", 1 specialization"
           : `, ${model.specializations.length} specializations`;
+    const profileNote =
+      model.profiles.length === 0
+        ? ""
+        : model.profiles.length === 1
+          ? ", 1 profile"
+          : `, ${model.profiles.length} profiles`;
     console.log(
-      `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views${specializationNote})`,
+      `ok ${fileArg} (${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views${specializationNote}${profileNote})`,
     );
   } catch (error) {
     if (error instanceof ParseError) {

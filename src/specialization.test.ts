@@ -58,10 +58,13 @@ test("declared specializations are accepted and keep the catalogue type", () => 
       { name: "premium-customer", parent: "customer", keyword: "businessActor" },
     ],
   );
+  assert.deepEqual(model.profiles, []);
+  assert.ok(model.specializations.every((item) => item.profile === undefined));
 
   const byId = new Map(model.elements.map((element) => [element.id, element]));
   assert.equal(byId.get("acme")!.keyword, "businessActor");
   assert.equal(byId.get("acme")!.specialization, "customer");
+  assert.equal(byId.get("acme")!.profile, undefined);
   assert.equal(byId.get("priority")!.keyword, "businessActor");
   assert.equal(byId.get("priority")!.specialization, "premium-customer");
   assert.equal(byId.get("carrier")!.keyword, "businessActor");
@@ -267,7 +270,9 @@ test("models without specializations keep an empty list and the core catalogue p
     "core.plein",
   );
   assert.deepEqual(model.specializations, []);
+  assert.deepEqual(model.profiles, []);
   assert.equal(model.elements[0]!.specialization, undefined);
+  assert.equal(model.elements[0]!.profile, undefined);
   assert.equal(model.elements[0]!.keyword, "businessActor");
   assert.equal(model.relationships[0]!.type, "assignedTo");
 });

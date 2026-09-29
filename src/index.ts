@@ -6,6 +6,7 @@ export {
   type ElementDecl,
   type RelationshipDecl,
   type SpecializationDecl,
+  type ProfileDecl,
   type ViewDecl,
   type PositionDecl,
 } from "./parser.js";

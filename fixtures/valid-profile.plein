@@ -1,0 +1,37 @@
+plein {
+  model {
+    profile nordfreight {
+      specialization customer specializes business-actor
+      specialization express-order specializes business-object
+      specialization premium-customer specializes customer
+    }
+
+    organization planning {
+      specialization planner specializes business-role
+    }
+
+    specialization local-carrier specializes business-actor
+
+    customer "Acme Freight" as acme
+    premium-customer "Acme Priority" as priority
+    business-actor "Priority desk" as desk hook customer
+    express-order "Rush booking" as rush
+    business-role "Lane planner" as lane hook planner
+    local-carrier "Regional carrier" as carrier
+    business-service "Booking" as booking
+
+    acme -> rush: access
+    priority -> acme: specialization
+    booking -> acme: serving
+    lane -> desk: assignment
+  }
+
+  views {
+    viewpoint customers "Customers" {
+      title "Profile hooks"
+      include acme priority desk rush lane carrier booking
+      include customer
+      autoLayout tb
+    }
+  }
+}
