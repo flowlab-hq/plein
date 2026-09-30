@@ -14,6 +14,9 @@
           <h1>Plein</h1>
         </div>
         <button type="button" id="open-button">Open…</button>
+        <button type="button" id="import-button" title="Import an Open Exchange XML model (⇧⌘I)">
+          Import…
+        </button>
         <button type="button" id="reload-button" disabled title="Re-read the open .plein and redraw the diagram (⌘R)">
           Reload
         </button>
@@ -26,12 +29,23 @@
           accept=".plein,text/plain"
           hidden
         />
+        <input
+          id="import-input"
+          type="file"
+          accept=".xml,text/xml,application/xml"
+          hidden
+        />
         <p id="file-label" class="file-label">No file open</p>
       </header>
 
       <div id="error" class="error" hidden role="alert">
         <p id="error-lead" class="error-lead">This .plein did not load</p>
         <pre id="error-detail" class="error-detail"></pre>
+      </div>
+
+      <div id="import-notice" class="notice" hidden role="status">
+        <p id="import-notice-lead" class="notice-lead">Imported Open Exchange XML</p>
+        <pre id="import-notice-detail" class="notice-detail"></pre>
       </div>
 
       <div id="export-dialog" class="export-dialog" hidden>
@@ -179,8 +193,9 @@
       </main>
 
       <p id="empty-hint" class="hint">
-        Open a <code>.plein</code> file to browse named viewpoints from the
-        views block. Each view is a diagram of the same loaded model.
+        Open a <code>.plein</code> file, or import an Open Exchange XML model,
+        to browse named viewpoints from the views block. Each view is a diagram
+        of the same loaded model.
       </p>
     </div>
     <script type="module" src="./bundle.js"></script>

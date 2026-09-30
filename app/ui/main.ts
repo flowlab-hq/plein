@@ -49,7 +49,11 @@ import {
   isMacExportFormat,
   type MacExportFormat,
 } from "../../src/export.ts";
-import { exportOpenExchange } from "../../src/open-exchange.ts";
+import {
+  exportOpenExchange,
+  formatImportReport,
+  importOpenExchange,
+} from "../../src/open-exchange.ts";
 
 type TauriBridge = {
   core: {
@@ -66,13 +70,17 @@ type OpenedFile = {
 };
 
 const openButton = document.querySelector("#open-button") as HTMLButtonElement;
+const importButton = document.querySelector("#import-button") as HTMLButtonElement;
 const reloadButton = document.querySelector("#reload-button") as HTMLButtonElement;
 const exportButton = document.querySelector("#export-button") as HTMLButtonElement;
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
+const importInput = document.querySelector("#import-input") as HTMLInputElement;
 const fileLabel = document.querySelector("#file-label") as HTMLElement;
 const errorBox = document.querySelector("#error") as HTMLElement;
 const errorLead = document.querySelector("#error-lead") as HTMLElement;
 const errorDetail = document.querySelector("#error-detail") as HTMLElement;
+const importNoticeBox = document.querySelector("#import-notice") as HTMLElement;
+const importNoticeDetail = document.querySelector("#import-notice-detail") as HTMLElement;
 const exportDialog = document.querySelector("#export-dialog") as HTMLElement;
 const exportDialogTitle = document.querySelector("#export-dialog-title") as HTMLElement;
 const exportDialogDetail = document.querySelector("#export-dialog-detail") as HTMLElement;
@@ -163,8 +171,20 @@ let lastExportFormat: MacExportFormat = "html";
 let exportViewCaption = "";
 
 const LOAD_ERROR_LEAD = "This .plein did not load";
+const IMPORT_ERROR_LEAD = "Could not import this Open Exchange file";
 const EXPORT_ERROR_LEAD = "Could not export this view";
 const OPEN_EXCHANGE_ERROR_LEAD = "Could not export Open Exchange";
+/** Lead used the next time a load failure is shown. */
+let bannerLead = LOAD_ERROR_LEAD;
+/**
+ * Open Exchange file this session was imported from. Reload re-runs
+ * `importOpenExchange` on it. Cleared when a `.plein` file is opened.
+ */
+let openExchangeFile: string | null = null;
+/** XML text from the browser file picker, which has no filesystem path. */
+let openExchangeXml: string | null = null;
+/** `formatImportReport` for the open import. Same notes as `plein import`. */
+let importNotice: string | null = null;
 const EXPORT_FORMAT_NOTES: Record<MacExportFormat, string> = {
   html: "A self-contained HTML page. It opens in a browser without Plein.",
   svg: "An SVG file. It opens in a browser or Preview without Plein.",
@@ -199,6 +219,22 @@ function showExportError(message: string): void {
 
 function showOpenExchangeError(message: string): void {
   showError(message, OPEN_EXCHANGE_ERROR_LEAD);
+}
+
+function showImportNotice(message: string | null): void {
+  if (!message) {
+    importNoticeBox.hidden = true;
+    importNoticeDetail.textContent = "";
+    return;
+  }
+  importNoticeBox.hidden = false;
+  importNoticeDetail.textContent = message;
+}
+
+function forgetOpenExchange(): void {
+  openExchangeFile = null;
+  openExchangeXml = null;
+  importNotice = null;
 }
 
 /** Open/read failures use the same banner as `checkPlein` / `plein check`. */
@@ -694,11 +730,15 @@ async function renderDiagram(seq: number): Promise<void> {
 async function render(): Promise<void> {
   const seq = ++renderSeq;
   reloadButton.disabled = loaded === null;
+  reloadButton.title = openExchangeFile
+    ? "Re-import the open Open Exchange XML and redraw the diagram (⌘R)"
+    : "Re-read the open .plein and redraw the diagram (⌘R)";
 
   if (!loaded) {
     workspace.classList.add("empty");
     emptyHint.hidden = false;
     fileLabel.textContent = "No file open";
+    showImportNotice(null);
     showError(null);
     viewList.replaceChildren();
     elementList.replaceChildren();
@@ -712,7 +752,8 @@ async function render(): Promise<void> {
 
   if (!loaded.ok) {
     workspace.classList.add("empty");
-    showError(loaded.error);
+    showImportNotice(null);
+    showError(loaded.error, bannerLead);
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
@@ -721,6 +762,7 @@ async function render(): Promise<void> {
   }
 
   showError(null);
+  showImportNotice(importNotice);
   workspace.classList.remove("empty");
   const list = filterModel(loaded.model, selectedView);
 
@@ -862,6 +904,45 @@ function openSource(source: string, file: string): void {
   void render();
 }
 
+/** Open a `.plein` file. Drops any Open Exchange import session. */
+function openPlein(source: string, file: string): void {
+  forgetOpenExchange();
+  bannerLead = LOAD_ERROR_LEAD;
+  openSource(source, file);
+}
+
+/**
+ * Import Open Exchange XML with `importOpenExchange`, then open the `.plein`
+ * through the same path as Open. `reload` keeps the current viewpoint.
+ */
+function commitImported(xml: string, file: string, reload: boolean): void {
+  openExchangeFile = file;
+  openExchangeXml = xml;
+  let imported;
+  try {
+    imported = importOpenExchange(xml, file);
+  } catch (error) {
+    importNotice = null;
+    bannerLead = IMPORT_ERROR_LEAD;
+    closeExportDialog(false);
+    lastSource = null;
+    loaded = { ok: false, file, error: formatLoadError(error) };
+    if (!reload) {
+      selectedView = null;
+      selectedItem = null;
+    }
+    void render();
+    return;
+  }
+  importNotice = formatImportReport(file, imported.report);
+  bannerLead = LOAD_ERROR_LEAD;
+  if (reload) {
+    applyReload(imported.source, file);
+    return;
+  }
+  openSource(imported.source, file);
+}
+
 function applyReload(source: string, file: string): void {
   closeExportDialog(false);
   lastSource = source;
@@ -884,10 +965,32 @@ async function openFromTauriDialog(): Promise<void> {
   try {
     const opened = await api.core.invoke<OpenedFile | null>("open_plein_dialog");
     if (opened) {
-      openSource(opened.contents, opened.path);
+      openPlein(opened.contents, opened.path);
     }
   } catch (error) {
+    forgetOpenExchange();
+    bannerLead = LOAD_ERROR_LEAD;
     failOpen("Open…", error);
+  }
+}
+
+async function importFromTauriDialog(): Promise<void> {
+  closeExportDialog(false);
+  const api = tauri();
+  if (!api) {
+    importInput.click();
+    return;
+  }
+  try {
+    const opened = await api.core.invoke<OpenedFile | null>("open_open_exchange_dialog");
+    if (!opened) {
+      return;
+    }
+    commitImported(opened.contents, opened.path, false);
+  } catch (error) {
+    forgetOpenExchange();
+    bannerLead = IMPORT_ERROR_LEAD;
+    failOpen("Import…", error);
   }
 }
 
@@ -898,13 +1001,34 @@ async function openPath(path: string): Promise<void> {
   }
   try {
     const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path });
-    openSource(opened.contents, opened.path);
+    openPlein(opened.contents, opened.path);
   } catch (error) {
+    forgetOpenExchange();
+    bannerLead = LOAD_ERROR_LEAD;
     failOpen(path, error);
   }
 }
 
 async function reloadOpen(): Promise<void> {
+  if (!loaded && !openExchangeFile) {
+    return;
+  }
+  if (openExchangeFile) {
+    const api = tauri();
+    if (api && isFilesystemPath(openExchangeFile)) {
+      try {
+        const opened = await api.core.invoke<OpenedFile>("read_plein_file", { path: openExchangeFile });
+        commitImported(opened.contents, opened.path, true);
+      } catch (error) {
+        showError(formatLoadError(error), IMPORT_ERROR_LEAD);
+      }
+      return;
+    }
+    if (openExchangeXml !== null) {
+      commitImported(openExchangeXml, openExchangeFile, true);
+    }
+    return;
+  }
   if (!loaded) {
     return;
   }
@@ -925,6 +1049,10 @@ async function reloadOpen(): Promise<void> {
 
 openButton.addEventListener("click", () => {
   void openFromTauriDialog();
+});
+
+importButton.addEventListener("click", () => {
+  void importFromTauriDialog();
 });
 
 reloadButton.addEventListener("click", () => {
@@ -964,11 +1092,28 @@ fileInput.addEventListener("change", async () => {
     return;
   }
   try {
-    openSource(await file.text(), file.name);
+    openPlein(await file.text(), file.name);
   } catch (error) {
+    forgetOpenExchange();
+    bannerLead = LOAD_ERROR_LEAD;
     failOpen(file.name, error);
   }
   fileInput.value = "";
+});
+
+importInput.addEventListener("change", async () => {
+  const file = importInput.files?.[0];
+  importInput.value = "";
+  if (!file) {
+    return;
+  }
+  try {
+    commitImported(await file.text(), file.name, false);
+  } catch (error) {
+    forgetOpenExchange();
+    bannerLead = IMPORT_ERROR_LEAD;
+    failOpen(file.name, error);
+  }
 });
 
 layoutOptionsButton.addEventListener("click", () => {
@@ -1021,6 +1166,16 @@ window.addEventListener("keydown", (event) => {
   ) {
     event.preventDefault();
     beginExport();
+    return;
+  }
+  if (
+    (event.metaKey || event.ctrlKey) &&
+    event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "i"
+  ) {
+    event.preventDefault();
+    void importFromTauriDialog();
     return;
   }
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
@@ -1704,6 +1859,9 @@ async function boot(): Promise<void> {
     });
     await api.event.listen("open-dialog", () => {
       void openFromTauriDialog();
+    });
+    await api.event.listen("import-open-exchange", () => {
+      void importFromTauriDialog();
     });
     await api.event.listen("reload-file", () => {
       void reloadOpen();
