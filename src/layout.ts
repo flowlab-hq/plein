@@ -31,22 +31,42 @@ export const NEST_HEADER_HEIGHT = 48;
 /** Padding around nested children inside a parent. */
 export const NEST_PAD = 16;
 
-/**
- * Shared pull-back from each element border to the drawn connector end.
- * The arrowhead reference point sits on the marker tip, so this same inset
- * is the gap at the source line and at the target arrowhead.
- */
-export const CONNECTOR_END_GAP = 6;
-
-/** Arrowhead in marker units. `refX` is the tip so the end inset is not eaten by the head. */
-const MARKER_WIDTH = 10;
-const MARKER_HEIGHT = 7;
-const MARKER_TIP_X = 10;
-const MARKER_REF_Y = 3.5;
-const MARKER_REF_X = MARKER_TIP_X;
-/** Default marker units are strokeWidth, so the head trails this many user px behind the tip. */
+/** Element border stroke. It is centered on the rect, so half of it lies outside the box. */
+const NODE_STROKE_WIDTH = 1.25;
 const EDGE_STROKE_WIDTH = 1.5;
-const MARKER_TAIL = MARKER_TIP_X * EDGE_STROKE_WIDTH;
+
+/**
+ * Unmarked end. The shaft centerline stops on the outer edge of the element
+ * stroke — attached, not floating, and not buried in the fill.
+ */
+export const CONNECTOR_SHAFT_GAP = NODE_STROKE_WIDTH / 2;
+
+/**
+ * Air between a marker tip and that outer stroke edge.
+ * v0.1.17 applied one 6px inset at both ends: unmarked shafts floated off the
+ * boxes, and the tip still sat on the marker clip edge so the head looked crushed.
+ */
+export const CONNECTOR_TIP_CLEARANCE = 3;
+
+/** Distance from the geometric border to a marker tip (stroke outer edge + clearance). */
+export const CONNECTOR_TIP_GAP = CONNECTOR_SHAFT_GAP + CONNECTOR_TIP_CLEARANCE;
+
+/**
+ * Arrowhead in marker user units. The viewport is padded past the triangle and
+ * `overflow` is visible so the tip is not clipped — that clip is what read as a
+ * squashed head. `refX` sits one unit behind the tip; that overhang is retracted
+ * only at a marked end, so the tip (not the shaft) lands on `CONNECTOR_TIP_GAP`.
+ */
+const MARKER_TIP_X = 10;
+const MARKER_TIP_Y = 3.5;
+const MARKER_BASE_HEIGHT = 7;
+const MARKER_PAD = 1;
+const MARKER_REF_X = MARKER_TIP_X - MARKER_PAD;
+const MARKER_REF_Y = MARKER_TIP_Y;
+const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD * 2;
+const MARKER_HEIGHT = MARKER_BASE_HEIGHT + MARKER_PAD * 2;
+/** How far the tip extends past the path endpoint, in user px. Marker units are strokeWidth. */
+const MARKER_OVERHANG = (MARKER_TIP_X - MARKER_REF_X) * EDGE_STROKE_WIDTH;
 
 /** Mac/web viewer engine: Eclipse Layout Kernel layered (elkjs). */
 export const LAYOUT_ENGINE = "elk-layered";
@@ -671,8 +691,8 @@ ${containerMarkup}
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
-    <marker id="${markerId}" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto">
-      <polygon points="0 0, ${MARKER_TIP_X} ${MARKER_REF_Y}, 0 ${MARKER_HEIGHT}" fill="#6e6e73" />
+    <marker id="${markerId}" markerUnits="strokeWidth" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto" viewBox="-${MARKER_PAD} -${MARKER_PAD} ${MARKER_WIDTH} ${MARKER_HEIGHT}" overflow="visible">
+      <polygon points="0 0, ${MARKER_TIP_X} ${MARKER_TIP_Y}, 0 ${MARKER_BASE_HEIGHT}" fill="#6e6e73" />
     </marker>
   </defs>
 ${containersBlock}  <g class="edges">
@@ -726,7 +746,7 @@ function renderNode(node: LayoutNode): string {
   const rx = node.container ? 10 : 8;
   return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr}${containerIdAttr} transform="translate(${node.x} ${node.y})">
       <title>${escapeXml(`${typeName} — ${node.label}`)}</title>
-      <rect width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.25" />
+      <rect width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${NODE_STROKE_WIDTH}" />
       ${renderTypeIcon(style.icon, style.stroke, node.width - TYPE_ICON_INSET_X, 4)}
       ${renderLabelText(node, style.ink)}
     </g>`;
@@ -782,51 +802,83 @@ function renderEdge(
 type Box = { x: number; y: number; width: number; height: number };
 
 /**
- * Stop each end of the polyline `CONNECTOR_END_GAP` px outside the element
- * box. Routes that still end on the stroke, and routes that run to the box
- * center, share this inset. A connector shorter than the arrowhead keeps a
- * smaller equal gap instead of folding back on itself.
+ * Place the unmarked start on the stroke and the marker tip `CONNECTOR_TIP_GAP`
+ * outside the target border. The path end at a marked end is the tip gap plus
+ * the arrow overhang, so the head — not an empty shaft gap — occupies that
+ * space. A connector too short to hold both insets and the overhang scales
+ * them down instead of folding back on itself.
+ *
+ * Only the end that carries a marker gets the overhang. Today that is the
+ * target (`marker-end`). A markerless source stays at `CONNECTOR_SHAFT_GAP`.
  */
 function insetConnectorEnds(points: ElkPoint[], source: LayoutNode, target: LayoutNode): ElkPoint[] {
   if (points.length < 2) {
     return points;
   }
-  const bordered = trimEnds(points, source, target, 0);
+  const bordered = trimEnds(points, source, target, 0, 0);
   const free = polylineLength(bordered);
   if (bordered.length < 2 || free <= 0) {
     return points;
   }
-  const minShaft = Math.min(MARKER_TAIL, Math.max(1, free - 2));
-  let gap = Math.min(CONNECTOR_END_GAP, Math.max(0, (free - minShaft) / 2));
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const cut = trimEnds(points, source, target, gap);
-    const shaftOk = polylineLength(cut) + 0.05 >= minShaft;
-    if (clearanceFits(cut, source, target, gap) && (shaftOk || gap <= 2)) {
-      return cut;
-    }
-    gap *= 0.8;
-    if (gap < 0.5) {
-      break;
-    }
-  }
-  return bordered;
+  const fitted = fitEndInsets(free);
+  const cut = trimEnds(points, source, target, fitted.shaft, fitted.tip);
+  const opened = retractEnd(cut, fitted.overhang);
+  return opened.length >= 2 ? opened : bordered;
 }
 
-function trimEnds(points: ElkPoint[], source: Box, target: Box, gap: number): ElkPoint[] {
-  return dedupePoints(cutEnd(cutStart(points, inflate(source, gap)), inflate(target, gap)));
+/**
+ * Reserve the real arrow overhang when the span allows, so the tip lands on
+ * `CONNECTOR_TIP_GAP`. Shorter spans scale the overhang with the gaps; pulling
+ * the full head back would reverse the line.
+ */
+function fitEndInsets(free: number): { shaft: number; tip: number; overhang: number } {
+  const shaft = CONNECTOR_SHAFT_GAP;
+  const tip = CONNECTOR_TIP_GAP;
+  const overhang = MARKER_OVERHANG;
+  const minShaft = 1;
+  const room = Math.max(0, free - minShaft - overhang);
+  if (shaft + tip <= room) {
+    return { shaft, tip, overhang };
+  }
+  const budget = Math.max(0, free - minShaft);
+  const want = shaft + tip + overhang;
+  if (budget <= 0 || want <= 0) {
+    return { shaft: 0, tip: 0, overhang: 0 };
+  }
+  const scale = budget / want;
+  return { shaft: shaft * scale, tip: tip * scale, overhang: overhang * scale };
 }
 
-function clearanceFits(points: ElkPoint[], source: Box, target: Box, gap: number): boolean {
-  if (points.length < 2 || polylineLength(points) < 1) {
-    return false;
+function trimEnds(
+  points: ElkPoint[],
+  source: Box,
+  target: Box,
+  sourceGap: number,
+  targetGap: number,
+): ElkPoint[] {
+  return dedupePoints(cutEnd(cutStart(points, inflate(source, sourceGap)), inflate(target, targetGap)));
+}
+
+/** Pull the marked end back along the polyline so the overhanging tip lands on the previous endpoint. */
+function retractEnd(points: ElkPoint[], distance: number): ElkPoint[] {
+  if (distance <= 0.01 || points.length < 2) {
+    return points.slice();
   }
-  const start = distanceToRect(points[0]!, source);
-  const end = distanceToRect(points[points.length - 1]!, target);
-  if (start + 0.05 < gap || end + 0.05 < gap) {
-    return false;
+  let remaining = distance;
+  for (let index = points.length - 1; index > 0; index -= 1) {
+    const from = points[index - 1]!;
+    const to = points[index]!;
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (length <= 0.01) {
+      continue;
+    }
+    if (remaining <= length) {
+      const t = (length - remaining) / length;
+      return dedupePoints([...points.slice(0, index), lerp(from, to, t)]);
+    }
+    remaining -= length;
   }
-  const limit = gap * Math.SQRT2 + 0.75;
-  return start <= limit && end <= limit;
+  return points.slice();
 }
 
 function inflate(box: Box, gap: number): Box {

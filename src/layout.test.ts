@@ -29,7 +29,9 @@ import {
   MANUAL_LAYOUT_ENGINE,
   NODE_HEIGHT,
   NODE_WIDTH,
-  CONNECTOR_END_GAP,
+  CONNECTOR_SHAFT_GAP,
+  CONNECTOR_TIP_CLEARANCE,
+  CONNECTOR_TIP_GAP,
   RANK_GAP,
   svgMembership,
   svgNodeStyles,
@@ -1582,7 +1584,13 @@ views {
 /** Element stroke is centered on the box, so a gap must clear half of this width. */
 const NODE_STROKE = 1.25;
 
-test("connector ends leave a shared gap around arrowheads", () => {
+test("marker tips clear the stroke and unmarked shafts stay on it", () => {
+  assert.equal(CONNECTOR_SHAFT_GAP, NODE_STROKE / 2);
+  assert.equal(CONNECTOR_TIP_GAP, CONNECTOR_SHAFT_GAP + CONNECTOR_TIP_CLEARANCE);
+  assert.ok(CONNECTOR_TIP_CLEARANCE >= 2 && CONNECTOR_TIP_CLEARANCE <= 4);
+  assert.ok(CONNECTOR_SHAFT_GAP < 2, "unmarked end is stroke clearance, not a shared inset");
+  assert.ok(CONNECTOR_TIP_GAP < 6, "tip gap is smaller than the rejected 6px shared inset");
+
   const booking = gapBox("booking", 300, 200, "businessService");
   const shipper = gapBox("shipper", 300, 40, "businessActor");
   const planner = gapBox("planner", 40, 200, "businessRole");
@@ -1614,14 +1622,14 @@ test("connector ends leave a shared gap around arrowheads", () => {
   }
 
   const intoBooking = [vertical, fromLeft, fromRight];
-  const gaps: number[] = [];
+  const tips: number[] = [];
   for (const edge of intoBooking) {
-    const { startGap, tipGap } = measureConnector(svg, layout, edge);
-    assert.ok(Math.abs(startGap - CONNECTOR_END_GAP) <= 0.05, `${edge.id} start ${startGap}`);
-    assert.ok(Math.abs(tipGap - CONNECTOR_END_GAP) <= 0.05, `${edge.id} tip ${tipGap}`);
-    gaps.push(startGap, tipGap);
+    const measured = measureConnector(svg, layout, edge);
+    assertStraightEndGaps(edge.id, measured);
+    assertOverhangAccounted(edge.id, svg, measured);
+    tips.push(measured.tipGap);
   }
-  assert.ok(Math.max(...gaps) - Math.min(...gaps) <= 0.05);
+  assert.ok(Math.max(...tips) - Math.min(...tips) <= 0.05, "fan-in tips share one clearance");
 
   const centerRouted = gapLink(shipper, booking, "flowsTo", [
     { x: 384, y: 66 },
@@ -1629,10 +1637,11 @@ test("connector ends leave a shared gap around arrowheads", () => {
     { x: 384, y: 146 },
     { x: 384, y: 226 },
   ]);
-  const centerSvg = renderViewpointSvg(gapScene([shipper, booking], [centerRouted]));
-  const center = measureConnector(centerSvg, gapScene([shipper, booking], [centerRouted]), centerRouted);
-  assert.ok(Math.abs(center.startGap - CONNECTOR_END_GAP) <= 0.05);
-  assert.ok(Math.abs(center.tipGap - CONNECTOR_END_GAP) <= 0.05);
+  const centerScene = gapScene([shipper, booking], [centerRouted]);
+  const centerSvg = renderViewpointSvg(centerScene);
+  const centerMeasured = measureConnector(centerSvg, centerScene, centerRouted);
+  assertStraightEndGaps("center", centerMeasured);
+  assertOverhangAccounted("center", centerSvg, centerMeasured);
 
   const diagonalSource = gapBox("quote", 40, 40, "businessProcess");
   const diagonalTarget = gapBox("order", 360, 180, "businessObject");
@@ -1640,30 +1649,25 @@ test("connector ends leave a shared gap around arrowheads", () => {
     { x: 183, y: diagonalSource.y + diagonalSource.height },
     { x: 385, y: diagonalTarget.y },
   ]);
-  const diagonalSvg = renderViewpointSvg(gapScene([diagonalSource, diagonalTarget], [diagonal]));
-  const diagonalGap = measureConnector(diagonalSvg, gapScene([diagonalSource, diagonalTarget], [diagonal]), diagonal);
-  assert.ok(Math.abs(diagonalGap.startGap - CONNECTOR_END_GAP) <= 0.05, `diagonal start ${diagonalGap.startGap}`);
-  assert.ok(Math.abs(diagonalGap.tipGap - CONNECTOR_END_GAP) <= 0.05, `diagonal tip ${diagonalGap.tipGap}`);
+  const diagonalScene = gapScene([diagonalSource, diagonalTarget], [diagonal]);
+  const diagonalSvg = renderViewpointSvg(diagonalScene);
+  assertStraightEndGaps("diagonal", measureConnector(diagonalSvg, diagonalScene, diagonal));
 });
 
-test("short connectors keep a gap and do not reverse", () => {
+test("short connectors keep tip clearance ahead of the shaft and do not reverse", () => {
   const source = gapBox("shipper", 40, 40, "businessActor");
   const target = gapBox("booking", 40, 112, "businessService");
   const edge = gapLink(source, target, "serves", [
     { x: 124, y: source.y + source.height },
     { x: 124, y: target.y },
   ]);
-  const svg = renderViewpointSvg(gapScene([source, target], [edge]));
+  const scene = gapScene([source, target], [edge]);
+  const svg = renderViewpointSvg(scene);
   const points = renderedPolyline(svg, edge.id);
-  assert.deepEqual(points, [
-    { x: 124, y: 94.5 },
-    { x: 124, y: 109.5 },
-  ]);
-  const measured = measureConnector(svg, gapScene([source, target], [edge]), edge);
-  assert.equal(measured.startGap, 2.5);
-  assert.equal(measured.tipGap, 2.5);
-  assert.ok(measured.tipGap > NODE_STROKE / 2);
-  assert.ok(points[1]!.y > points[0]!.y);
+  assert.ok(points[points.length - 1]!.y > points[0]!.y);
+  const measured = measureConnector(svg, scene, edge);
+  assertStraightEndGaps(edge.id, measured);
+  assertOverhangAccounted(edge.id, svg, measured);
 
   const closeTarget = gapBox("booking", 40, 100, "businessService");
   const close = gapLink(source, closeTarget, "serves", [
@@ -1672,22 +1676,17 @@ test("short connectors keep a gap and do not reverse", () => {
     { x: 124, y: 96 },
     { x: 124, y: 126 },
   ]);
-  const closeSvg = renderViewpointSvg(gapScene([source, closeTarget], [close]));
+  const closeScene = gapScene([source, closeTarget], [close]);
+  const closeSvg = renderViewpointSvg(closeScene);
   const closePoints = renderedPolyline(closeSvg, close.id);
-  assert.deepEqual(closePoints, [
-    { x: 124, y: 93 },
-    { x: 124, y: 96 },
-    { x: 124, y: 99 },
-  ]);
   for (const point of closePoints) {
     assert.equal(strictlyInside(point, source), false);
     assert.equal(strictlyInside(point, closeTarget), false);
   }
-  const closeGap = measureConnector(closeSvg, gapScene([source, closeTarget], [close]), close);
-  assert.equal(closeGap.startGap, 1);
-  assert.equal(closeGap.tipGap, 1);
-  assert.ok(closeGap.tipGap > NODE_STROKE / 2);
   assert.ok(closePoints[closePoints.length - 1]!.y > closePoints[0]!.y);
+  const closeMeasured = measureConnector(closeSvg, closeScene, close);
+  assertStraightEndGaps(close.id, closeMeasured);
+  assertOverhangAccounted(close.id, closeSvg, closeMeasured);
   assertNodeChromeUnchanged(closeSvg, source);
   assertNodeChromeUnchanged(closeSvg, closeTarget);
 });
@@ -1933,7 +1932,7 @@ function measureConnector(
   svg: string,
   layout: ViewpointLayout,
   edge: ViewpointLayout["edges"][number],
-): { startGap: number; tipGap: number } {
+): { startGap: number; tipGap: number; pathEndGap: number } {
   const points = renderedPolyline(svg, edge.id);
   const source = layout.nodes.find((node) => node.id === edge.source);
   const target = layout.nodes.find((node) => node.id === edge.target);
@@ -1941,7 +1940,42 @@ function measureConnector(
   return {
     startGap: rectDistance(points[0]!, source),
     tipGap: rectDistance(markerTip(svg, points), target),
+    pathEndGap: rectDistance(points[points.length - 1]!, target),
   };
+}
+
+/** Shaft on the stroke, tip one clearance past it. The path ends behind the tip. */
+function assertStraightEndGaps(where: string, measured: { startGap: number; tipGap: number; pathEndGap: number }): void {
+  assert.ok(Math.abs(measured.startGap - CONNECTOR_SHAFT_GAP) <= 0.08, `${where} shaft ${measured.startGap}`);
+  assert.ok(Math.abs(measured.tipGap - CONNECTOR_TIP_GAP) <= 0.08, `${where} tip ${measured.tipGap}`);
+  assert.ok(measured.tipGap > measured.startGap + CONNECTOR_TIP_CLEARANCE - 0.2, `${where} tip vs shaft`);
+  assert.ok(
+    measured.pathEndGap > measured.tipGap + 0.4,
+    `${where} path end ${measured.pathEndGap} should sit behind the overhanging tip ${measured.tipGap}`,
+  );
+  assert.ok(measured.startGap < 2, `${where} shaft must not float`);
+}
+
+/** Axis-aligned runs: the whole overhang is perpendicular, so the path end is exactly one overhang behind the tip. */
+function assertOverhangAccounted(
+  where: string,
+  svg: string,
+  measured: { tipGap: number; pathEndGap: number },
+): void {
+  const overhang = markerOverhangPx(svg);
+  assert.ok(overhang > 1, `${where} overhang ${overhang}`);
+  assert.ok(
+    Math.abs(measured.pathEndGap - measured.tipGap - overhang) <= 0.08,
+    `${where} path ${measured.pathEndGap} tip ${measured.tipGap} overhang ${overhang}`,
+  );
+}
+
+function markerOverhangPx(svg: string): number {
+  const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
+  const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
+  const tipX = Math.max(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
+  const stroke = Number(/<polyline[^>]* stroke-width="([^"]+)"/.exec(svg)?.[1]);
+  return (tipX - refX) * stroke;
 }
 
 function assertRenderedConnectorGap(
@@ -1954,16 +1988,18 @@ function assertRenderedConnectorGap(
   const source = layout.nodes.find((node) => node.id === edge.source);
   const target = layout.nodes.find((node) => node.id === edge.target);
   assert.ok(source && target, edge.id);
-  const { startGap, tipGap } = measureConnector(svg, layout, edge);
+  const { startGap, tipGap, pathEndGap } = measureConnector(svg, layout, edge);
   const where = `${layout.mode}/${layout.routing} ${edge.id}`;
-  assert.ok(startGap > NODE_STROKE / 2, `${where} source ${startGap}`);
-  assert.ok(tipGap > NODE_STROKE / 2, `${where} tip ${tipGap}`);
-  assert.ok(Math.abs(startGap - tipGap) <= 0.35, `${where} ${startGap} vs ${tipGap}`);
-  assert.ok(startGap <= CONNECTOR_END_GAP * Math.SQRT2 + 0.25, where);
-  assert.ok(tipGap <= CONNECTOR_END_GAP * Math.SQRT2 + 0.25, where);
+  assert.ok(startGap <= CONNECTOR_SHAFT_GAP * Math.SQRT2 + 0.45, `${where} shaft ${startGap}`);
+  assert.ok(tipGap <= CONNECTOR_TIP_GAP * Math.SQRT2 + 0.45, `${where} tip ${tipGap}`);
+  assert.ok(tipGap + 0.05 > NODE_STROKE / 2, `${where} tip ${tipGap}`);
+  assert.ok(pathEndGap + 0.05 >= tipGap, `${where} path ${pathEndGap} vs tip ${tipGap}`);
   if (nodeSeparation(source, target) >= 32) {
-    assert.ok(startGap >= CONNECTOR_END_GAP - 0.15, `${where} start ${startGap}`);
-    assert.ok(tipGap >= CONNECTOR_END_GAP - 0.15, `${where} tip ${tipGap}`);
+    assert.ok(startGap >= CONNECTOR_SHAFT_GAP - 0.15, `${where} start ${startGap}`);
+    assert.ok(startGap <= CONNECTOR_SHAFT_GAP * Math.SQRT2 + 0.35, `${where} start ${startGap}`);
+    assert.ok(tipGap >= CONNECTOR_TIP_GAP - 0.25, `${where} tip ${tipGap}`);
+    assert.ok(tipGap <= CONNECTOR_TIP_GAP * Math.SQRT2 + 0.35, `${where} tip ${tipGap}`);
+    assert.ok(tipGap > startGap + 1.5, `${where} ${startGap} vs ${tipGap}`);
   }
   for (const point of points) {
     assert.equal(strictlyInside(point, source), false, where);
@@ -1973,8 +2009,15 @@ function assertRenderedConnectorGap(
 
 function assertSharedArrowMarker(svg: string): void {
   assert.equal(svg.match(/<marker /g)?.length, 1);
-  assert.match(svg, /<marker [^>]*markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">/);
+  assert.match(
+    svg,
+    /<marker [^>]*markerUnits="strokeWidth" markerWidth="12" markerHeight="9" refX="9" refY="3.5" orient="auto" viewBox="-1 -1 12 9" overflow="visible">/,
+  );
   assert.match(svg, /<polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" \/>/);
+  const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
+  const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
+  const tipX = Math.max(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
+  assert.ok(tipX > refX, "tip overhangs the shaft endpoint");
 }
 
 function assertNodeChromeUnchanged(svg: string, node: LayoutNode): void {
