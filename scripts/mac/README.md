@@ -3,7 +3,7 @@
 Plein ships two Apple Silicon channels:
 
 1. **Mac app `.dmg`** — open a `.plein` and browse named viewpoints. No Node/npm at runtime.
-2. **Homebrew formula** — `plein check`, `plein inspect`, `plein export`, `plein import`, and `plein export-open-exchange` on the CLI. Homebrew provides Node.
+2. **Homebrew formula** — `plein check`, `plein inspect`, `plein format`, `plein export`, `plein import`, and `plein export-open-exchange` on the CLI. Homebrew provides Node.
 
 ## What we ship
 

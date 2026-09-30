@@ -8,6 +8,7 @@ import {
   isExportFormat,
   type ExportFormat,
 } from "./export.js";
+import { FormatError, formatPleinSource } from "./format.js";
 import { formatInspect, inspectModel } from "./inspect.js";
 import { loadPleinSource } from "./list-model.js";
 import {
@@ -23,12 +24,26 @@ function usage(): never {
   console.error(`Usage:
   plein check <file.plein>
   plein inspect <file.plein>
+  plein format <file.plein> [--write | -o <file>] [--check]
   plein export <file.plein> [--view <name>] [--format html|svg|both] [-o <file>]
   plein import <file.xml> [-o <file.plein>]
   plein export-open-exchange <file.plein> [-o <file.xml>]
 
 Inspect writes the loaded model as JSON (elements, relationships, and views).
 No diagram is rendered.
+
+format rewrites .plein to a stable canonical layout (2-space indent).
+Model order: profile and specialization declarations (source order), elements
+(source order), then relationships (source order). Value-stream stages stay
+nested. View clauses: include, exclude, autoLayout, nesting, position.
+autoLayout tokens: mode, grid order, direction, routing. Defaults are omitted
+(layered, kind, tb, orthogonal). nesting beside is omitted; nested is kept.
+Keywords are kebab-case. Relationships are \`id -> id: <type>\` using the
+language-reference spellings (serving, composition, …). A title is written on
+the viewpoint header. // comments are kept. Formatting twice changes nothing.
+Without --write or -o, the canonical source is written to stdout.
+--check exits 0 when the file is already canonical, and non-zero otherwise.
+See docs/plein-dsl-archimate-4.md.
 
 Export one named viewpoint to a self-contained HTML page and/or SVG.
 Open the file in a browser; the Mac app does not need to be running.
@@ -76,6 +91,93 @@ function runCheck(fileArg: string): void {
     }
     throw error;
   }
+}
+
+type FormatArgs = {
+  file: string;
+  output?: string;
+  write: boolean;
+  check: boolean;
+};
+
+function parseFormatArgs(argv: string[]): FormatArgs {
+  let output: string | undefined;
+  let write = false;
+  let check = false;
+  const positionals: string[] = [];
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--help" || arg === "-h") {
+      usage();
+    }
+    if (arg === "--write" || arg === "-w") {
+      write = true;
+      continue;
+    }
+    if (arg === "--check") {
+      check = true;
+      continue;
+    }
+    if (arg.startsWith("--output=")) {
+      output = requireValue(arg.slice("--output=".length));
+      continue;
+    }
+    if (arg === "-o" || arg === "--output") {
+      output = requireValue(argv[++i]);
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      usage();
+    }
+    positionals.push(arg);
+  }
+
+  if (positionals.length !== 1) {
+    usage();
+  }
+  if (check && (write || output)) {
+    console.error("error: --check does not write a file");
+    process.exit(2);
+  }
+  if (write && output) {
+    console.error("error: use either --write or -o, not both");
+    process.exit(2);
+  }
+  return { file: positionals[0]!, output, write, check };
+}
+
+function runFormat(argv: string[]): void {
+  const args = parseFormatArgs(argv);
+  const source = readSource(args.file);
+  let formatted: string;
+  try {
+    formatted = formatPleinSource(source, args.file);
+  } catch (error) {
+    if (error instanceof ParseError || error instanceof FormatError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  if (args.check) {
+    if (formatted === source) {
+      console.log(`ok ${args.file}`);
+      return;
+    }
+    console.error(`would reformat ${args.file}`);
+    process.exit(1);
+  }
+
+  if (!args.write && !args.output) {
+    process.stdout.write(formatted);
+    return;
+  }
+
+  const target = args.write ? args.file : args.output!;
+  writeText(target, formatted);
+  console.log(`formatted ${target}`);
 }
 
 function runInspect(fileArg: string): void {
@@ -400,6 +502,10 @@ async function main(): Promise<void> {
       usage();
     }
     runInspect(args[1]);
+    return;
+  }
+  if (command === "format") {
+    runFormat(args.slice(1));
     return;
   }
   if (command === "export") {

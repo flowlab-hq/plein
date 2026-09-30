@@ -119,6 +119,7 @@ git clone https://github.com/flowlab-hq/plein.git
 cd plein
 plein check fixtures/valid-basic.plein
 plein inspect fixtures/valid-basic.plein
+plein format fixtures/valid-basic.plein
 plein export fixtures/valid-basic.plein --view booking-context -o booking-context.html
 open booking-context.html
 plein import fixtures/open-exchange/booking.xml -o booking.plein
@@ -135,6 +136,7 @@ Expected walkthrough:
 * `plein check fixtures/samples/value-stream-demo.plein` prints `ok fixtures/samples/value-stream-demo.plein (...)` and exits 0.
 * `plein check fixtures/valid-basic.plein` prints `ok fixtures/valid-basic.plein (...)` and exits 0.
 * `plein inspect fixtures/valid-basic.plein` prints JSON for that model (`"id": "shipper"`, `"name": "booking-context"`) and exits 0.
+* `plein format fixtures/format-messy.plein` prints the canonical layout (same bytes as `fixtures/golden-format-messy.plein`) and exits 0. `plein format --check fixtures/golden-format-messy.plein` prints `ok` and exits 0.
 * `plein check fixtures/broken-syntax.plein` prints a line-oriented diagnostic (for example `expected '}' to close plein`) and exits non-zero.
 * `plein inspect fixtures/broken-syntax.plein` prints that same class of diagnostic and exits non-zero.
 
@@ -159,6 +161,8 @@ Structural check: load a model (elements, typed relationships, and views) and ex
 
 `plein inspect` writes that same loaded model as JSON on stdout (elements, relationships, and views, in document order). It does not render a diagram. Parse errors use the same diagnostics and a non-zero exit as `plein check`. See [Inspect a model](#inspect-a-model).
 
+`plein format` rewrites a `.plein` file to one canonical layout (2-space indent, stable statement and view-clause order) so a pull request diff stays readable. Formatting twice changes nothing. See [Format a model](#format-a-model).
+
 Mac users should prefer the Homebrew steps above. From a source checkout (any OS with Node 18+):
 
 ```bash
@@ -167,11 +171,12 @@ npm run build
 npx plein check fixtures/samples/value-stream-demo.plein
 npx plein check fixtures/valid-basic.plein
 npx plein inspect fixtures/valid-basic.plein
+npx plein format fixtures/format-messy.plein
 npm run check:fixtures
 npm test
 ```
 
-GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the inspect JSON golden, the HTML/SVG export golden, and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
+GitHub Actions (**Check fixtures**) installs the CLI, runs `npm test` (including the inspect JSON golden, the format before/after golden, the HTML/SVG export golden, and the Open Exchange import/export golden), and runs `npm run check:fixtures`: golden models in [fixtures/](fixtures/README.md) must exit 0; expected-fail fixtures must exit non-zero. The job fails if a golden check fails or an expected-fail fixture unexpectedly passes.
 
 See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document shape and vocabulary. Canonical typed relationships are `composedOf`, `aggregates`, `assignedTo`, `realizes`, `serves`, `accesses`, `influences`, `triggers`, `flowsTo`, `specializes`, and `associatedWith` (language-reference names such as `serving` are aliases). A custom concept is a declared specialization (`specialization customer specializes business-actor`); an undeclared name is rejected. An organization pack is a `profile` (alias `organization`) of those specializations; `hook <name>` applies a declared profile hook, and an undeclared hook is rejected.
 
@@ -189,6 +194,24 @@ Golden snapshot: [fixtures/golden-inspect-valid-basic.json](fixtures/golden-insp
 
 ```bash
 npx plein inspect fixtures/valid-basic.plein > fixtures/golden-inspect-valid-basic.json
+```
+
+### Format a model
+
+`plein format` loads a `.plein` file with the same check as `plein check` and writes a canonical layout. Indentation is two spaces. Inside `model`, profile and specialization declarations stay in source order, then elements, then relationships. Value-stream stages stay nested. Inside a view the clause order is `include`, `exclude`, `autoLayout`, `nesting`, `position`. `autoLayout` tokens are mode, grid order, direction, then routing; defaults (`layered`, `kind`, `tb`, `orthogonal`) are omitted. `nesting beside` is omitted. Keywords are kebab-case. Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, not `serves`). A view title is written on the `viewpoint` header. `//` comments are kept. The full key order is [Canonical layout](docs/plein-dsl-archimate-4.md#canonical-layout-plein-format).
+
+```bash
+plein format fixtures/format-messy.plein
+plein format --write fixtures/format-messy.plein
+plein format --check fixtures/golden-format-messy.plein
+```
+
+Without `--write` or `-o`, the canonical source goes to stdout and the file is left untouched. `--write` rewrites the file in place and prints `formatted <path>`. `-o <file>` writes that path instead. `--check` exits 0 and prints `ok <path>` when the bytes are already canonical; otherwise it prints `would reformat <path>` on stderr and exits non-zero. It does not write. A missing file, a syntax error, an unknown keyword, or a malformed view uses the same non-zero diagnostic as `plein check`.
+
+Formatting twice yields the same bytes. Golden pair: [fixtures/format-messy.plein](fixtures/format-messy.plein) → [fixtures/golden-format-messy.plein](fixtures/golden-format-messy.plein). `npm test` (`src/format.test.ts`) fails if that pair drifts, and it formats every other valid fixture twice. Refresh the golden with:
+
+```bash
+npx plein format fixtures/format-messy.plein > fixtures/golden-format-messy.plein
 ```
 
 ### Export a named view

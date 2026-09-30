@@ -6,7 +6,7 @@
 #   brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein
 #   brew install plein
 class Plein < Formula
-  desc "Check, inspect, render, and exchange Plein ArchiMate model files"
+  desc "Check, inspect, format, render, and exchange Plein ArchiMate model files"
   homepage "https://github.com/flowlab-hq/plein"
   # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
   # Additional Competing Use terms in LICENSE. GitHub may show Other / View license.
@@ -42,6 +42,7 @@ class Plein < Formula
       Plein is a command-line tool (no GUI).
       Apple Silicon is the supported Mac target. Intel Macs are out of scope.
       plein inspect writes the loaded model as JSON (elements, relationships, and views).
+      plein format rewrites .plein to a stable canonical layout (stdout, or --write / -o).
       plein export writes a self-contained HTML or SVG file you can open in a browser.
       plein import and plein export-open-exchange read and write the documented Open Exchange subset.
     EOS
@@ -67,6 +68,21 @@ class Plein < Formula
     assert_match(/"source": "shipper"/, inspected)
     assert_match(/"target": "booking"/, inspected)
     assert_match(/"views": \[\]/, inspected)
+
+    messy = testpath/"messy.plein"
+    messy.write <<~EOS
+      model {
+        businessActor "Shipper" as shipper
+        business-service "Booking service" as booking
+        shipper serves booking
+      }
+    EOS
+    formatted = shell_output("#{bin}/plein format #{messy}")
+    assert_match(/business-actor "Shipper" as shipper/, formatted)
+    assert_match(/shipper -> booking: serving/, formatted)
+    assert_equal formatted, shell_output("#{bin}/plein format #{messy}")
+    system bin/"plein", "format", "--write", messy
+    assert_match(/^ok /, shell_output("#{bin}/plein format --check #{messy}"))
 
     broken = testpath/"broken.plein"
     broken.write <<~EOS

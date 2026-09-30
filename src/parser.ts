@@ -40,6 +40,19 @@ export type ElementDecl = {
    * in the model.
    */
   profile?: string;
+  /**
+   * True when `specialization` was attached with `hook <name>` after the id.
+   * False when the specialization name was the element keyword.
+   */
+  viaHook?: boolean;
+  /** Parent value-stream id when this element is a nested stage. */
+  container?: string;
+  /** Source order among model statements. Used by `plein format`. */
+  order?: number;
+  /** `//` comments immediately above this declaration, text after `//`. */
+  leadingComments?: string[];
+  /** `//` comments after the last nested statement, before the value-stream brace. */
+  trailingComments?: string[];
 };
 
 /**
@@ -55,6 +68,10 @@ export type SpecializationDecl = {
   line: number;
   /** Set when this specialization is a hook inside a profile. */
   profile?: string;
+  /** Source order among model statements. Used by `plein format`. */
+  order?: number;
+  /** `//` comments immediately above this declaration, text after `//`. */
+  leadingComments?: string[];
 };
 
 /**
@@ -64,6 +81,12 @@ export type SpecializationDecl = {
 export type ProfileDecl = {
   name: string;
   line: number;
+  /** Source order among model statements. Used by `plein format`. */
+  order?: number;
+  /** `//` comments immediately above this declaration, text after `//`. */
+  leadingComments?: string[];
+  /** `//` comments after the last hook, before the profile's closing brace. */
+  trailingComments?: string[];
 };
 
 export type RelationshipDecl = {
@@ -71,6 +94,17 @@ export type RelationshipDecl = {
   source: string;
   target: string;
   line: number;
+  /** Parent value-stream id when this relationship was written inside its body. */
+  container?: string;
+  /**
+   * True for the `composedOf` edge synthesized from a nested stage.
+   * The formatter omits it; nesting syntax puts it back on the next parse.
+   */
+  synthetic?: boolean;
+  /** Source order among model statements. Used by `plein format`. */
+  order?: number;
+  /** `//` comments immediately above this relationship, text after `//`. */
+  leadingComments?: string[];
 };
 
 /** Top-left of one element when auto-layout is off. Ignored while auto-layout is on. */
@@ -79,6 +113,8 @@ export type PositionDecl = {
   x: number;
   y: number;
   line: number;
+  /** `//` comments immediately above this `position` clause, text after `//`. */
+  leadingComments?: string[];
 };
 
 export type ViewDecl = {
@@ -101,6 +137,26 @@ export type ViewDecl = {
    */
   nesting?: string;
   line: number;
+  /** Source order among views. Used by `plein format`. */
+  order?: number;
+  /** `//` comments immediately above this view, text after `//`. */
+  leadingComments?: string[];
+  /** Comments that belonged to a `title` clause. Printed above the view. */
+  titleComments?: string[];
+  includeComments?: string[];
+  excludeComments?: string[];
+  autoLayoutComments?: string[];
+  nestingComments?: string[];
+  /** `//` comments after the last clause, before the view's closing brace. */
+  trailingComments?: string[];
+};
+
+/** One ignored `styles` block. `body` is the source inside the braces. */
+export type StyleBlock = {
+  body: string;
+  /** Source order among top-level blocks. Used by `plein format`. */
+  order?: number;
+  leadingComments?: string[];
 };
 
 export type PleinModel = {
@@ -109,15 +165,33 @@ export type PleinModel = {
   views: ViewDecl[];
   specializations: SpecializationDecl[];
   profiles: ProfileDecl[];
+  /** `//` comments before the first block, text after `//`. */
+  headerComments?: string[];
+  /** `//` comments inside `plein` after the last block. */
+  footerComments?: string[];
+  /** `//` comments after the closing document brace. */
+  trailingComments?: string[];
+  /** Comments immediately above `model` blocks, in source order. */
+  modelComments?: string[];
+  /** Comments after the last model statement, before `model`'s closing brace. */
+  modelTrailingComments?: string[];
+  /** Comments immediately above `views` blocks, in source order. */
+  viewsComments?: string[];
+  /** Comments after the last view, before `views`' closing brace. */
+  viewsTrailingComments?: string[];
+  /** Ignored `styles` blocks, preserved so `plein format` can reprint them. */
+  styles?: StyleBlock[];
 };
 
-type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "other" | "eof";
+type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "comment" | "other" | "eof";
 
 type Token = {
   kind: TokenKind;
   value: string;
   line: number;
   column: number;
+  /** Index of this token in the source. Used to slice an ignored `styles` body. */
+  offset: number;
 };
 
 const IDENT_START = /[A-Za-z_*]/;
@@ -213,10 +287,15 @@ function tokenize(source: string, file: string): Token[] {
     return ch;
   };
 
+  const push = (kind: TokenKind, value: string, startLine: number, startColumn: number, offset: number): void => {
+    tokens.push({ kind, value, line: startLine, column: startColumn, offset });
+  };
+
   while (i < source.length) {
     const ch = source[i] ?? "";
     const startLine = line;
     const startColumn = column;
+    const startOffset = i;
 
     if (ch === " " || ch === "\t" || ch === "\r" || ch === "\n") {
       advance();
@@ -224,34 +303,38 @@ function tokenize(source: string, file: string): Token[] {
     }
 
     if (ch === "/" && source[i + 1] === "/") {
+      advance();
+      advance();
+      let text = "";
       while (i < source.length && source[i] !== "\n") {
-        advance();
+        text += advance();
       }
+      push("comment", text.trim(), startLine, startColumn, startOffset);
       continue;
     }
 
     if (ch === "{") {
       advance();
-      tokens.push({ kind: "{", value: "{", line: startLine, column: startColumn });
+      push("{", "{", startLine, startColumn, startOffset);
       continue;
     }
 
     if (ch === "}") {
       advance();
-      tokens.push({ kind: "}", value: "}", line: startLine, column: startColumn });
+      push("}", "}", startLine, startColumn, startOffset);
       continue;
     }
 
     if (ch === ":") {
       advance();
-      tokens.push({ kind: ":", value: ":", line: startLine, column: startColumn });
+      push(":", ":", startLine, startColumn, startOffset);
       continue;
     }
 
     if (ch === "-" && source[i + 1] === ">") {
       advance();
       advance();
-      tokens.push({ kind: "->", value: "->", line: startLine, column: startColumn });
+      push("->", "->", startLine, startColumn, startOffset);
       continue;
     }
 
@@ -266,7 +349,7 @@ function tokenize(source: string, file: string): Token[] {
           value += advance();
         }
       }
-      tokens.push({ kind: "number", value, line: startLine, column: startColumn });
+      push("number", value, startLine, startColumn, startOffset);
       continue;
     }
 
@@ -283,7 +366,7 @@ function tokenize(source: string, file: string): Token[] {
         throw new ParseError("unterminated string", file, startLine, startColumn);
       }
       advance();
-      tokens.push({ kind: "string", value, line: startLine, column: startColumn });
+      push("string", value, startLine, startColumn, startOffset);
       continue;
     }
 
@@ -299,23 +382,25 @@ function tokenize(source: string, file: string): Token[] {
         }
         value += advance();
       }
-      tokens.push({ kind: "ident", value, line: startLine, column: startColumn });
+      push("ident", value, startLine, startColumn, startOffset);
       continue;
     }
 
     // Styles (and include-list commas) may contain punctuation we do not treat as syntax.
     advance();
-    tokens.push({ kind: "other", value: ch, line: startLine, column: startColumn });
+    push("other", ch, startLine, startColumn, startOffset);
   }
 
-  tokens.push({ kind: "eof", value: "", line, column });
+  tokens.push({ kind: "eof", value: "", line, column, offset: i });
   return tokens;
 }
 
 class Parser {
   private readonly tokens: Token[];
+  private readonly source: string;
   private readonly file: string;
   private index = 0;
+  private nextOrder = 0;
   private readonly elements: ElementDecl[] = [];
   private readonly relationships: RelationshipDecl[] = [];
   private readonly views: ViewDecl[] = [];
@@ -325,21 +410,33 @@ class Parser {
   private readonly profileByName = new Map<string, ProfileDecl>();
   /** Profile whose body is currently being parsed, if any. */
   private currentProfile: string | undefined;
+  private headerComments: string[] = [];
+  private footerComments: string[] = [];
+  private trailingComments: string[] = [];
+  private modelComments: string[] = [];
+  private modelTrailingComments: string[] = [];
+  private viewsComments: string[] = [];
+  private viewsTrailingComments: string[] = [];
+  private readonly styles: StyleBlock[] = [];
 
   constructor(source: string, file: string) {
+    this.source = source;
     this.file = file;
     this.tokens = tokenize(source, file);
   }
 
   parse(): PleinModel {
+    this.headerComments = this.drainComments();
     if (this.checkIdent("plein")) {
       this.advance();
       this.expect("{", "expected '{' after plein");
       this.parseTopLevelBlocks();
+      this.footerComments.push(...this.drainComments());
       this.expect("}", "expected '}' to close plein");
     } else {
       this.parseTopLevelBlocks();
     }
+    this.trailingComments = this.drainComments();
     this.expect("eof", "unexpected input after document");
     return {
       elements: this.elements,
@@ -347,22 +444,40 @@ class Parser {
       views: this.views,
       specializations: this.specializations,
       profiles: this.profiles,
+      ...(this.headerComments.length > 0 ? { headerComments: this.headerComments } : {}),
+      ...(this.footerComments.length > 0 ? { footerComments: this.footerComments } : {}),
+      ...(this.trailingComments.length > 0 ? { trailingComments: this.trailingComments } : {}),
+      ...(this.modelComments.length > 0 ? { modelComments: this.modelComments } : {}),
+      ...(this.modelTrailingComments.length > 0
+        ? { modelTrailingComments: this.modelTrailingComments }
+        : {}),
+      ...(this.viewsComments.length > 0 ? { viewsComments: this.viewsComments } : {}),
+      ...(this.viewsTrailingComments.length > 0
+        ? { viewsTrailingComments: this.viewsTrailingComments }
+        : {}),
+      ...(this.styles.length > 0 ? { styles: this.styles } : {}),
     };
   }
 
   private parseTopLevelBlocks(): void {
     while (!this.check("}") && !this.check("eof")) {
+      const comments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        this.footerComments.push(...comments);
+        break;
+      }
       if (this.checkIdent("model")) {
+        this.modelComments.push(...comments);
         this.parseModel();
         continue;
       }
       if (this.checkIdent("views")) {
+        this.viewsComments.push(...comments);
         this.parseViews();
         continue;
       }
       if (this.checkIdent("styles")) {
-        this.advance();
-        this.skipBlock();
+        this.captureStyles(comments);
         continue;
       }
       const token = this.peek();
@@ -379,12 +494,17 @@ class Parser {
     this.advance();
     this.expect("{", "expected '{' after model");
     while (!this.check("}") && !this.check("eof")) {
-      this.parseModelStatement();
+      const comments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        this.modelTrailingComments.push(...comments);
+        break;
+      }
+      this.parseModelStatement(comments);
     }
     this.expect("}", "expected '}' to close model");
   }
 
-  private parseModelStatement(): void {
+  private parseModelStatement(comments: string[]): void {
     const first = this.expect("ident", "expected element keyword or relationship source");
     if (isValueStreamStageKeyword(first.value)) {
       throw new ParseError(
@@ -395,14 +515,14 @@ class Parser {
       );
     }
     if (first.value === "specialization" && this.isSpecializationDeclaration()) {
-      this.parseSpecialization(first);
+      this.parseSpecialization(first, comments);
       return;
     }
     if (this.isProfileKeyword(first.value) && this.isProfileDeclaration()) {
-      this.parseProfile(first);
+      this.parseProfile(first, comments);
       return;
     }
-    this.parseElementOrRelationship(first, { valueStreamBody: false });
+    this.parseElementOrRelationship(first, { valueStreamBody: false }, comments);
   }
 
   private isProfileKeyword(value: string): boolean {
@@ -421,15 +541,22 @@ class Parser {
     return this.tokens[this.index + 1]?.kind === "{";
   }
 
-  private parseProfile(start: Token): void {
+  private parseProfile(start: Token, comments: string[]): void {
     const name = this.expect("ident", "expected profile name");
     this.expect("{", "expected '{' after profile name");
-    this.addProfile(start, name);
+    const decl = this.addProfile(start, name, comments);
     this.currentProfile = name.value;
     while (!this.check("}") && !this.check("eof")) {
+      const hookComments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        if (hookComments.length > 0) {
+          decl.trailingComments = [...(decl.trailingComments ?? []), ...hookComments];
+        }
+        break;
+      }
       const first = this.expect("ident", "expected specialization in profile");
       if (first.value === "specialization" && this.isSpecializationDeclaration()) {
-        this.parseSpecialization(first);
+        this.parseSpecialization(first, hookComments);
         continue;
       }
       throw new ParseError(
@@ -443,7 +570,7 @@ class Parser {
     this.currentProfile = undefined;
   }
 
-  private addProfile(start: Token, name: Token): void {
+  private addProfile(start: Token, name: Token, comments: string[]): ProfileDecl {
     if (resolveElementKeyword(name.value) !== undefined || isValueStreamStageKeyword(name.value)) {
       throw new ParseError(
         `profile '${name.value}' collides with catalogue keyword '${name.value}'`,
@@ -482,9 +609,12 @@ class Parser {
     const decl: ProfileDecl = {
       name: name.value,
       line: start.line,
+      order: this.nextOrder++,
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
     };
     this.profiles.push(decl);
     this.profileByName.set(name.value, decl);
+    return decl;
   }
 
   /**
@@ -506,7 +636,7 @@ class Parser {
     return true;
   }
 
-  private parseSpecialization(start: Token): void {
+  private parseSpecialization(start: Token, comments: string[]): void {
     const name = this.expect("ident", "expected specialization name");
     const verb = this.expect("ident", "expected 'specializes' after specialization name");
     if (resolveRelationshipKeyword(verb.value) !== "specializes") {
@@ -528,7 +658,7 @@ class Parser {
         parentToken.column,
       );
     }
-    this.addSpecialization(start, name, parentToken.value, catalogue ?? parentDecl!.keyword);
+    this.addSpecialization(start, name, parentToken.value, catalogue ?? parentDecl!.keyword, comments);
   }
 
   private addSpecialization(
@@ -536,6 +666,7 @@ class Parser {
     name: Token,
     parent: string,
     keyword: ElementKeyword,
+    comments: string[],
   ): void {
     if (resolveElementKeyword(name.value) !== undefined || isValueStreamStageKeyword(name.value)) {
       throw new ParseError(
@@ -577,6 +708,8 @@ class Parser {
       parent,
       keyword,
       line: start.line,
+      order: this.nextOrder++,
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
     };
     if (this.currentProfile) {
       decl.profile = this.currentProfile;
@@ -588,6 +721,7 @@ class Parser {
   private parseElementOrRelationship(
     first: Token,
     options: { valueStreamBody: boolean; parentId?: string },
+    comments: string[],
   ): void {
     const elementKeyword = resolveElementKeyword(first.value);
     const specialization = options.valueStreamBody
@@ -655,6 +789,9 @@ class Parser {
         label,
         id: id.value,
         line: first.line,
+        order: this.nextOrder++,
+        ...(comments.length > 0 ? { leadingComments: comments } : {}),
+        ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
       };
       if (hookName && specialization) {
         throw new ParseError(
@@ -672,6 +809,7 @@ class Parser {
       }
       if (hookName) {
         this.applyProfileHook(element, hookName);
+        element.viaHook = true;
       }
       this.elements.push(element);
       if (options.valueStreamBody && options.parentId) {
@@ -680,6 +818,8 @@ class Parser {
           source: options.parentId,
           target: id.value,
           line: first.line,
+          synthetic: true,
+          order: this.nextOrder++,
         });
       }
       if (!options.valueStreamBody && keyword === "valueStream" && this.check("{")) {
@@ -711,7 +851,7 @@ class Parser {
           typeToken.column,
         );
       }
-      this.pushRelationship(first, target, type, typeToken, options.valueStreamBody);
+      this.pushRelationship(first, target, type, typeToken, options, comments);
       return;
     }
 
@@ -722,7 +862,7 @@ class Parser {
         throw new ParseError("unknown relationship type", this.file, first.line, first.column);
       }
       const target = this.expect("ident", "expected relationship target");
-      this.pushRelationship(first, target, type, typeToken, options.valueStreamBody);
+      this.pushRelationship(first, target, type, typeToken, options, comments);
       return;
     }
 
@@ -812,7 +952,15 @@ class Parser {
 
   private parseValueStreamBody(parentId: string): void {
     this.expect("{", "expected '{' after valueStream");
+    const parent = this.elements[this.elements.length - 1];
     while (!this.check("}") && !this.check("eof")) {
+      const comments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        if (comments.length > 0 && parent && parent.id === parentId) {
+          parent.trailingComments = [...(parent.trailingComments ?? []), ...comments];
+        }
+        break;
+      }
       const first = this.expect("ident", "expected valueStreamStage or relationship source");
       if (first.value === "specialization" && this.isSpecializationDeclaration()) {
         throw new ParseError(
@@ -830,7 +978,7 @@ class Parser {
           first.column,
         );
       }
-      this.parseElementOrRelationship(first, { valueStreamBody: true, parentId });
+      this.parseElementOrRelationship(first, { valueStreamBody: true, parentId }, comments);
     }
     this.expect("}", "expected '}' to close valueStream");
   }
@@ -840,9 +988,10 @@ class Parser {
     target: Token,
     type: RelationshipKeyword,
     typeToken: Token,
-    valueStreamBody: boolean,
+    options: { valueStreamBody: boolean; parentId?: string },
+    comments: string[],
   ): void {
-    if (valueStreamBody && !isValueStreamStageLink(type)) {
+    if (options.valueStreamBody && !isValueStreamStageLink(type)) {
       throw new ParseError(
         `value stream stages may only use flowsTo or triggers (got '${type}')`,
         this.file,
@@ -855,6 +1004,9 @@ class Parser {
       source: source.value,
       target: target.value,
       line: source.line,
+      order: this.nextOrder++,
+      ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
     });
   }
 
@@ -862,12 +1014,17 @@ class Parser {
     this.advance();
     this.expect("{", "expected '{' after views");
     while (!this.check("}") && !this.check("eof")) {
+      const comments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        this.viewsTrailingComments.push(...comments);
+        break;
+      }
       if (this.checkIdent("view")) {
-        this.parseNamedView();
+        this.parseNamedView(comments);
         continue;
       }
       if (this.checkIdent("viewpoint")) {
-        this.parseViewpoint();
+        this.parseViewpoint(comments);
         continue;
       }
       const token = this.peek();
@@ -881,7 +1038,7 @@ class Parser {
     this.expect("}", "expected '}' to close views");
   }
 
-  private parseNamedView(): void {
+  private parseNamedView(comments: string[]): void {
     const start = this.advance();
     const name = this.expect("ident", "expected view name");
     this.expect("{", "expected '{' after view name");
@@ -891,11 +1048,13 @@ class Parser {
       excludes: [],
       positions: [],
       line: start.line,
+      order: this.nextOrder++,
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
     });
     this.views.push(view);
   }
 
-  private parseViewpoint(): void {
+  private parseViewpoint(comments: string[]): void {
     const start = this.advance();
     const viewpoint = this.expect("ident", "expected viewpoint keyword");
     let title: string | undefined;
@@ -911,6 +1070,8 @@ class Parser {
       excludes: [],
       positions: [],
       line: start.line,
+      order: this.nextOrder++,
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
     });
     this.views.push(view);
   }
@@ -919,20 +1080,32 @@ class Parser {
     const positions = view.positions ?? [];
     view.positions = positions;
     while (!this.check("}") && !this.check("eof")) {
+      const comments = this.drainComments();
+      if (this.check("}") || this.check("eof")) {
+        if (comments.length > 0) {
+          view.trailingComments = [...(view.trailingComments ?? []), ...comments];
+        }
+        break;
+      }
       if (this.checkIdent("include")) {
         const clause = this.advance();
-        view.includes.push(...this.parseSelectorList("include", clause));
+        const inline: string[] = [];
+        view.includes.push(...this.parseSelectorList("include", clause, inline));
+        this.attachClauseComments(view, "includeComments", [...comments, ...inline]);
         continue;
       }
       if (this.checkIdent("exclude")) {
         const clause = this.advance();
-        view.excludes.push(...this.parseSelectorList("exclude", clause));
+        const inline: string[] = [];
+        view.excludes.push(...this.parseSelectorList("exclude", clause, inline));
+        this.attachClauseComments(view, "excludeComments", [...comments, ...inline]);
         continue;
       }
       if (this.checkIdent("title")) {
         this.advance();
         const title = this.expect("string", "expected quoted title after title");
         view.title = title.value;
+        this.attachClauseComments(view, "titleComments", comments);
         continue;
       }
       if (this.checkIdent("autoLayout")) {
@@ -942,6 +1115,7 @@ class Parser {
           tokens.push(this.advance());
         }
         view.autoLayout = this.parseAutoLayoutTokens(tokens);
+        this.attachClauseComments(view, "autoLayoutComments", comments);
         continue;
       }
       if (this.checkIdent("position")) {
@@ -957,7 +1131,13 @@ class Parser {
             id.column,
           );
         }
-        positions.push({ id: id.value, x, y, line: start.line });
+        positions.push({
+          id: id.value,
+          x,
+          y,
+          line: start.line,
+          ...(comments.length > 0 ? { leadingComments: comments } : {}),
+        });
         continue;
       }
       if (this.checkIdent("nesting")) {
@@ -976,6 +1156,7 @@ class Parser {
         } else {
           view.nesting = "nested";
         }
+        this.attachClauseComments(view, "nestingComments", comments);
         continue;
       }
       const token = this.peek();
@@ -990,9 +1171,27 @@ class Parser {
     return view;
   }
 
-  private parseSelectorList(verb: string, start: Token): string[] {
+  private attachClauseComments(
+    view: ViewDecl,
+    key: "includeComments" | "excludeComments" | "titleComments" | "autoLayoutComments" | "nestingComments",
+    comments: string[],
+  ): void {
+    if (comments.length === 0) {
+      return;
+    }
+    view[key] = [...(view[key] ?? []), ...comments];
+  }
+
+  private parseSelectorList(verb: string, start: Token, inlineComments: string[]): string[] {
     const selectors: string[] = [];
     while (!this.check("}") && !this.check("eof") && !this.isViewClauseStart()) {
+      if (this.check("comment")) {
+        if (!this.commentContinuesList()) {
+          break;
+        }
+        inlineComments.push(...this.drainComments());
+        continue;
+      }
       const token = this.peek();
       if (token.kind === "ident" || token.kind === "string") {
         selectors.push(this.advance().value);
@@ -1013,6 +1212,25 @@ class Parser {
       throw new ParseError(`expected selector after ${verb}`, this.file, start.line, start.column);
     }
     return selectors;
+  }
+
+  /** A comment inside an include/exclude list stays with that list when another selector follows. */
+  private commentContinuesList(): boolean {
+    let index = this.index;
+    while (this.tokens[index]?.kind === "comment") {
+      index += 1;
+    }
+    const token = this.tokens[index];
+    if (!token) {
+      return false;
+    }
+    if (token.kind === "ident" && VIEW_CLAUSES.has(token.value)) {
+      return false;
+    }
+    if (token.kind === "ident" || token.kind === "string") {
+      return true;
+    }
+    return token.kind === "other" && token.value === ",";
   }
 
   private isViewClauseStart(): boolean {
@@ -1127,9 +1345,11 @@ class Parser {
     return tokens.map((token) => token.value).join(" ");
   }
 
-  private skipBlock(): void {
-    this.expect("{", "expected '{' to open ignored block");
+  private captureStyles(comments: string[]): void {
+    this.advance();
+    const open = this.expect("{", "expected '{' to open ignored block");
     let depth = 1;
+    let closeOffset = open.offset;
     while (depth > 0) {
       const token = this.peek();
       if (token.kind === "eof") {
@@ -1139,9 +1359,25 @@ class Parser {
         depth += 1;
       } else if (token.kind === "}") {
         depth -= 1;
+        if (depth === 0) {
+          closeOffset = token.offset;
+        }
       }
       this.advance();
     }
+    this.styles.push({
+      body: this.source.slice(open.offset + 1, closeOffset),
+      order: this.nextOrder++,
+      ...(comments.length > 0 ? { leadingComments: comments } : {}),
+    });
+  }
+
+  private drainComments(): string[] {
+    const comments: string[] = [];
+    while (this.check("comment")) {
+      comments.push(this.advance().value);
+    }
+    return comments;
   }
 
   private peek(): Token {

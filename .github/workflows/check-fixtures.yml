@@ -7,7 +7,7 @@
 # unexpectedly passes. Fixture lists live in scripts/check-fixtures.sh
 # and must stay aligned with fixtures/README.md (Moss).
 #
-#   golden:        valid-basic, valid-views, valid-catalogue-layers,
+#   golden:        valid-basic, format-messy, golden-format-messy, valid-views, valid-catalogue-layers,
 #                  valid-layer-bands, valid-organic-grid, valid-manual-layout, valid-value-stream-stages,
 #                  valid-specialization, valid-profile,
 #                  samples/value-stream-demo, samples/research-data,
