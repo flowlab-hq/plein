@@ -22,15 +22,15 @@ plein {
     booking -> order: accesses
     rates -> booking: realizes
     rates -> rateCard: accesses
-    rateApi -> rates: composedOf
-    cloud -> rates: aggregates
-    orderApi -> booking: serves
-    planning -> bookFreight: realizes
-    onTime -> booking: influences
+    rates -> rateApi: composedOf
+    cloud -> rates: serves
+    orderApi -> booking: realizes
+    planning -> bookFreight: associatedWith
+    booking -> onTime: influences
     order -> rateCard: associatedWith
     bookFreight -> booking: flowsTo
-    dispatcher -> shipper: specializes
-    rollout -> booking: assignedTo
+    dispatcher -> shipper: associatedWith
+    rollout -> booking: realizes
     cargoOwner -> onTime: associatedWith
   }
 

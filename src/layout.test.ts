@@ -671,38 +671,39 @@ test("autoLayout layers lr places Business left of Application left of Technolog
 
 test("layers mode keeps a mixed-aspect child inside its nested parent", async () => {
   const source = `model {
-  business-collaboration "Booking team" as team
+  plateau "Booking rollout" as rollout
   application-component "TMS" as tms
   business-actor "Shipper" as shipper
   node "Cloud" as cloud
-  team -> tms: composition
+  rollout -> tms: composition
   tms -> shipper: serving
   cloud -> tms: serving
 }
 views {
   view mixed {
-    include team tms shipper cloud
+    include rollout tms shipper cloud
     autoLayout layers
     nesting nested
   }
 }
 `;
   const result = loadPleinSource(source, "mixed-nest-bands.plein");
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, result.ok ? "" : result.error);
   if (!result.ok) {
     return;
   }
   const layout = await layoutViewpoint(result.model, "mixed");
-  const team = layout.nodes.find((node) => node.id === "team");
+  const rollout = layout.nodes.find((node) => node.id === "rollout");
   const tms = layout.nodes.find((node) => node.id === "tms");
   const shipper = layout.nodes.find((node) => node.id === "shipper");
   const cloud = layout.nodes.find((node) => node.id === "cloud");
-  assert.ok(team && tms && shipper && cloud);
-  assert.equal(tms.parentId, "team");
-  assert.equal(isInside(tms, team), true, "application child stays inside the business container");
+  assert.ok(rollout && tms && shipper && cloud);
+  assert.equal(tms.parentId, "rollout");
+  assert.equal(isInside(tms, rollout), true, "application child stays inside the implementation container");
+  assert.ok(shipper.y + shipper.height <= cloud.y, "Business stays above Technology");
   assert.ok(
-    Math.max(team.y + team.height, shipper.y + shipper.height) <= cloud.y,
-    "Business container + sibling stay above Technology",
+    cloud.y + cloud.height <= rollout.y,
+    "nested application child stays in the Implementation band",
   );
 });
 

@@ -4,6 +4,8 @@ Plein is a small, human-editable language for describing ArchiMate 4 models and 
 
 This reference describes the current document shape and vocabulary. It is aligned with the [ArchiMate 4 specification](https://www.opengroup.org/archimate-forum/archimate-overview) and borrows the useful text-first, view-oriented approach of [Structurizr DSL](https://docs.structurizr.com/dsl).
 
+Concrete syntax for a parser: [Grammar](grammar.md) ([`plein.ebnf`](plein.ebnf)). Concept-by-concept correspondence: [Plein constructs and ArchiMate 4](archimate-mapping.md). Allowed relationship pairs stay in the [relationship matrix](relationship-matrix.md).
+
 ## Document shape
 
 A document contains these top-level blocks:
@@ -254,7 +256,7 @@ shipper -> booking: serving
 booking -> order: access
 ```
 
-Write relationships as `id -> id: type`. Do not use infix verbs (`serves`, `aggregates`) between identifiers.
+Write relationships as `id -> id: type`. Do not use infix verbs (`serves`, `aggregates`) between identifiers. The file spelling and the stored keyword for each ArchiMate relationship are in the [mapping](archimate-mapping.md#relationships). The [grammar](grammar.md#relationship) lists both as accepted input.
 
 * **Wrong** (old infix style): `ProductManagement serves SoftwareAndProductServiceLine`
 * **Right:** `productManagement -> softwareAndProductServiceLine: serving`
@@ -274,6 +276,8 @@ Plein supports these eleven relationship types:
 | `flow` | the source transfers something to the target |
 | `specialization` | the source is a specialization of the target |
 | `association` | a generic association between the source and target |
+
+Not every type may connect every pair of elements. `plein check` accepts a relationship only when the source type, the relationship, and the target type are an allowed ArchiMate pair. The table is [the relationship matrix](relationship-matrix.md) (`src/relationship-matrix-data.ts`). A specialization or profile hook is checked as its catalogue type. A `value-stream-stage` is a value stream, so `capability` `serving` a stage, `application-component` `realization` of a `capability`, and `flow` from stage to stage are allowed. An invalid pair fails with a line diagnostic that names the three parts, for example `invalid relationship 'realization' from 'application-component' to 'business-object'`.
 
 ## Views and membership
 
@@ -481,10 +485,10 @@ plein {
     shipper -> booking: serving
     booking -> order: access
     booking -> rates: serving
-    rates -> order: realization
+    rates -> order: access
     tracking -> order: access
-    cloud -> tracking: composition
-    order-api -> tracking: serving
+    cloud -> tracking: serving
+    order-api -> tracking: realization
   }
 
   views {
@@ -685,14 +689,15 @@ Not imported, and not written on export: diagram geometry and styles, organizati
 
 ## Validation notes
 
-A validator should check, at minimum:
+A validator should follow the [grammar](grammar.md) for what parses, then check, at minimum:
 
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
 3. Each relationship uses one of the eleven supported types and has exactly one source and target.
-4. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`, including hooks inside `profile <name> { ... }`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`. `hook <name>` is accepted only for a specialization declared in a profile; an undeclared hook is `undeclared profile hook '…'`.
-5. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.
-6. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
-7. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
+4. The source type, relationship, and target type are an allowed pair in the [relationship matrix](relationship-matrix.md). Specializations and profile hooks are checked as their catalogue type. `value-stream-stage` is a value stream. An invalid pair fails with `invalid relationship '<relationship>' from '<source-type>' to '<target-type>'` at `file:line:column`.
+5. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`, including hooks inside `profile <name> { ... }`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`. `hook <name>` is accepted only for a specialization declared in a profile; an undeclared hook is `undeclared profile hook '…'`.
+6. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.
+7. `value-stream-stage` appears only inside a `value-stream` body; unknown step keywords and nested stage bodies are line diagnostics. Stage-to-stage links inside that body are `flowsTo` or `triggers` (or their language-reference aliases).
+8. Warnings are emitted for unreachable elements, self-links, unused styles, and view selectors that match nothing; warnings need not make a model invalid.
 
 Validation should be deterministic and should not mutate the source. Run `plein check` on the file before merging; checked-in golden and expected-fail models live under `fixtures/` — see [repo layout](repo-layout.md). `plein check` is the same check CI runs (`npm run check:fixtures` in `.github/workflows/check-fixtures.yml`): golden fixtures must exit 0; expected-fail fixtures must exit non-zero. Keep examples small so a pull request can review the markup as architecture.

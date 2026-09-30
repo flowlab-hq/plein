@@ -9,11 +9,11 @@
 #
 #   golden:        valid-basic, format-messy, golden-format-messy, valid-views, valid-catalogue-layers,
 #                  valid-layer-bands, valid-organic-grid, valid-manual-layout, valid-value-stream-stages,
-#                  valid-specialization, valid-profile,
+#                  valid-specialization, valid-profile, valid-relationship-matrix,
 #                  samples/value-stream-demo, samples/research-data,
 #                  open-exchange/booking.plein, open-exchange/booking.roundtrip.plein
 #   expected-fail: broken-syntax, unknown-keyword, unknown-specialization, unknown-profile-hook, malformed-views,
-#                  invalid-value-stream-nesting, unknown-value-stream-step
+#                  invalid-value-stream-nesting, unknown-value-stream-step, invalid-relationship
 name: Check fixtures
 
 on:

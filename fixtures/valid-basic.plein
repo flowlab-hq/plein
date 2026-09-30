@@ -8,7 +8,7 @@ plein {
     shipper -> booking: serving
     booking -> order: access
     booking -> rates: serving
-    rates -> order: realization
+    rates -> order: access
   }
 
   views {

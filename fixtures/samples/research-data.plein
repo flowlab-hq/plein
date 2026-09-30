@@ -21,8 +21,8 @@ plein {
     generalPublic -> findPublishedResearch: triggering
     findPublishedResearch -> requestAccess: triggering
 
-    researchProject -> researchPaper: aggregation
-    researchProject -> researchDataConcept: aggregation
+    researchProject -> researchPaper: access
+    researchProject -> researchDataConcept: access
     eprints -> researchPaper: association
     eprints -> findPublishedResearch: serving
 

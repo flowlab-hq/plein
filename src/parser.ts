@@ -8,6 +8,7 @@ import {
   type ElementKeyword,
   type RelationshipKeyword,
 } from "./keywords.js";
+import { invalidRelationshipMessage, isRelationshipAllowed } from "./relationship-matrix.js";
 
 export class ParseError extends Error {
   readonly file: string;
@@ -94,6 +95,7 @@ export type RelationshipDecl = {
   source: string;
   target: string;
   line: number;
+  column: number;
   /** Parent value-stream id when this relationship was written inside its body. */
   container?: string;
   /**
@@ -818,6 +820,7 @@ class Parser {
           source: options.parentId,
           target: id.value,
           line: first.line,
+          column: first.column,
           synthetic: true,
           order: this.nextOrder++,
         });
@@ -1004,6 +1007,7 @@ class Parser {
       source: source.value,
       target: target.value,
       line: source.line,
+      column: source.column,
       order: this.nextOrder++,
       ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
       ...(comments.length > 0 ? { leadingComments: comments } : {}),
@@ -1457,6 +1461,16 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
         file,
         rel.line,
         1,
+      );
+    }
+    const sourceElement = seen.get(rel.source)!;
+    const targetElement = seen.get(rel.target)!;
+    if (!isRelationshipAllowed(sourceElement.keyword, rel.type, targetElement.keyword)) {
+      throw new ParseError(
+        invalidRelationshipMessage(sourceElement.keyword, rel.type, targetElement.keyword),
+        file,
+        rel.line,
+        rel.column,
       );
     }
   }

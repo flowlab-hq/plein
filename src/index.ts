@@ -139,7 +139,13 @@ export {
   isValueStreamStageLink,
   toKebabCaseKeyword,
   languageReferenceElementKeywords,
+  relationshipLanguageName,
 } from "./keywords.js";
+export {
+  invalidRelationshipMessage,
+  isRelationshipAllowed,
+  RELATIONSHIP_MATRIX,
+} from "./relationship-matrix.js";
 export {
   elementStyle,
   layerOf,
