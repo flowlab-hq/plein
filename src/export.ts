@@ -2,6 +2,11 @@ import { browseNamedView } from "./browser.js";
 import { renderViewpointSvg, type ViewpointLayout } from "./layout.js";
 import type { PleinModel, ViewDecl } from "./parser.js";
 
+export type ExportPaths = {
+  html?: string;
+  svg?: string;
+};
+
 export const EXPORT_FORMATS = ["html", "svg", "both"] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -100,6 +105,21 @@ ${svg}</main>
 }
 
 /**
+ * Static HTML and SVG for a layout that is already on screen
+ * (`browseNamedView` / the Mac canvas). Same writer as `exportNamedView`:
+ * `renderViewpointSvg` plus `wrapViewpointHtml`.
+ */
+export function exportViewpoint(layout: ViewpointLayout, sourceLabel?: string): ExportedView {
+  const svg = renderViewpointSvg(layout);
+  return {
+    viewName: layout.viewName,
+    title: layout.title || layout.viewName,
+    svg,
+    html: wrapViewpointHtml(layout, svg, sourceLabel),
+  };
+}
+
+/**
  * Export one named viewpoint from an already-checked model.
  * Layout and SVG are `browseNamedView` (ELK + `renderViewpointSvg`).
  */
@@ -110,16 +130,46 @@ export async function exportNamedView(
 ): Promise<ExportedView> {
   const view = resolveNamedView(model, viewArg);
   const browsed = await browseNamedView(model, view.name);
-  const svg = browsed.svg;
-  if (svg !== renderViewpointSvg(browsed.layout)) {
+  const exported = exportViewpoint(browsed.layout, sourceLabel);
+  if (exported.svg !== browsed.svg || exported.title !== browsed.title) {
     throw new ExportError("internal: export SVG drifted from renderViewpointSvg");
   }
-  return {
-    viewName: view.name,
-    title: browsed.title,
-    svg,
-    html: wrapViewpointHtml(browsed.layout, svg, sourceLabel),
-  };
+  return exported;
+}
+
+/**
+ * Paths written for one save-panel choice.
+ * `both` writes `<stem>.html` and `<stem>.svg` beside each other,
+ * the same pairing as `plein export --format both -o <stem>`.
+ */
+export function exportSavePaths(pickedPath: string, format: ExportFormat): ExportPaths {
+  const trimmed = pickedPath.trim();
+  if (!trimmed) {
+    throw new ExportError("export path is empty");
+  }
+  if (format === "html") {
+    return { html: forceExportExtension(trimmed, "html") };
+  }
+  if (format === "svg") {
+    return { svg: forceExportExtension(trimmed, "svg") };
+  }
+  const stem = exportPathStem(trimmed);
+  return { html: `${stem}.html`, svg: `${stem}.svg` };
+}
+
+function forceExportExtension(path: string, ext: "html" | "svg"): string {
+  if (new RegExp(`\\.${ext}$`, "i").test(path)) {
+    return path;
+  }
+  return `${exportPathStem(path)}.${ext}`;
+}
+
+function exportPathStem(path: string): string {
+  const stripped = path.replace(/\.(html|svg)$/i, "");
+  if (stripped.length === 0 || stripped.endsWith("/") || stripped.endsWith("\\")) {
+    return `${stripped}view`;
+  }
+  return stripped;
 }
 
 export function isExportFormat(value: string): value is ExportFormat {

@@ -122,6 +122,26 @@ In the Mac app:
 
 Browser preview (`npm run app:preview`) has no filesystem path after the file picker, so **Reload** re-parses the last loaded text. After disk edits in preview, use **Open…** again. The Mac `.app` is the supported reload path.
 
+## Export the current view
+
+**File → Export…**, the toolbar **Export…** button, or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome.
+
+1. Choose **HTML**, **SVG**, or **HTML and SVG** — the same formats as `plein export --format html|svg|both`.
+2. **Save…** opens the standard Mac save panel (in browser preview, the browser downloads the file instead). HTML is one `.html` page. SVG is one `.svg`. **HTML and SVG** writes both files from the name you choose (`booking.html` and `booking.svg`).
+3. Quit `Plein.app` and open the file in Safari, Chrome, Firefox, or Preview. The page does not need the Mac app, and it does not load scripts or stylesheets from the network.
+4. The diagram is the layout already on screen, written by `renderViewpointSvg` and `wrapViewpointHtml` (the same writer as `plein export` / `exportNamedView`). Elements and relationships match the canvas, including a local Auto layout / Options preview or boxes you dragged.
+
+Cancel the save panel and nothing is written, and no error banner appears. If there is no view to export, the save panel does not open, and the banner reads **Could not export this view** with the reason (no file, the file did not load, or the diagram is not ready). A failed write uses that same banner — it does not fail silently.
+
+Smoke from `Plein.app` (or `npm run app:preview` for the dialog; the preview download replaces the save panel):
+
+1. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein). The **View** chrome reads **Application Structure**.
+2. **File → Export…**. Choose **HTML**. **Save…** and pick a file. Quit Plein. Open the HTML in a browser. The diagram is Application Structure (including `legacyBatch`, without `tms -> legacyBatch`).
+3. Launch Plein again, open the same file, and click **Application Cooperation**. **Export…** as **SVG**. Open the `.svg` in a browser or Preview. The diagram is TMS and Booking API only.
+4. On Application Structure, choose **HTML and SVG**. The folder you save to contains both an `.html` and an `.svg` for that view.
+5. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein). **File → Export…**. The banner says **Could not export this view**. No file is written.
+6. With a view open, **File → Export…** and press **Cancel** on the save panel (or **Cancel** in the format sheet). The diagram stays, and no error banner appears.
+
 Assert without opening the app:
 
 ```bash
@@ -135,7 +155,7 @@ npm test
 
 ## Arran smoke — S4 multi-view navigation
 
-Mac app checklist for named-view navigation. Static HTML/SVG of a view is `plein export` (see the [README](../README.md#export-a-named-view)); this list does not click an in-app export button. Release `.dmg` or `npm run app:preview`:
+Mac app checklist for named-view navigation. Export of the open view is [Export the current view](#export-the-current-view). Release `.dmg` or `npm run app:preview`:
 
 1. **Open** [fixtures/valid-views.plein](../fixtures/valid-views.plein) (≥2 named views). The **View** chrome reads **Application Structure**. The matching Views row is marked **Showing**. Do not reopen the file for the rest of this list.
 2. Click **Application Cooperation** in the left **Views** list (not along the top of the canvas). The canvas switches (TMS + Booking API). The **View** chrome reads **Application Cooperation**. There is no view-switcher tablist above the diagram.

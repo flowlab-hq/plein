@@ -105,10 +105,13 @@ export {
   EXPORT_FORMATS,
   ExportError,
   exportNamedView,
+  exportSavePaths,
+  exportViewpoint,
   isExportFormat,
   resolveNamedView,
   wrapViewpointHtml,
   type ExportFormat,
+  type ExportPaths,
   type ExportedView,
 } from "./export.js";
 export {

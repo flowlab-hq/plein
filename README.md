@@ -243,6 +243,8 @@ Without `-o`, HTML or SVG is written to stdout (`--format both` requires `-o`). 
 
 Golden snapshot: [fixtures/golden-booking-context.html](fixtures/golden-booking-context.html) is `plein export fixtures/valid-basic.plein --view booking-context --format html`. `npm test` / `./scripts/assert-export.sh` fails if that file drifts. The research-data sample asserts that `--view` selects one viewpoint (landscape vs published access vs storage).
 
+In the Mac app, **File → Export…** (toolbar **Export…**, or **⇧⌘E**) writes the viewpoint on the canvas. Choose HTML, SVG, or HTML and SVG — the same formats as `plein export` — then the save panel writes the file. Quit Plein and open that file in a browser or Preview. The diagram is `renderViewpointSvg` plus `wrapViewpointHtml`, the same writer as `plein export`, using the layout already on screen (including a local Auto layout / Options preview). Details and the smoke steps: [app/README.md](app/README.md#export-the-current-view).
+
 ### Import and export Open Exchange XML
 
 `plein import` reads an ArchiMate Model Exchange File Format 3.1 document and writes `.plein` for the subset in [docs/open-exchange-import.md](docs/open-exchange-import.md). `plein export-open-exchange` writes that same subset back to XML. This is not `plein export` (HTML/SVG of one viewpoint).
