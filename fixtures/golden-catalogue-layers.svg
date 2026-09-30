@@ -5,20 +5,6 @@
       <polygon points="1 1, 4 2, 1 3" fill="#6e6e73" />
     </marker>
   </defs>
-  <g class="edges">
-    <g data-edge-id="planning->onTime:realizes">
-      <polyline points="108,76.63 108,126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
-      <line x1="108" y1="76.63" x2="108" y2="126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
-    </g>
-    <g data-edge-id="rates->shipper:serves">
-      <polyline points="332,131.38 332,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
-      <line x1="332" y1="131.38" x2="332" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
-    </g>
-    <g data-edge-id="rollout->planning:realizes">
-      <polyline points="528,131.38 528,86 164,86 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
-      <line x1="164" y1="86" x2="164" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
-    </g>
-  </g>
   <g class="nodes">
     <g data-node-id="planning" data-keyword="capability" data-layer="strategy" data-icon="capability" transform="translate(52 24)">
       <title>capability — Network planning</title>
@@ -61,6 +47,20 @@
       <rect width="168" height="52" rx="8" fill="#FFE0E0" stroke="#5C5C5C" stroke-width="1.25" />
       <g class="type-icon" data-icon="work-package" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.4 H9.6 L14 8 L9.6 11.6 H2 Z"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Booking rollout</text>
+    </g>
+  </g>
+  <g class="edges">
+    <g data-edge-id="planning->onTime:realizes">
+      <polyline points="108,76.63 108,126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="108" y1="76.63" x2="108" y2="126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
+    </g>
+    <g data-edge-id="rates->shipper:serves">
+      <polyline points="332,131.38 332,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="332" y1="131.38" x2="332" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
+    </g>
+    <g data-edge-id="rollout->planning:realizes">
+      <polyline points="528,131.38 528,86 164,86 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="164" y1="86" x2="164" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
   </g>
 </svg>

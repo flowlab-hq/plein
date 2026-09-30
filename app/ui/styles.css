@@ -431,6 +431,7 @@ button:disabled {
 
 .diagram [data-node-id],
 .diagram [data-edge-id],
+.diagram [data-edge-hit-id],
 .diagram [data-container-id] {
   cursor: pointer;
 }

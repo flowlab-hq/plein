@@ -277,13 +277,20 @@ function findByAttr(root: ParentNode, attr: string, value: string): Element | nu
   return null;
 }
 
-/** Wide transparent stroke so relationship lines are clickable. */
+/**
+ * Wide transparent stroke so relationship lines are clickable.
+ * Visible strokes paint above element boxes (`pointer-events: none`). Hits
+ * stay under those boxes, so a connector drawn across a box does not steal
+ * the click or the drag.
+ */
 function enhanceEdgeHits(svg: SVGElement): void {
-  for (const group of svg.querySelectorAll("[data-edge-id]")) {
+  const hits = edgeHitLayer(svg);
+  for (const group of svg.querySelectorAll(":scope > g.edges [data-edge-id]")) {
     // Prefer the full shaft. The arrow lives on a terminal <line> and must not
     // be the only clickable piece.
+    const id = group.getAttribute("data-edge-id");
     const stroke = group.querySelector("polyline, path, line");
-    if (!stroke || group.querySelector(".edge-hit")) {
+    if (!id || !stroke || edgeHitExists(hits, id)) {
       continue;
     }
     const hit = stroke.cloneNode() as SVGElement;
@@ -292,9 +299,39 @@ function enhanceEdgeHits(svg: SVGElement): void {
     hit.removeAttribute("marker-mid");
     hit.setAttribute("stroke", "transparent");
     hit.setAttribute("stroke-width", "12");
+    hit.setAttribute("pointer-events", "stroke");
     hit.classList.add("edge-hit");
-    group.insertBefore(hit, stroke);
+    const wrap = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    wrap.setAttribute("data-edge-hit-id", id);
+    wrap.append(hit);
+    hits.append(wrap);
   }
+}
+
+/** Hit targets sit under element boxes and above container chrome. */
+function edgeHitLayer(svg: SVGElement): SVGGElement {
+  const existing = svg.querySelector(":scope > g.edge-hits");
+  if (existing instanceof SVGGElement) {
+    return existing;
+  }
+  const hits = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  hits.setAttribute("class", "edge-hits");
+  const anchor = svg.querySelector(":scope > g.nodes") ?? svg.querySelector(":scope > g.edges");
+  if (anchor) {
+    svg.insertBefore(hits, anchor);
+  } else {
+    svg.append(hits);
+  }
+  return hits;
+}
+
+function edgeHitExists(hits: ParentNode, id: string): boolean {
+  for (const node of hits.querySelectorAll("[data-edge-hit-id]")) {
+    if (node.getAttribute("data-edge-hit-id") === id) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function paintListSelection(list: HTMLElement, attr: string, id: string | null): void {
@@ -1587,7 +1624,9 @@ diagram.addEventListener("click", (event) => {
   setSelection(
     selectionFromDiagramHit({
       nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
-      edgeId: target.closest("[data-edge-id]")?.getAttribute("data-edge-id"),
+      edgeId:
+        target.closest("[data-edge-id]")?.getAttribute("data-edge-id") ??
+        target.closest("[data-edge-hit-id]")?.getAttribute("data-edge-hit-id"),
       containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
     }),
   );

@@ -43,6 +43,17 @@ test("Mac UI wires bidirectional diagram ↔ list selection", () => {
   assert.match(css, /\.rows li\.selected/);
 });
 
+test("connector hit targets stay under element boxes", () => {
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+  assert.match(ui, /g\.edge-hits/);
+  assert.match(ui, /querySelector\(":scope > g\.nodes"\)/);
+  assert.match(ui, /insertBefore\(hits, anchor\)/);
+  assert.match(ui, /data-edge-hit-id/);
+  assert.match(ui, /closest\("\[data-edge-hit-id\]"\)/);
+  assert.match(css, /data-edge-hit-id/);
+});
+
 test("Mac UI keeps the current view name visible outside the scrollable canvas", () => {
   const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
