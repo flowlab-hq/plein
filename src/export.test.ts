@@ -214,6 +214,16 @@ test("openExchangeSuggestedStem drops a trailing xml before the export extension
   assert.equal(openExchangeSuggestedStem("booking.xml.xml"), "booking.xml");
   assert.equal(openExchangeSuggestedStem("notes.xml.backup"), "notes.xml.backup");
   assert.equal(openExchangeSuggestedStem("my.model"), "my.model");
+  assert.equal(openExchangeSuggestedStem("booking2..xml"), "booking2");
+  assert.equal(`${openExchangeSuggestedStem("booking2..xml")}.xml`, "booking2.xml");
+  assert.equal(openExchangeSuggestedStem("something..xml"), "something");
+  assert.equal(`${openExchangeSuggestedStem("something..xml")}.xml`, "something.xml");
+  assert.equal(openExchangeSuggestedStem("booking2...XML"), "booking2");
+  assert.equal(openExchangeSuggestedStem("/tmp/booking2..xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2..plein"), "booking2");
+  assert.equal(openExchangeSuggestedStem("my.file..xml"), "my.file");
+  assert.equal(openExchangeSuggestedStem("..xml"), "model");
+  assert.equal(openExchangeSuggestedStem("...xml"), "model");
 });
 
 test("plein export writes the golden HTML to stdout", () => {
