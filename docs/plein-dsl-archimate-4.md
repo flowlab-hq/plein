@@ -4,6 +4,8 @@ Plein is a small, human-editable language for describing ArchiMate 4 models and 
 
 This reference describes the current document shape and vocabulary. It is aligned with the [ArchiMate 4 specification](https://www.opengroup.org/archimate-forum/archimate-overview) and borrows the useful text-first, view-oriented approach of [Structurizr DSL](https://docs.structurizr.com/dsl).
 
+Concrete syntax for a parser: [Grammar](grammar.md) ([`plein.ebnf`](plein.ebnf)). Concept-by-concept correspondence: [Plein constructs and ArchiMate 4](archimate-mapping.md). Allowed relationship pairs stay in the [relationship matrix](relationship-matrix.md).
+
 ## Document shape
 
 A document contains these top-level blocks:
@@ -254,7 +256,7 @@ shipper -> booking: serving
 booking -> order: access
 ```
 
-Write relationships as `id -> id: type`. Do not use infix verbs (`serves`, `aggregates`) between identifiers.
+Write relationships as `id -> id: type`. Do not use infix verbs (`serves`, `aggregates`) between identifiers. The file spelling and the stored keyword for each ArchiMate relationship are in the [mapping](archimate-mapping.md#relationships). The [grammar](grammar.md#relationship) lists both as accepted input.
 
 * **Wrong** (old infix style): `ProductManagement serves SoftwareAndProductServiceLine`
 * **Right:** `productManagement -> softwareAndProductServiceLine: serving`
@@ -687,7 +689,7 @@ Not imported, and not written on export: diagram geometry and styles, organizati
 
 ## Validation notes
 
-A validator should check, at minimum:
+A validator should follow the [grammar](grammar.md) for what parses, then check, at minimum:
 
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.

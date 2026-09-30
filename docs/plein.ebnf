@@ -1,0 +1,185 @@
+(*
+  Plein concrete syntax, aligned with src/parser.ts.
+
+  Read docs/grammar.md for lexical rules, the model-statement decision
+  procedure, and the checks that run after a successful parse.
+  ArchiMate names for these terminals are in docs/archimate-mapping.md.
+
+  Notation:
+    rule  = expr ;
+    juxtaposition   sequence
+    a | b           alternative
+    [ a ]           optional
+    { a }           repeat zero or more
+    "tok"           terminal
+    (* *)           comment
+
+  Whitespace (space, tab, CR, LF) and // line comments may appear between
+  tokens and are not written in the productions. A // comment is not
+  allowed in the middle of a statement, except between selectors in an
+  include or exclude list when another selector follows. See grammar.md.
+
+  Keywords are case-sensitive identifier spellings. The lexer does not
+  reserve them. "->" is one token and is never part of an identifier.
+*)
+
+document = wrapped-document | bare-document ;
+
+wrapped-document = "plein" "{" { top-level-block } "}" ;
+bare-document = { top-level-block } ;
+
+top-level-block = model-block | views-block | styles-block ;
+
+model-block = "model" "{" { model-statement } "}" ;
+views-block = "views" "{" { view-decl } "}" ;
+
+(* styles body is source between a matching brace pair.
+   Brace matching is on tokens: a brace inside a string or a // comment
+   does not change the depth. The body is preserved and not interpreted. *)
+styles-block = "styles" "{" styles-body "}" ;
+styles-body = { styles-item } ;
+styles-item = ident | string | number | "->" | ":" | other | "{" styles-body "}" ;
+
+(* First-ident decision procedure: docs/grammar.md.
+   These four forms overlap if the alternatives are tried without lookahead. *)
+model-statement = specialization-decl | profile-decl | element-decl | relationship ;
+
+specialization-decl = "specialization" specialization-name specializes-verb specialization-parent ;
+specializes-verb = "specializes" | "specialization" ;
+specialization-parent = element-keyword | specialization-name ;
+
+profile-decl = profile-keyword profile-name "{" { specialization-decl } "}" ;
+profile-keyword = "profile" | "organization" ;
+
+(* element-head is an element-keyword, or a specialization-name declared
+   earlier in the file. value-stream-body is legal only when the head
+   resolves to the valueStream catalogue keyword. *)
+element-decl = element-head string "as" ident [ hook ] [ value-stream-body ] ;
+element-head = element-keyword | specialization-name ;
+hook = "hook" hook-name ;
+
+value-stream-body = "{" { value-stream-statement } "}" ;
+value-stream-statement = stage-decl | relationship ;
+stage-decl = stage-keyword string "as" ident [ hook ] ;
+stage-keyword = "value-stream-stage" | "valueStreamStage" ;
+
+(* Arrow form and infix form. Inside a value-stream body the type must
+   resolve to flowsTo or triggers. *)
+relationship = arrow-relationship | infix-relationship ;
+arrow-relationship = ident "->" ident ":" relationship-type ;
+infix-relationship = ident relationship-type ident ;
+
+view-decl = named-view | viewpoint-view ;
+named-view = "view" ident "{" view-body "}" ;
+viewpoint-view = "viewpoint" ident [ string ] "{" view-body "}" ;
+view-body = { view-clause } ;
+
+view-clause = include-clause | exclude-clause | title-clause
+            | auto-layout-clause | position-clause | nesting-clause ;
+
+include-clause = "include" selector-list ;
+exclude-clause = "exclude" selector-list ;
+(* Commas are optional separators, including repeated, leading, and trailing.
+   A selector is one ident or one string. A relationship pattern contains
+   "->" and is therefore a string ("* -> legacyBatch"). *)
+selector-list = selector { [ "," ] selector } ;
+selector = ident | string ;
+
+title-clause = "title" string ;
+
+(* Tokens after autoLayout are idents that are not view-clause keywords,
+   at most one mode, one direction, one routing, and one grid order.
+   "off" or "manual" stands alone. Zero tokens are accepted.
+   The token lists are auto-layout-mode, auto-layout-direction,
+   auto-layout-routing, auto-layout-grid-order, and auto-layout-off. *)
+auto-layout-clause = "autoLayout" { auto-layout-token } ;
+auto-layout-token = auto-layout-mode | auto-layout-direction | auto-layout-routing
+                  | auto-layout-grid-order | auto-layout-off ;
+auto-layout-mode = "layered" | "layers" | "layer" | "organic" | "grid" ;
+auto-layout-off = "off" | "manual" ;
+auto-layout-grid-order = "kind" | "name" ;
+auto-layout-routing = "orthogonal" | "ortho" | "right-angle" | "rightAngle" | "right_angle"
+                    | "polyline" | "poly-line" | "polyLine" ;
+auto-layout-direction = "tb" | "bt" | "lr" | "rl"
+                      | "left-right" | "leftRight" | "left_right" | "horizontal"
+                      | "right-left" | "rightLeft" | "right_left"
+                      | "top-bottom" | "topBottom" | "top_bottom" | "vertical"
+                      | "bottom-top" | "bottomTop" | "bottom_top" ;
+
+position-clause = "position" ident number number ;
+
+(* A nesting mode is consumed only when the next ident is not a view-clause
+   keyword. With no mode token, the clause means nested. *)
+nesting-clause = "nesting" [ nesting-mode ] ;
+nesting-mode = "nested" | "inside" | "beside" | "sideBySide" | "side-by-side" | "side_by_side" ;
+
+(* Catalogue keywords. File spelling (kebab-case) and stored camelCase.
+   Generated kebab: insert "-" before each capital and lowercase it. *)
+element-keyword = element-file-spelling | element-camel-case | element-short-alias ;
+
+element-file-spelling =
+    "resource" | "capability" | "value-stream" | "course-of-action"
+  | "stakeholder" | "driver" | "assessment" | "goal" | "outcome"
+  | "principle" | "requirement" | "constraint" | "meaning" | "value"
+  | "business-actor" | "business-role" | "business-collaboration" | "business-interface"
+  | "business-process" | "business-function" | "business-interaction" | "business-event"
+  | "business-service" | "business-object" | "contract" | "representation" | "product"
+  | "application-component" | "application-collaboration" | "application-interface"
+  | "application-function" | "application-interaction" | "application-process"
+  | "application-event" | "application-service" | "data-object"
+  | "node" | "device" | "system-software" | "technology-collaboration" | "technology-interface"
+  | "path" | "communication-network" | "technology-function" | "technology-process"
+  | "technology-interaction" | "technology-event" | "technology-service" | "artifact"
+  | "equipment" | "facility" | "distribution-network" | "material"
+  | "work-package" | "deliverable" | "implementation-event" | "plateau" | "gap"
+  | "grouping" | "location" ;
+
+element-camel-case =
+    "valueStream" | "courseOfAction"
+  | "businessActor" | "businessRole" | "businessCollaboration" | "businessInterface"
+  | "businessProcess" | "businessFunction" | "businessInteraction" | "businessEvent"
+  | "businessService" | "businessObject"
+  | "applicationComponent" | "applicationCollaboration" | "applicationInterface"
+  | "applicationFunction" | "applicationInteraction" | "applicationProcess"
+  | "applicationEvent" | "applicationService" | "dataObject"
+  | "systemSoftware" | "technologyCollaboration" | "technologyInterface"
+  | "communicationNetwork" | "technologyFunction" | "technologyProcess"
+  | "technologyInteraction" | "technologyEvent" | "technologyService"
+  | "distributionNetwork" | "workPackage" | "implementationEvent" ;
+
+(* Layer-omitted aliases. Each resolves to the Business catalogue keyword. *)
+element-short-alias =
+    "process" | "function" | "event" | "service" | "role" | "collaboration" ;
+
+(* File spelling is what `plein format` writes. Both spellings are accepted
+   after ":" and as an infix verb. Hyphenated verbs ("flows-to") are not spellings. *)
+relationship-type = relationship-file-spelling | relationship-canonical ;
+
+relationship-file-spelling =
+    "composition" | "aggregation" | "assignment" | "realization" | "serving"
+  | "access" | "influence" | "triggering" | "flow" | "specialization" | "association" ;
+
+relationship-canonical =
+    "composedOf" | "aggregates" | "assignedTo" | "realizes" | "serves"
+  | "accesses" | "influences" | "triggers" | "flowsTo" | "specializes" | "associatedWith" ;
+
+(* Lexical tokens. Character classes are ASCII. *)
+ident = ident-start { ident-continue } ;
+(* ident-start:    "A"-"Z" | "a"-"z" | "_" | "*"
+   ident-continue: "A"-"Z" | "a"-"z" | "0"-"9" | "_" | "-"
+   End the ident before "->". "*" is a start character and not a continue
+   character, so the selector "*" is a one-character ident. *)
+
+string = '"' { string-char } '"' ;
+(* string-char: any character other than '"' or a newline.
+   There is no escape. "\" is literal. *)
+
+number = [ "-" ] digit { digit } [ "." digit { digit } ] ;
+(* digit: "0"-"9". The "-" is part of the number only when a digit follows. *)
+
+other = (* one source character that is not whitespace, a comment, a string,
+           a number, an ident, or one of "{" "}" ":" "->" *) ;
+
+specialization-name = ident ;
+profile-name = ident ;
+hook-name = ident ;

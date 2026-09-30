@@ -7,6 +7,8 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 ## Documentation
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
+* [Grammar](docs/grammar.md) ([`plein.ebnf`](docs/plein.ebnf)) — concrete syntax a parser can implement against, including keyword and relationship spellings.
+* [Plein constructs and ArchiMate 4](docs/archimate-mapping.md) — elements, relationships, views, and profiles mapped to ArchiMate 4 concepts.
 * [Relationship matrix](docs/relationship-matrix.md) — allowed source, relationship, and target pairs. `plein check` rejects a combination that is not in the matrix.
 * [Mac-app / LLM formatting pitfalls](docs/plein-dsl-archimate-4.md#mac-app-authoring-wrong-vs-right) — header is only `plein {`; labeled elements need `as id`; kebab-case keywords; `id -> id: serving`; unique `viewpoint` ids; copy-paste example with two views.
 * [ArchiMate type colours and icons](docs/archimate-style.md) — layer fills and decorator glyphs used by the Mac SVG renderer.
