@@ -25,7 +25,9 @@ plein import fixtures/open-exchange/booking.xml > booking.plein
 
 ## Export
 
-Same machines as import: Homebrew or `npx plein`, Node 18+. The supported Mac target is Apple Silicon. The Mac app has no Export menu for this format.
+Same machines as import: Homebrew or `npx plein`, Node 18+. The supported Mac target is Apple Silicon.
+
+In the Mac app, **File → Export…** (toolbar **Export…**, or **⇧⌘E**) and choose **Open Exchange**. **Save…** writes one `.xml` file for the whole open model. The suggested name is the `.plein` file stem (`booking.plein` → `booking.xml`). The writer is `exportOpenExchange`, the same function as `plein export-open-exchange`. HTML, SVG, and HTML and SVG still export only the viewpoint on the canvas. The Mac app has no Import menu; re-import with `plein import`. A failed write shows **Could not export Open Exchange**. Cancel writes nothing.
 
 ```bash
 plein export-open-exchange booking.plein -o booking.xml
@@ -207,7 +209,7 @@ Other deltas:
 
 ### Other
 
-- The Mac app has no Import menu and no Open Exchange export menu. Run the CLI, then open the `.plein` file.
+- The Mac app has no Import menu. Open Exchange export is **File → Export…** → **Open Exchange** (the whole open model, the same subset as `plein export-open-exchange`). Re-import with the CLI.
 - `DOCTYPE` is rejected so the reader does not resolve external entities.
 - A `"` in a name is stored as `'`.
 

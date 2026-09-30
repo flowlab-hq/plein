@@ -177,6 +177,20 @@ test("exportSavePaths pairs HTML and SVG from the save-panel path", () => {
   });
   assert.deepEqual(exportSavePaths("/tmp/", "svg"), { svg: "/tmp/view.svg" });
   assert.throws(() => exportSavePaths("   ", "html"), ExportError);
+  assert.deepEqual(exportSavePaths("/tmp/booking.xml", "open-exchange"), {
+    xml: "/tmp/booking.xml",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking.XML", "open-exchange"), {
+    xml: "/tmp/booking.XML",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking.html", "open-exchange"), {
+    xml: "/tmp/booking.xml",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking", "open-exchange"), {
+    xml: "/tmp/booking.xml",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/", "open-exchange"), { xml: "/tmp/model.xml" });
+  assert.throws(() => exportSavePaths("   ", "open-exchange"), ExportError);
 });
 
 test("plein export writes the golden HTML to stdout", () => {
@@ -325,4 +339,8 @@ test("plein export rejects a broken model, a missing file, and a bad view", () =
 
   const badFormat = runExport(["fixtures/valid-basic.plein", "--format", "pdf"]);
   assert.equal(badFormat.status, 2);
+
+  const openExchange = runExport(["fixtures/valid-basic.plein", "--format", "open-exchange"]);
+  assert.equal(openExchange.status, 2);
+  assert.match(openExchange.stderr, /--format html\|svg\|both/);
 });

@@ -124,7 +124,7 @@ Browser preview (`npm run app:preview`) has no filesystem path after the file pi
 
 ## Export the current view
 
-**File → Export…**, the toolbar **Export…** button, or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome.
+**File → Export…**, the toolbar **Export…** button, or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome. **Open Exchange** in the same sheet is the whole model; see [Export the open model as Open Exchange](#export-the-open-model-as-open-exchange).
 
 1. Choose **HTML**, **SVG**, or **HTML and SVG** — the same formats as `plein export --format html|svg|both`.
 2. **Save…** opens the standard Mac save panel (in browser preview, the browser downloads the file instead). HTML is one `.html` page. SVG is one `.svg`. **HTML and SVG** writes both files from the name you choose (`booking.html` and `booking.svg`).
@@ -141,6 +141,17 @@ Smoke from `Plein.app` (or `npm run app:preview` for the dialog; the preview dow
 4. On Application Structure, choose **HTML and SVG**. The folder you save to contains both an `.html` and an `.svg` for that view.
 5. **Open** [fixtures/broken-syntax.plein](../fixtures/broken-syntax.plein). **File → Export…**. The banner says **Could not export this view**. No file is written.
 6. With a view open, **File → Export…** and press **Cancel** on the save panel (or **Cancel** in the format sheet). The diagram stays, and no error banner appears.
+
+## Export the open model as Open Exchange
+
+**File → Export…**, the toolbar **Export…**, or **⇧⌘E**, then **Open Exchange**. That choice writes the **whole open model** as XML. It is not the viewpoint on the canvas (HTML, SVG, and HTML and SVG are unchanged and still follow the **View** chrome).
+
+1. Choose **Open Exchange**. The sheet title reads **Export Open Exchange**, and the line under it names the `.plein` file, not only the view.
+2. **Save…** opens the standard Mac save panel with a `.xml` name taken from the `.plein` file stem (`booking.plein` → `booking.xml`). In browser preview, the browser downloads that `.xml` instead.
+3. The bytes are `exportOpenExchange` — the same writer as `plein export-open-exchange`. Re-import with `plein import` (the Mac app has no Import menu). On the booking fixture, the file matches [fixtures/open-exchange/booking.export.xml](../fixtures/open-exchange/booking.export.xml), and importing it again matches [fixtures/open-exchange/booking.roundtrip.plein](../fixtures/open-exchange/booking.roundtrip.plein).
+4. Comments, the original model name, diagram geometry, styles, and the other gaps in [docs/open-exchange-import.md](../docs/open-exchange-import.md) stay out. That is the S5b subset, not a new one.
+
+Cancel the save panel and nothing is written, and no error banner appears. A failed write shows **Could not export Open Exchange**. If the file did not load, **Export…** still shows **Could not export this view** and does not open the sheet — the same gate as HTML and SVG.
 
 Assert without opening the app:
 

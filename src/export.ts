@@ -5,11 +5,22 @@ import type { PleinModel, ViewDecl } from "./parser.js";
 export type ExportPaths = {
   html?: string;
   svg?: string;
+  /** Open Exchange XML for the whole model. */
+  xml?: string;
 };
 
 export const EXPORT_FORMATS = ["html", "svg", "both"] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
+/**
+ * Formats in the Mac Export… sheet.
+ * `open-exchange` is the whole model (`exportOpenExchange`).
+ * `plein export --format` still accepts only `html`, `svg`, and `both`.
+ */
+export const MAC_EXPORT_FORMATS = [...EXPORT_FORMATS, "open-exchange"] as const;
+
+export type MacExportFormat = (typeof MAC_EXPORT_FORMATS)[number];
 
 /** A viewpoint name or title could not be exported. */
 export class ExportError extends Error {
@@ -141,8 +152,9 @@ export async function exportNamedView(
  * Paths written for one save-panel choice.
  * `both` writes `<stem>.html` and `<stem>.svg` beside each other,
  * the same pairing as `plein export --format both -o <stem>`.
+ * `open-exchange` writes one `.xml` file for the whole model.
  */
-export function exportSavePaths(pickedPath: string, format: ExportFormat): ExportPaths {
+export function exportSavePaths(pickedPath: string, format: MacExportFormat): ExportPaths {
   const trimmed = pickedPath.trim();
   if (!trimmed) {
     throw new ExportError("export path is empty");
@@ -153,8 +165,22 @@ export function exportSavePaths(pickedPath: string, format: ExportFormat): Expor
   if (format === "svg") {
     return { svg: forceExportExtension(trimmed, "svg") };
   }
+  if (format === "open-exchange") {
+    return { xml: forceOpenExchangeExtension(trimmed) };
+  }
   const stem = exportPathStem(trimmed);
   return { html: `${stem}.html`, svg: `${stem}.svg` };
+}
+
+function forceOpenExchangeExtension(path: string): string {
+  if (/\.xml$/i.test(path)) {
+    return path;
+  }
+  const stripped = path.replace(/\.(html|svg)$/i, "");
+  if (stripped.length === 0 || stripped.endsWith("/") || stripped.endsWith("\\")) {
+    return `${stripped}model.xml`;
+  }
+  return `${stripped}.xml`;
 }
 
 function forceExportExtension(path: string, ext: "html" | "svg"): string {
@@ -174,6 +200,10 @@ function exportPathStem(path: string): string {
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);
+}
+
+export function isMacExportFormat(value: string): value is MacExportFormat {
+  return (MAC_EXPORT_FORMATS as readonly string[]).includes(value);
 }
 
 function escapeHtml(value: string): string {
