@@ -23,7 +23,7 @@ plein {
     // infix becomes arrow
     shipper -> booking: serving
     booking -> order: access
-    acme -> quote: serving
+    acme -> quote: association
   }
 
   views {
