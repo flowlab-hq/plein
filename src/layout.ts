@@ -105,6 +105,28 @@ export const DEFAULT_GRID_ORDER: GridOrder = "kind";
 export const ORGANIC_RANDOM_SEED = "1";
 
 /**
+ * `elk.spacing.nodeNode` for organic. The ELK Force Fruchterman-Reingold step
+ * treats this as a distance scale, but the cooled footprint is not monotonic
+ * in it: lowering the default 80 sometimes spreads a service line further,
+ * and the values that do shrink the canvas also leave boxes a few pixels
+ * apart. Density is the pack below, not this knob. Layered keeps `LANE_GAP`.
+ */
+export const ORGANIC_NODE_SPACING = 80;
+
+/**
+ * Canvas area divided by the sum of node areas, after the seeded force pass.
+ * A layered service line sits near 7. Force at the spacing above sits near
+ * 16 on the same graph. Organic scales that seeded result toward 8 — closer
+ * to layered, still a little looser — and does not run a different algorithm.
+ */
+export const ORGANIC_PACK_RATIO = 8;
+
+/**
+ * Minimum box gap restored when that scale would stack nodes. Organic only.
+ */
+export const ORGANIC_PACK_GAP = 24;
+
+/**
  * Edge routing on top of ELK Layered placement.
  * `orthogonal` is the viewer default (right-angle connectors).
  * `polyline` is the non-orthogonal alternative and may draw diagonal segments.
@@ -1182,10 +1204,11 @@ type LevelPlacer = (
 ) => Promise<Placement>;
 
 /**
- * Seeded ELK Force (Fruchterman–Reingold). `elk.randomSeed` is fixed so the
- * same graph yields the same coordinates. Direction does not re-rank nodes;
- * orthogonal routing still uses it for bend axis. Disconnected components are
- * simulated separately and then packed.
+ * Seeded ELK Force (Fruchterman–Reingold), then a deterministic scale toward
+ * `ORGANIC_PACK_RATIO`. `elk.randomSeed` is fixed so the same graph yields
+ * the same coordinates. Direction does not re-rank nodes; orthogonal routing
+ * still uses it for bend axis. Disconnected components are simulated
+ * separately and then packed with the rest of the level.
  */
 async function layoutOrganic(
   elements: ElementDecl[],
@@ -1360,7 +1383,7 @@ async function placeOrganic(
       "elk.randomSeed": ORGANIC_RANDOM_SEED,
       "elk.force.model": "FRUCHTERMAN_REINGOLD",
       "elk.force.iterations": "300",
-      "elk.spacing.nodeNode": "80",
+      "elk.spacing.nodeNode": String(ORGANIC_NODE_SPACING),
       "elk.separateConnectedComponents": "true",
       "elk.aspectRatio": "1.6",
       "elk.padding": `[top=${pad},left=${pad},bottom=${pad},right=${pad}]`,
@@ -1378,8 +1401,8 @@ async function placeOrganic(
   const positions = new Map<string, { x: number; y: number }>();
   for (const child of laidOut.children ?? []) {
     positions.set(child.id, {
-      x: roundCoord(child.x ?? 0),
-      y: roundCoord(child.y ?? 0),
+      x: child.x ?? 0,
+      y: child.y ?? 0,
     });
   }
   for (const node of ordered) {
@@ -1387,11 +1410,140 @@ async function placeOrganic(
       throw new Error(`organic layout missing position for '${node.id}'`);
     }
   }
+  return packOrganic(ordered, positions, pad, laidOut.width ?? 0, laidOut.height ?? 0);
+}
+
+type OrganicBox = { id: string; x: number; y: number; width: number; height: number };
+
+/**
+ * Scale a seeded force layout when its canvas is sparse compared with the
+ * boxes on it, then push any stacked pair back to `ORGANIC_PACK_GAP`.
+ * Pair order is by id, so the pack is deterministic. A layout already inside
+ * `ORGANIC_PACK_RATIO` keeps the rounded ELK coordinates.
+ */
+function packOrganic(
+  nodes: SizedNode[],
+  positions: Map<string, { x: number; y: number }>,
+  pad: number,
+  elkWidth: number,
+  elkHeight: number,
+): Placement {
+  const boxes: OrganicBox[] = nodes.map((node) => {
+    const pos = positions.get(node.id)!;
+    return { id: node.id, x: pos.x, y: pos.y, width: node.width, height: node.height };
+  });
+  const ratio = boxes.length >= 2 ? organicCanvasRatio(boxes) : 1;
+  if (boxes.length < 2 || ratio <= ORGANIC_PACK_RATIO) {
+    const rounded = new Map<string, { x: number; y: number }>();
+    for (const box of boxes) {
+      rounded.set(box.id, { x: roundCoord(box.x), y: roundCoord(box.y) });
+    }
+    return {
+      positions: rounded,
+      width: Math.max(roundCoord(elkWidth), pad * 2),
+      height: Math.max(roundCoord(elkHeight), pad * 2),
+    };
+  }
+  scaleOrganicAboutPad(boxes, pad, Math.sqrt(ORGANIC_PACK_RATIO / ratio));
+  separateOrganicBoxes(boxes, ORGANIC_PACK_GAP);
+  let minX = Infinity;
+  let minY = Infinity;
+  for (const box of boxes) {
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+  }
+  const packed = new Map<string, { x: number; y: number }>();
+  let maxX = 0;
+  let maxY = 0;
+  for (const box of boxes) {
+    const x = roundCoord(box.x + pad - minX);
+    const y = roundCoord(box.y + pad - minY);
+    packed.set(box.id, { x, y });
+    maxX = Math.max(maxX, x + box.width);
+    maxY = Math.max(maxY, y + box.height);
+  }
   return {
-    positions,
-    width: Math.max(roundCoord(laidOut.width ?? 0), pad * 2),
-    height: Math.max(roundCoord(laidOut.height ?? 0), pad * 2),
+    positions: packed,
+    width: Math.max(roundCoord(maxX + pad), pad * 2),
+    height: Math.max(roundCoord(maxY + pad), pad * 2),
   };
+}
+
+/** Bounding box from the origin over the sum of box areas. Padding is included. */
+function organicCanvasRatio(boxes: OrganicBox[]): number {
+  let nodeArea = 0;
+  let maxX = 0;
+  let maxY = 0;
+  for (const box of boxes) {
+    nodeArea += box.width * box.height;
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
+  }
+  if (nodeArea <= 0) {
+    return 1;
+  }
+  return (maxX * maxY) / nodeArea;
+}
+
+function scaleOrganicAboutPad(boxes: OrganicBox[], pad: number, scale: number): void {
+  for (const box of boxes) {
+    const cx = pad + (box.x + box.width / 2 - pad) * scale;
+    const cy = pad + (box.y + box.height / 2 - pad) * scale;
+    box.x = cx - box.width / 2;
+    box.y = cy - box.height / 2;
+  }
+}
+
+/** Gap between two boxes. Negative when they overlap. */
+function organicBoxGap(a: OrganicBox, b: OrganicBox): number {
+  const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  if (overlapX > 0 && overlapY > 0) {
+    return -Math.min(overlapX, overlapY);
+  }
+  const gapX = overlapX > 0 ? 0 : -overlapX;
+  const gapY = overlapY > 0 ? 0 : -overlapY;
+  return Math.hypot(gapX, gapY);
+}
+
+function separateOrganicBoxes(boxes: OrganicBox[], target: number): void {
+  const ordered = boxes.slice().sort((a, b) => compareText(a.id, b.id));
+  for (let pass = 0; pass < 16; pass += 1) {
+    let moved = false;
+    for (let left = 0; left < ordered.length; left += 1) {
+      for (let right = left + 1; right < ordered.length; right += 1) {
+        const a = ordered[left]!;
+        const b = ordered[right]!;
+        const gap = organicBoxGap(a, b);
+        if (gap >= target) {
+          continue;
+        }
+        const ax = a.x + a.width / 2;
+        const ay = a.y + a.height / 2;
+        const bx = b.x + b.width / 2;
+        const by = b.y + b.height / 2;
+        let dx = bx - ax;
+        let dy = by - ay;
+        const length = Math.hypot(dx, dy);
+        if (length < 1e-6) {
+          dx = 1;
+          dy = 0;
+        } else {
+          dx /= length;
+          dy /= length;
+        }
+        const push = (target - gap) / 2 + 0.01;
+        a.x -= dx * push;
+        a.y -= dy * push;
+        b.x += dx * push;
+        b.y += dy * push;
+        moved = true;
+      }
+    }
+    if (!moved) {
+      break;
+    }
+  }
 }
 
 function placeGrid(
