@@ -217,12 +217,16 @@ function findByAttr(root: ParentNode, attr: string, value: string): Element | nu
 /** Wide transparent stroke so relationship lines are clickable. */
 function enhanceEdgeHits(svg: SVGElement): void {
   for (const group of svg.querySelectorAll("[data-edge-id]")) {
-    const stroke = group.querySelector("polyline, line, path");
+    // Prefer the full shaft. The arrow lives on a terminal <line> and must not
+    // be the only clickable piece.
+    const stroke = group.querySelector("polyline, path, line");
     if (!stroke || group.querySelector(".edge-hit")) {
       continue;
     }
     const hit = stroke.cloneNode() as SVGElement;
     hit.removeAttribute("marker-end");
+    hit.removeAttribute("marker-start");
+    hit.removeAttribute("marker-mid");
     hit.setAttribute("stroke", "transparent");
     hit.setAttribute("stroke-width", "12");
     hit.classList.add("edge-hit");
