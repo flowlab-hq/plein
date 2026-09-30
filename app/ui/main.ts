@@ -14,11 +14,15 @@ import {
 } from "../../src/browser.ts";
 import { elementStyle } from "../../src/archimate-style.ts";
 import {
+  contentBounds,
   edgeId,
   EDGE_ROUTINGS,
   isAutoLayoutEnabled,
   LAYOUT_DIRECTIONS,
   LAYOUT_MODES,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  PADDING,
   edgeRoutingTitle,
   layoutDirectionTitle,
   layoutModeLabel,
@@ -42,6 +46,7 @@ import {
   placeZoomAnchor,
   wheelGestureIsZoom,
 } from "../../src/canvas-zoom.ts";
+import { fitCanvasScroll, manualDragShift } from "../../src/manual-drag.ts";
 import {
   ExportError,
   exportSavePaths,
@@ -145,8 +150,19 @@ let nodeDrag: {
   startClientX: number;
   startClientY: number;
   moved: boolean;
-  origins: Map<string, { x: number; y: number }>;
+  origins: Map<string, { x: number; y: number; width: number; height: number }>;
+  /** CSS pixels per user unit, frozen at pointer-down so a growing viewBox does not feed back into the shift. */
+  pixelsPerUserX: number;
+  pixelsPerUserY: number;
+  /** ViewBox origin and pane scroll when the gesture started. */
+  baseOriginX: number;
+  baseOriginY: number;
+  baseScrollLeft: number;
+  baseScrollTop: number;
 } | null = null;
+/** Last laid-out user size, so a zoomed canvas grows when a drag expands the content box. */
+let contentUserWidth = 0;
+let contentUserHeight = 0;
 /**
  * Viewport scale for the SVG on screen. 1 is the laid-out size used on open.
  * Plain wheel pans (`overflow: auto`); ⌘/Ctrl+wheel changes this and keeps
@@ -607,7 +623,33 @@ function forgetCanvasZoom(): void {
   zoomBasisHeight = 0;
   canvasMarginLeft = 0;
   canvasMarginTop = 0;
+  contentUserWidth = 0;
+  contentUserHeight = 0;
   delete diagram.dataset.zoom;
+}
+
+/**
+ * Keep the current zoom factor when the laid-out user size changes.
+ * The basis stays a CSS-pixel size at zoom 1; scaling it by the user-size
+ * ratio preserves a stretched first capture and still lets the canvas grow.
+ */
+function followContentSize(width: number, height: number): void {
+  if (!(width > 0) || !(height > 0)) {
+    return;
+  }
+  if (
+    canvasZoom !== 1 &&
+    zoomBasisWidth > 0 &&
+    zoomBasisHeight > 0 &&
+    contentUserWidth > 0 &&
+    contentUserHeight > 0 &&
+    (width !== contentUserWidth || height !== contentUserHeight)
+  ) {
+    zoomBasisWidth *= width / contentUserWidth;
+    zoomBasisHeight *= height / contentUserHeight;
+  }
+  contentUserWidth = width;
+  contentUserHeight = height;
 }
 
 /** Size the SVG in CSS pixels. Layout user units stay put, so drag math still matches. */
@@ -705,12 +747,12 @@ async function renderDiagram(seq: number): Promise<void> {
     const svg = diagram.querySelector("svg");
     if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
+      followContentSize(browsed.layout.width, browsed.layout.height);
       if (!applyCanvasZoom(svg)) {
         canvasZoom = 1;
         delete diagram.dataset.zoom;
       } else if (sameView) {
-        diagram.scrollLeft = scrollLeft;
-        diagram.scrollTop = scrollTop;
+        holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
       }
     }
   } catch (error) {
@@ -1238,32 +1280,71 @@ function idsMovedWith(rootId: string): string[] {
   return ids;
 }
 
-function dragShift(
-  svg: SVGSVGElement,
-  drag: NonNullable<typeof nodeDrag>,
-  clientX: number,
-  clientY: number,
-): { x: number; y: number } | null {
-  const start = svgLocalPoint(svg, drag.startClientX, drag.startClientY);
-  const now = svgLocalPoint(svg, clientX, clientY);
-  if (!start || !now) {
-    return null;
+function userPixelsPerUnit(svg: SVGSVGElement): { x: number; y: number } {
+  const box = svg.getBoundingClientRect();
+  const viewWidth = svg.viewBox.baseVal.width || Number(svg.getAttribute("width"));
+  const viewHeight = svg.viewBox.baseVal.height || Number(svg.getAttribute("height"));
+  const x = viewWidth > 0 && box.width > 0 ? box.width / viewWidth : 1;
+  const y = viewHeight > 0 && box.height > 0 ? box.height / viewHeight : 1;
+  return {
+    x: Number.isFinite(x) && x !== 0 ? x : 1,
+    y: Number.isFinite(y) && y !== 0 ? y : 1,
+  };
+}
+
+/** Keep a pane scroll that sits past the previous left or top edge. */
+function holdScrollForExpandedCanvas(svg: SVGSVGElement, scrollLeft: number, scrollTop: number): void {
+  const marginLeft = Number.parseFloat(svg.style.marginLeft) || 0;
+  const marginTop = Number.parseFloat(svg.style.marginTop) || 0;
+  const slack = fitCanvasScroll({
+    clientWidth: diagram.clientWidth,
+    clientHeight: diagram.clientHeight,
+    contentWidth: marginLeft + svg.offsetWidth,
+    contentHeight: marginTop + svg.offsetHeight,
+    scrollLeft,
+    scrollTop,
+  });
+  svg.style.marginRight = slack.marginRight > 0.5 ? `${slack.marginRight}px` : "";
+  svg.style.marginBottom = slack.marginBottom > 0.5 ? `${slack.marginBottom}px` : "";
+  diagram.scrollLeft = scrollLeft;
+  diagram.scrollTop = scrollTop;
+}
+
+/**
+ * Grow the SVG around the dragged boxes. Outward moves past the previous
+ * left or top shift the viewBox origin; right and bottom grow the size.
+ * Scroll follows the origin so the rest of the diagram stays put and the
+ * new region can be panned back into view.
+ */
+function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }): void {
+  if (!nodeDrag || !lastLayout) {
+    return;
   }
-  let shiftX = now.x - start.x;
-  let shiftY = now.y - start.y;
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  for (const origin of drag.origins.values()) {
-    minX = Math.min(minX, origin.x + shiftX);
-    minY = Math.min(minY, origin.y + shiftY);
-  }
-  if (minX < 0) {
-    shiftX -= minX;
-  }
-  if (minY < 0) {
-    shiftY -= minY;
-  }
-  return { x: shiftX, y: shiftY };
+  const boxes = lastLayout.nodes.map((node) => {
+    const origin = nodeDrag?.origins.get(node.id);
+    if (!origin || !nodeDrag) {
+      return { x: node.x, y: node.y, width: node.width, height: node.height };
+    }
+    return {
+      x: Math.round(origin.x + shift.x),
+      y: Math.round(origin.y + shift.y),
+      width: origin.width,
+      height: origin.height,
+    };
+  });
+  const bounds = contentBounds(boxes, PADDING, PADDING * 2 + NODE_WIDTH, PADDING * 2 + NODE_HEIGHT);
+  const scaleX = nodeDrag.pixelsPerUserX;
+  const scaleY = nodeDrag.pixelsPerUserY;
+  svg.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
+  svg.setAttribute("width", String(bounds.width));
+  svg.setAttribute("height", String(bounds.height));
+  svg.style.minWidth = "0";
+  svg.style.minHeight = "0";
+  svg.style.width = `${bounds.width * scaleX}px`;
+  svg.style.height = `${bounds.height * scaleY}px`;
+  const scrollLeft = Math.max(0, nodeDrag.baseScrollLeft + (nodeDrag.baseOriginX - bounds.x) * scaleX);
+  const scrollTop = Math.max(0, nodeDrag.baseScrollTop + (nodeDrag.baseOriginY - bounds.y) * scaleY);
+  holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
 }
 
 diagram.addEventListener("pointerdown", (event) => {
@@ -1282,16 +1363,21 @@ diagram.addEventListener("pointerdown", (event) => {
   if (!id || !lastLayout) {
     return;
   }
-  const origins = new Map<string, { x: number; y: number }>();
+  const svg = nodeEl.closest("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  const origins = new Map<string, { x: number; y: number; width: number; height: number }>();
   for (const movedId of idsMovedWith(id)) {
     const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
     if (node) {
-      origins.set(movedId, { x: node.x, y: node.y });
+      origins.set(movedId, { x: node.x, y: node.y, width: node.width, height: node.height });
     }
   }
   if (!origins.has(id)) {
     return;
   }
+  const scale = userPixelsPerUnit(svg);
   nodeDrag = {
     id,
     pointerId: event.pointerId,
@@ -1299,6 +1385,12 @@ diagram.addEventListener("pointerdown", (event) => {
     startClientY: event.clientY,
     moved: false,
     origins,
+    pixelsPerUserX: scale.x,
+    pixelsPerUserY: scale.y,
+    baseOriginX: svg.viewBox.baseVal.x,
+    baseOriginY: svg.viewBox.baseVal.y,
+    baseScrollLeft: diagram.scrollLeft,
+    baseScrollTop: diagram.scrollTop,
   };
   try {
     diagram.setPointerCapture(event.pointerId);
@@ -1322,10 +1414,12 @@ diagram.addEventListener("pointermove", (event) => {
   if (!(svg instanceof SVGSVGElement)) {
     return;
   }
-  const shift = dragShift(svg, nodeDrag, event.clientX, event.clientY);
-  if (!shift) {
-    return;
-  }
+  const shift = manualDragShift(
+    event.clientX - nodeDrag.startClientX,
+    event.clientY - nodeDrag.startClientY,
+    nodeDrag.pixelsPerUserX,
+    nodeDrag.pixelsPerUserY,
+  );
   for (const [movedId, origin] of nodeDrag.origins) {
     const group = findByAttr(svg, "data-node-id", movedId);
     group?.setAttribute(
@@ -1333,6 +1427,7 @@ diagram.addEventListener("pointermove", (event) => {
       `translate(${Math.round(origin.x + shift.x)} ${Math.round(origin.y + shift.y)})`,
     );
   }
+  growCanvasForDrag(svg, shift);
 });
 
 diagram.addEventListener("pointerup", (event) => {
@@ -1358,10 +1453,12 @@ diagram.addEventListener("pointerup", (event) => {
   if (!viewName || !(svg instanceof SVGSVGElement) || !lastLayout) {
     return;
   }
-  const shift = dragShift(svg, drag, event.clientX, event.clientY);
-  if (!shift) {
-    return;
-  }
+  const shift = manualDragShift(
+    event.clientX - drag.startClientX,
+    event.clientY - drag.startClientY,
+    drag.pixelsPerUserX,
+    drag.pixelsPerUserY,
+  );
   const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
   for (const [movedId, origin] of drag.origins) {
     const existing = session.get(movedId);
