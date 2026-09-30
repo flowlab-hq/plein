@@ -22,6 +22,8 @@ Keys are canonical camelCase keywords (`applicationComponent`, `valueStream`). L
 | `s` | specialization |
 | `o` | association |
 
+ArchiMate concept names and Open Exchange `xsi:type` values for these letters are in [Plein constructs and ArchiMate 4](archimate-mapping.md#relationships).
+
 `capability` → `valueStream` is `fotv`, so flow, association, triggering, and serving are allowed, and realization is not. Serving is the relationship a capability uses to support a value-stream stage.
 
 ## What `plein check` reports
