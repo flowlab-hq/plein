@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
   <title>ArchiMate layers sample</title>
   <defs>
-    <marker id="arrow-catalogue-layers" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <marker id="arrow-catalogue-layers" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" />
     </marker>
   </defs>
   <g class="edges">
     <g data-edge-id="planning->onTime:realizes">
-      <polyline points="108,76 108,132" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="108,82 108,126" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rates->shipper:serves">
-      <polyline points="332,132 332,76" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="332,126 332,82" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rollout->planning:realizes">
-      <polyline points="528,132 528,86 164,86 164,76" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="528,126 528,86 164,86 164,82" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
     </g>
   </g>
   <g class="nodes">
