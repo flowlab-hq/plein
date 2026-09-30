@@ -102,7 +102,7 @@ plein export-open-exchange model.plein -o model.xml
 
 There is no separate `homebrew-plein` tap repo. `brew tap flowlab-hq/plein https://github.com/flowlab-hq/plein` uses this repository’s `Formula/plein.rb`.
 
-Until a version tag exists, the formula installs from `main`. After the first tag, pin `url` + `sha256` in `Formula/plein.rb`.
+The formula pins `url` + `sha256` in `Formula/plein.rb` to GitHub Release tag `v0.1.17`. `brew install --HEAD` still builds `main`.
 
 ## Smoke
 
