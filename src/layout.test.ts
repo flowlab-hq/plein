@@ -2167,6 +2167,107 @@ test("orthogonal fan-in heads clear the stroke and stay on the final segment", (
   assert.ok(sideMarker.x2 > right, "side tip line stays outside the box");
 });
 
+test("orthogonal connectors paint above element boxes they cross", () => {
+  const parent: LayoutNode = {
+    ...gapBox("parent", 0, 0, "grouping"),
+    width: 420,
+    height: 420,
+    container: true,
+  };
+  const left = gapBox("left", 40, 24, "businessActor");
+  const mid = gapBox("mid", 40, 160, "businessProcess");
+  const right = gapBox("right", 40, 300, "applicationComponent");
+  const through = gapLink(left, right, "flowsTo", [
+    { x: 124, y: left.y + left.height / 2 },
+    { x: 124, y: right.y + right.height / 2 },
+  ]);
+  const svg = renderViewpointSvg(gapScene([parent, left, mid, right], [through]));
+  const containersAt = svg.indexOf('<g class="containers">');
+  const nodesAt = svg.indexOf('<g class="nodes">');
+  const edgesAt = svg.indexOf('<g class="edges">');
+  assert.ok(containersAt !== -1 && containersAt < nodesAt && nodesAt < edgesAt);
+  assert.ok(svg.indexOf('data-node-id="mid"') < svg.indexOf(`data-edge-id="${through.id}"`));
+  assert.match(edgeGroup(svg, through.id), /pointer-events="none"/);
+  const points = renderedPolyline(svg, through.id);
+  assert.ok(points.length >= 2, "route is drawn end to end");
+  assert.equal(polylineCrossesBox(points, mid), true, "the shaft still crosses the middle box");
+  assert.equal(polylineCrossesBox(points, left), false);
+  assert.equal(polylineCrossesBox(points, right), false);
+});
+
+test("layers orthogonal routes that cross boxes stay painted above them", async () => {
+  const loaded = loadPleinSource(
+    `plein {
+  model {
+    goal "Advantage" as advantage
+    stakeholder "Gemba Advantage" as gemba
+    business-actor "Sponsor" as sponsor
+    business-process "Discover" as discover
+    business-process "Shape" as shape
+    business-process "Deliver" as deliver
+    application-component "Portal" as portal
+    application-component "Catalogue" as catalogue
+    advantage -> gemba: association
+    sponsor -> advantage: association
+    sponsor -> gemba: association
+    gemba -> discover: association
+    discover -> shape: triggering
+    shape -> deliver: triggering
+    gemba -> deliver: association
+    portal -> catalogue: flow
+    catalogue -> gemba: association
+    portal -> advantage: association
+  }
+  views {
+    viewpoint lines "Service lines" {
+      include advantage gemba sponsor discover shape deliver portal catalogue
+      autoLayout layers
+    }
+  }
+}
+`,
+    "service-lines.plein",
+  );
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) {
+    return;
+  }
+
+  for (const mode of ["layered", "layers"] as const) {
+    const layout = await layoutViewpoint(loaded.model, "lines", { mode, routing: "orthogonal" });
+    const svg = renderViewpointSvg(layout);
+    const nodesAt = svg.indexOf('<g class="nodes">');
+    const edgesAt = svg.indexOf('<g class="edges">');
+    assert.ok(nodesAt !== -1 && nodesAt < edgesAt, mode);
+    let crossings = 0;
+    for (const edge of layout.edges) {
+      if (edge.impliedByNest) {
+        continue;
+      }
+      const points = renderedPolyline(svg, edge.id);
+      assert.ok(points.length >= 2, `${mode} ${edge.id} is drawn end to end`);
+      const edgeAt = svg.indexOf(`data-edge-id="${edge.id}"`);
+      for (const node of layout.nodes) {
+        if (node.container || node.id === edge.source || node.id === edge.target) {
+          continue;
+        }
+        if (!polylineCrossesBox(points, node)) {
+          continue;
+        }
+        crossings += 1;
+        const nodeAt = svg.indexOf(`data-node-id="${node.id}"`);
+        assert.ok(
+          nodeAt !== -1 && nodeAt < edgeAt,
+          `${mode} ${edge.id} is hidden behind ${node.id}`,
+        );
+      }
+    }
+    if (mode === "layers") {
+      assert.ok(crossings > 0, "a long layers association should cross a foreign box");
+    }
+  }
+});
+
 test("connector gap holds for nested containers and auto-layout modes", async () => {
   const dense = loadPleinSource(
     `model {
@@ -2587,6 +2688,41 @@ function assertSharedArrowMarker(svg: string): void {
   const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
   const tipX = Math.max(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
   assert.ok(tipX > refX, "tip overhangs the shaft endpoint");
+}
+
+/** True when an axis-aligned run passes through the interior of a box. */
+function polylineCrossesBox(points: Array<{ x: number; y: number }>, node: LayoutNode): boolean {
+  const left = node.x + 1;
+  const right = node.x + node.width - 1;
+  const top = node.y + 1;
+  const bottom = node.y + node.height - 1;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index]!;
+    const b = points[index + 1]!;
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 0.6) {
+      continue;
+    }
+    if (Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)) {
+      const y = (a.y + b.y) / 2;
+      if (y <= top || y >= bottom) {
+        continue;
+      }
+      const overlap = Math.min(Math.max(a.x, b.x), right) - Math.max(Math.min(a.x, b.x), left);
+      if (overlap > 2) {
+        return true;
+      }
+    } else {
+      const x = (a.x + b.x) / 2;
+      if (x <= left || x >= right) {
+        continue;
+      }
+      const overlap = Math.min(Math.max(a.y, b.y), bottom) - Math.max(Math.min(a.y, b.y), top);
+      if (overlap > 2) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function assertNodeChromeUnchanged(svg: string, node: LayoutNode): void {

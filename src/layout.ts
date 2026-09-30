@@ -77,7 +77,7 @@ const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD;
 const MARKER_HEIGHT = MARKER_BASE_HEIGHT + MARKER_PAD * 2;
 /** How far the tip extends past the path endpoint, in user px. Marker units are strokeWidth. */
 const MARKER_OVERHANG = (MARKER_TIP_X - MARKER_REF_X) * EDGE_STROKE_WIDTH;
-const EDGE_STROKE_ATTRS = `fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round"`;
+const EDGE_STROKE_ATTRS = `fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round" pointer-events="none"`;
 
 /** Mac/web viewer engine: Eclipse Layout Kernel layered (elkjs). */
 export const LAYOUT_ENGINE = "elk-layered";
@@ -701,7 +701,11 @@ export function membershipOf(layout: ViewpointLayout): LayoutMembership {
 export function renderViewpointSvg(layout: ViewpointLayout): string {
   const title = layout.title ?? layout.viewName;
   const markerId = `arrow-${xmlId(layout.viewName)}`;
-  // Containers draw behind edges so inbound child edges stay visible.
+  // Paint order: container chrome, then element boxes, then connectors.
+  // A long orthogonal route can cross other boxes (layers inter-band elbows
+  // do this). Those strokes used to sit under the filled rects, so the
+  // relationship vanished. Connectors paint last and ignore pointer events;
+  // the viewer places a hit target under the boxes so the box stays selectable.
   // The parent is one group (chrome + title + type icon) — not a header
   // band stacked on a separate body rect, which selected as two items.
   const containerMarkup = layout.nodes
@@ -740,11 +744,11 @@ ${containerMarkup}
       <polygon points="${MARKER_PAD} ${MARKER_PAD}, ${MARKER_TIP_X} ${MARKER_TIP_Y}, ${MARKER_PAD} ${MARKER_PAD + MARKER_BASE_HEIGHT}" fill="#6e6e73" />
     </marker>
   </defs>
-${containersBlock}  <g class="edges">
-${edgeMarkup}
-  </g>
-  <g class="nodes">
+${containersBlock}  <g class="nodes">
 ${nodeMarkup}
+  </g>
+  <g class="edges">
+${edgeMarkup}
   </g>
 </svg>
 `;

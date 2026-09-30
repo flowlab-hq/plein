@@ -9,7 +9,9 @@ export type DiagramSelection =
 
 /**
  * Attributes from the closest SVG hit target.
- * Node groups sit above edges; nested-parent chrome sits below both.
+ * Element boxes sit above connector hit targets, so a click on a box selects
+ * the element. Visible strokes paint above the boxes and do not take hits.
+ * Nested-parent chrome sits below both.
  */
 export type DiagramHit = {
   nodeId?: string | null;

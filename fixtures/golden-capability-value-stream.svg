@@ -5,9 +5,6 @@
       <polygon points="1 1, 4 2, 1 3" fill="#6e6e73" />
     </marker>
   </defs>
-  <g class="edges">
-
-  </g>
   <g class="nodes">
     <g data-node-id="planning" data-keyword="capability" data-layer="strategy" data-icon="capability" transform="translate(24 24)">
       <title>capability — Network planning</title>
@@ -21,5 +18,8 @@
       <g class="type-icon" data-icon="value-stream" transform="translate(148 4)" fill="none" stroke="#5C5C5C" color="#5C5C5C" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4 H9.2 L14.2 8 L9.2 11.6 H1.8 L4.4 8 Z"/></g>
       <text x="12" y="30" fill="#1d1d1f" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Quote to cash</text>
     </g>
+  </g>
+  <g class="edges">
+
   </g>
 </svg>
