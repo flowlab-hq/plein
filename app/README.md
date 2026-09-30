@@ -167,7 +167,7 @@ Smoke from `Plein.app` (or `npm run app:preview` for the dialog; the preview dow
 **File → Export…**, the toolbar **Export…**, or **⇧⌘E**, then **Open Exchange**. That choice writes the **whole open model** as XML. It is not the viewpoint on the canvas (HTML, SVG, and HTML and SVG are unchanged and still follow the **View** chrome).
 
 1. Choose **Open Exchange**. The sheet title reads **Export Open Exchange**, and the line under it names the `.plein` file, not only the view.
-2. **Save…** opens the standard Mac save panel with a `.xml` name taken from the `.plein` file stem (`booking.plein` → `booking.xml`). In browser preview, the browser downloads that `.xml` instead.
+2. **Save…** opens the standard Mac save panel with a `.xml` name taken from the file stem (`booking.plein` or an imported `booking.xml` → `booking.xml`, not `booking.xml.xml`). In browser preview, the browser downloads that `.xml` instead.
 3. The bytes are `exportOpenExchange` — the same writer as `plein export-open-exchange`. Re-import with **File → Import Open Exchange XML…** or `plein import`. On the booking fixture, the file matches [fixtures/open-exchange/booking.export.xml](../fixtures/open-exchange/booking.export.xml), and importing it again matches [fixtures/open-exchange/booking.roundtrip.plein](../fixtures/open-exchange/booking.roundtrip.plein).
 4. Comments, the original model name, diagram geometry, styles, and the other gaps in [docs/open-exchange-import.md](../docs/open-exchange-import.md) stay out. That is the S5b subset, not a new one.
 

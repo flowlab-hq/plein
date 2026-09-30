@@ -43,6 +43,8 @@ test("Mac File menu exports the current view through the shared writer", () => {
   assert.match(ui, /pick_export_path/);
   assert.match(ui, /write_export_file/);
   assert.match(ui, /suggestedName/);
+  assert.match(ui, /openExchangeSuggestedStem\(loaded\.file\)/);
+  assert.match(ui, /openExchangeSuggestedStem\(file\)/);
   assert.match(ui, /assertExportMatchesCanvas/);
   assert.match(ui, /data-node-id/);
   assert.match(ui, /data-edge-id/);

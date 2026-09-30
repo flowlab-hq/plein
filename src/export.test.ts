@@ -12,6 +12,7 @@ import {
   exportNamedView,
   exportSavePaths,
   exportViewpoint,
+  openExchangeSuggestedStem,
   resolveNamedView,
   wrapViewpointHtml,
 } from "./export.js";
@@ -191,6 +192,28 @@ test("exportSavePaths pairs HTML and SVG from the save-panel path", () => {
   });
   assert.deepEqual(exportSavePaths("/tmp/", "open-exchange"), { xml: "/tmp/model.xml" });
   assert.throws(() => exportSavePaths("   ", "open-exchange"), ExportError);
+});
+
+test("openExchangeSuggestedStem drops a trailing xml before the export extension", () => {
+  assert.equal(openExchangeSuggestedStem("booking.plein"), "booking");
+  assert.equal(openExchangeSuggestedStem("/tmp/booking.plein"), "booking");
+  assert.equal(openExchangeSuggestedStem("fixtures/open-exchange/booking.xml"), "booking");
+  assert.equal(openExchangeSuggestedStem("booking3.xml"), "booking3");
+  assert.equal(openExchangeSuggestedStem("booking3.XML"), "booking3");
+  assert.equal(openExchangeSuggestedStem("booking3.Xml"), "booking3");
+  assert.equal(openExchangeSuggestedStem("C:\\docs\\booking3.xml"), "booking3");
+  assert.equal(openExchangeSuggestedStem("booking.xml.plein"), "booking");
+  assert.equal(openExchangeSuggestedStem("my.file.xml"), "my.file");
+  assert.equal(openExchangeSuggestedStem(".xml"), "model");
+  assert.equal(openExchangeSuggestedStem(".plein"), "model");
+  assert.equal(openExchangeSuggestedStem(""), "model");
+  assert.equal(`${openExchangeSuggestedStem("booking.xml")}.xml`, "booking.xml");
+  assert.equal(`${openExchangeSuggestedStem("booking.XML")}.xml`, "booking.xml");
+  assert.equal(`${openExchangeSuggestedStem("/Users/me/booking3.xml")}.xml`, "booking3.xml");
+  assert.equal(`${openExchangeSuggestedStem("booking.plein")}.xml`, "booking.xml");
+  assert.equal(openExchangeSuggestedStem("booking.xml.xml"), "booking.xml");
+  assert.equal(openExchangeSuggestedStem("notes.xml.backup"), "notes.xml.backup");
+  assert.equal(openExchangeSuggestedStem("my.model"), "my.model");
 });
 
 test("plein export writes the golden HTML to stdout", () => {
