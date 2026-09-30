@@ -109,6 +109,30 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.notice {
+  margin: 0;
+  padding: 10px 16px;
+  background: #f2f7ff;
+  color: var(--ink);
+  border-bottom: 1px solid #c9d8f0;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
+.notice-lead {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.notice-detail {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
 .workspace {
   flex: 1;
   display: grid;

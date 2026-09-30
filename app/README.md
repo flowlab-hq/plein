@@ -1,8 +1,8 @@
 # Plein Mac app (multi-view browser)
 
-A Tauri 2 app that opens a `.plein` file and browses **named viewpoints** from the `views` block on one SVG canvas. Each view is a diagram of the **same loaded model**. **Views**, **Elements**, and **Relationships** share the **left sidebar** (counts on the headings; each list scrolls). The diagram pane uses the remaining height — there is no bottom list strip.
+A Tauri 2 app that opens a `.plein` file, or imports an Open Exchange XML model, and browses **named viewpoints** from the `views` block on one SVG canvas. Each view is a diagram of the **same loaded model**. **Views**, **Elements**, and **Relationships** share the **left sidebar** (counts on the headings; each list scrolls). The diagram pane uses the remaining height — there is no bottom list strip.
 
-The TypeScript `checkPlein` path from the CLI is reused. Malformed or invalid files show the same `file:line:column` diagnostics as `plein check` in a banner (Open, Finder Open With, drop, or Reload). Read/open failures use that same banner so they do not fail silently.
+The TypeScript `checkPlein` path from the CLI is reused. **File → Import Open Exchange XML…** calls `importOpenExchange` (the same function as `plein import`) and then loads that `.plein` through the same path as **Open…**. Malformed or invalid files show the same `file:line:column` diagnostics as `plein check` in a banner (Open, Finder Open With, drop, or Reload). Read/open failures use that same banner so they do not fail silently.
 
 Membership for a named view is the markup `include` / `exclude` set (`filterModel`). Placement is ELK Layered via `layoutViewpoint` in `src/layout.ts` (elkjs); the pane draws `renderViewpointSvg(layout)` via `browseNamedView` / `switchNamedView` in `src/browser.ts`. Boxes use the shared ArchiMate type/layer map (`src/archimate-style.ts`): yellow business, cyan application, green technology/physical, purple motivation, orange strategy, pink implementation. Mapping: [docs/archimate-style.md](../docs/archimate-style.md). `autoLayout tb|bt|lr|rl` sets the layered direction (shorthand `left-right` / `horizontal` still maps to `lr`). Edge routing is a separate `autoLayout` token: `orthogonal` (default, right-angle) or `polyline` (may be diagonal), for example `autoLayout lr orthogonal`. `autoLayout layers` still uses ELK Layered but ranks root elements into ArchiMate aspect bands (Motivation/Strategy → Business → Application → Technology/Physical → Implementation), lays out **within each band**, then stacks the bands; `autoLayout layers lr` stacks those bands left-to-right. `autoLayout organic` is a seeded force-directed layout for landscapes (same file, same coordinates; not the default). `autoLayout grid` packs a catalogue by kind then name (`grid name` packs by name) and still places disconnected leftovers. When-to-use notes: [docs/plein-dsl-archimate-4.md](../docs/plein-dsl-archimate-4.md). Aggregation and composition default to **side-by-side**. A view may set `nesting nested` so children render inside the parent as an ELK compound graph; that `.plein` clause is the source of truth for PRs. The diagram chrome keeps **Auto layout** (File / On / Off) and **Mode** (File / Layered / Layers / Organic / Grid) one click away. **Options** groups **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Nesting** (File default / Nested / Beside). Those controls override for local preview only and are not written back to the file. **File** follows the view: `autoLayout off` or `manual` places elements from `position <id> <x> <y>` and leaves automatic layout unused, so Reload does not reflow that view. **On** recomputes from the model (layered, layers, organic, or grid) and ignores those positions. **Off** snapshots the current placement (and drag-to-move keeps editing it) for this open file, including across Reload. Declaring `autoLayout` without `off` stays automatic, including `organic` and `grid`. **Reload** re-reads the open `.plein` and redraws the current viewpoint; a new view added in markup appears in the sidebar after reload (no app code change). Open selects the first named viewpoint.
 
@@ -27,7 +27,7 @@ Prefer the GitHub Release **`.dmg`** ([README](../README.md#download-the-mac-app
 
 ## Run the UI without a `.app`
 
-Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Diagram ↔ list selection (nested containers + multi-view) is `src/selection.test.ts` or `./scripts/assert-selection-sync.sh`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open dialog is a file picker):
+Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Diagram ↔ list selection (nested containers + multi-view) is `src/selection.test.ts` or `./scripts/assert-selection-sync.sh`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open and Import dialogs are file pickers):
 
 ```bash
 npm install
@@ -122,6 +122,26 @@ In the Mac app:
 
 Browser preview (`npm run app:preview`) has no filesystem path after the file picker, so **Reload** re-parses the last loaded text. After disk edits in preview, use **Open…** again. The Mac `.app` is the supported reload path.
 
+## Import Open Exchange XML
+
+**File → Import Open Exchange XML…**, the toolbar **Import…** button, or **⇧⌘I** reads an ArchiMate Model Exchange File Format document and opens it as a model. The converter is `importOpenExchange` — the same subset as `plein import`, not a second one. The open panel accepts an `.xml` file (in browser preview, the file picker replaces that panel). Cancel leaves the current model alone and shows no banner.
+
+The imported source is loaded with `loadPleinSource`, the same path as **Open…** on a `.plein`. The first named viewpoint is selected. **Reload** (⌘R) re-imports that XML: from disk in `Plein.app`, or the text from the file picker in browser preview. Opening a `.plein` leaves the import session.
+
+The note above the canvas is the CLI summary (`formatImportReport`): element, relationship, and view counts, plus the same gap notes. Diagram geometry, styles, and organization folders are not imported. Skipped junctions, diagram-only nodes, and non-diagram views are counted in that note. The subset is not wider than `plein import`.
+
+A failed import shows **Could not import this Open Exchange file** and the `file:line:column` message (the same class as `plein import` on stderr). The diagram and sidebar stay hidden. A failed read of the chosen file uses that same banner. Nothing is written, and the failure is not silent.
+
+Open Exchange export of the whole model is **File → Export…** → **Open Exchange** (`exportOpenExchange`, the S5b subset). HTML, SVG, and HTML and SVG in that sheet still follow the viewpoint on the canvas.
+
+Smoke from `Plein.app` (or `npm run app:preview` for the file picker):
+
+1. **File → Import Open Exchange XML…** and choose [fixtures/open-exchange/booking.xml](../fixtures/open-exchange/booking.xml).
+2. The note reads **17 elements, 15 relationships, 2 views**, and says diagram geometry, styles, and organization folders are not imported. It also notes the skipped junction and the diagram-only nodes.
+3. The canvas is **Booking context**, the first viewpoint, the same path as opening [booking.plein](../fixtures/open-exchange/booking.plein). **Views** lists **Booking context** and **Quote to cash**. Click **All**: **Elements (17)** and **Relationships (15)**.
+4. Import a file that is not Open Exchange XML. The banner says **Could not import this Open Exchange file**. No diagram.
+5. With a model open, **File → Import Open Exchange XML…** and press **Cancel**. The diagram stays, and no error banner appears.
+
 ## Export the current view
 
 **File → Export…**, the toolbar **Export…** button, or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome. **Open Exchange** in the same sheet is the whole model; see [Export the open model as Open Exchange](#export-the-open-model-as-open-exchange).
@@ -148,7 +168,7 @@ Smoke from `Plein.app` (or `npm run app:preview` for the dialog; the preview dow
 
 1. Choose **Open Exchange**. The sheet title reads **Export Open Exchange**, and the line under it names the `.plein` file, not only the view.
 2. **Save…** opens the standard Mac save panel with a `.xml` name taken from the `.plein` file stem (`booking.plein` → `booking.xml`). In browser preview, the browser downloads that `.xml` instead.
-3. The bytes are `exportOpenExchange` — the same writer as `plein export-open-exchange`. Re-import with `plein import` (the Mac app has no Import menu). On the booking fixture, the file matches [fixtures/open-exchange/booking.export.xml](../fixtures/open-exchange/booking.export.xml), and importing it again matches [fixtures/open-exchange/booking.roundtrip.plein](../fixtures/open-exchange/booking.roundtrip.plein).
+3. The bytes are `exportOpenExchange` — the same writer as `plein export-open-exchange`. Re-import with **File → Import Open Exchange XML…** or `plein import`. On the booking fixture, the file matches [fixtures/open-exchange/booking.export.xml](../fixtures/open-exchange/booking.export.xml), and importing it again matches [fixtures/open-exchange/booking.roundtrip.plein](../fixtures/open-exchange/booking.roundtrip.plein).
 4. Comments, the original model name, diagram geometry, styles, and the other gaps in [docs/open-exchange-import.md](../docs/open-exchange-import.md) stay out. That is the S5b subset, not a new one.
 
 Cancel the save panel and nothing is written, and no error banner appears. A failed write shows **Could not export Open Exchange**. If the file did not load, **Export…** still shows **Could not export this view** and does not open the sheet — the same gate as HTML and SVG.
@@ -204,7 +224,7 @@ After installing from the GitHub Release `.dmg` (when published) or a local `Ple
 
 On an Apple Silicon Mac, after `npm run app:build`:
 
-1. Launch `Plein.app`. The empty state asks you to open a `.plein` file.
+1. Launch `Plein.app`. The empty state asks you to open a `.plein` file or import an Open Exchange XML model.
 2. **Open…** [fixtures/samples/value-stream-demo.plein](../fixtures/samples/value-stream-demo.plein). The diagram pane shows **Quote to cash** with Quote, Book, and Collect nested inside the value stream. Orange strategy boxes, cyan application boxes, type glyphs on each. No error banner. Left sidebar lists **Elements (8)** and **Relationships (9)** under Views — no bottom strip. Open **Options** and choose **File default / Nested / Beside** to preview the other placement locally. Click a nested stage on the diagram and confirm the matching Elements row highlights; click a list row and confirm the diagram item highlights; click empty canvas to clear.
 3. **Open…** [fixtures/valid-catalogue-layers.plein](../fixtures/valid-catalogue-layers.plein). Seven layer colours as in [docs/archimate-style.md](../docs/archimate-style.md). Hover a box: tooltip is `type — label`. Lists stay on the left.
 4. **Open…** `fixtures/valid-basic.plein`. The diagram pane shows **Booking context** (Shipper, Booking service, Freight order, Rate engine) with serving / access / realization edges. Shipper / Booking / Freight order are yellow; Rate engine is cyan. Left sidebar matches those four elements and four relationships.

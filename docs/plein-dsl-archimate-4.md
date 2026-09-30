@@ -681,7 +681,7 @@ That sample follows the same patterns as the golden fixtures: `plein {`, kebab-c
 
 ## Open Exchange import and export
 
-`plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. `plein export-open-exchange` writes that same subset back to XML. The mapping, the representative fixture, and the gaps are [Open Exchange import and export](open-exchange-import.md). HTML/SVG export is a different command (`plein export`).
+`plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. `plein export-open-exchange` writes that same subset back to XML. The Mac app’s **File → Import Open Exchange XML…** uses that same importer, and **File → Export…** → **Open Exchange** uses that same exporter. The mapping, the representative fixture, and the gaps are [Open Exchange import and export](open-exchange-import.md). HTML/SVG export is a different command (`plein export`).
 
 Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, and diagram membership as viewpoints. Documentation, properties, extra languages, `accessType`, and influence modifiers are comments, not first-class syntax. Export does not read those comments.
 

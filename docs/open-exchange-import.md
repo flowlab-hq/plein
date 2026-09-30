@@ -13,7 +13,7 @@ plein import fixtures/open-exchange/booking.xml -o booking.plein
 plein check booking.plein
 ```
 
-Open `booking.plein` in the Mac app the same way as any other model.
+Open `booking.plein` in the Mac app the same way as any other model. Or import the XML in the app: **File → Import Open Exchange XML…** (see [Mac app](#mac-app)).
 
 - Without `-o`, the `.plein` source is written to stdout. Gap notes go to stderr so a pipe stays valid markup.
 - `-o path.plein` writes that file. A directory (or a path ending in `/`) writes `<xml-stem>.plein` inside it.
@@ -23,11 +23,21 @@ Open `booking.plein` in the Mac app the same way as any other model.
 plein import fixtures/open-exchange/booking.xml > booking.plein
 ```
 
+### Mac app
+
+**File → Import Open Exchange XML…** (toolbar **Import…**, or **⇧⌘I**) reads an `.xml` file with `importOpenExchange` and opens the `.plein` the same way as **Open…**. The open panel filters to XML. Cancel does not change the model and does not show an error.
+
+The note above the canvas is the same summary as the CLI (`formatImportReport` on stderr when you do not pass `-o`): counts, plus notes for diagram geometry, styles, organization folders, skipped junctions, diagram-only nodes, and non-diagram views. For [fixtures/open-exchange/booking.xml](../fixtures/open-exchange/booking.xml) that is 17 elements, 15 relationships, and 2 views. The canvas shows the first viewpoint (**Booking context**). **All** lists the whole model. **Reload** re-imports the XML.
+
+A file that is outside the subset, or not an exchange document, shows **Could not import this Open Exchange file** with the `file:line:column` message. The diagram stays hidden.
+
+**File → Export…** → **Open Exchange** writes the whole open model with `exportOpenExchange` (the same subset as `plein export-open-exchange`). HTML, SVG, and HTML and SVG still export only the viewpoint on the canvas.
+
 ## Export
 
 Same machines as import: Homebrew or `npx plein`, Node 18+. The supported Mac target is Apple Silicon.
 
-In the Mac app, **File → Export…** (toolbar **Export…**, or **⇧⌘E**) and choose **Open Exchange**. **Save…** writes one `.xml` file for the whole open model. The suggested name is the `.plein` file stem (`booking.plein` → `booking.xml`). The writer is `exportOpenExchange`, the same function as `plein export-open-exchange`. HTML, SVG, and HTML and SVG still export only the viewpoint on the canvas. The Mac app has no Import menu; re-import with `plein import`. A failed write shows **Could not export Open Exchange**. Cancel writes nothing.
+In the Mac app, **File → Export…** (toolbar **Export…**, or **⇧⌘E**) and choose **Open Exchange**. **Save…** writes one `.xml` file for the whole open model. The suggested name is the `.plein` file stem (`booking.plein` → `booking.xml`). The writer is `exportOpenExchange`, the same function as `plein export-open-exchange`. HTML, SVG, and HTML and SVG still export only the viewpoint on the canvas. Re-import with **File → Import Open Exchange XML…** or `plein import`. A failed write shows **Could not export Open Exchange**. Cancel writes nothing.
 
 ```bash
 plein export-open-exchange booking.plein -o booking.xml
@@ -209,7 +219,7 @@ Other deltas:
 
 ### Other
 
-- The Mac app has no Import menu. Open Exchange export is **File → Export…** → **Open Exchange** (the whole open model, the same subset as `plein export-open-exchange`). Re-import with the CLI.
+- The Mac app imports with **File → Import Open Exchange XML…** (same subset and the same summary notes) and exports with **File → Export…** → **Open Exchange** (the whole open model, the same subset as `plein export-open-exchange`).
 - `DOCTYPE` is rejected so the reader does not resolve external entities.
 - A `"` in a name is stored as `'`.
 

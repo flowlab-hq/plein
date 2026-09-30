@@ -42,6 +42,25 @@ async fn open_plein_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String>
     Ok(Some(read_opened(path_from_dialog(file)?)?))
 }
 
+/// Native open panel for Open Exchange XML. Same async rule as Open: a sync
+/// command plus `blocking_pick_file` deadlocks NSOpenPanel.
+#[tauri::command]
+async fn open_open_exchange_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Import Open Exchange XML")
+            .add_filter("Open Exchange XML", &["xml"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    Ok(Some(read_opened(path_from_dialog(file)?)?))
+}
+
 /// Native save panel. HTML, SVG, and both are the current view.
 /// `open-exchange` is one `.xml` file for the whole model.
 /// Async + `spawn_blocking`, same as Open: a sync command plus
@@ -165,6 +184,13 @@ fn files_from_cli_args() -> Vec<PathBuf> {
 
 fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", "Open…", true, Some("CmdOrCtrl+O"))?;
+    let import_xml = MenuItem::with_id(
+        app,
+        "import-open-exchange",
+        "Import Open Exchange XML…",
+        true,
+        Some("CmdOrCtrl+Shift+I"),
+    )?;
     let export = MenuItem::with_id(app, "export", "Export…", true, Some("CmdOrCtrl+Shift+E"))?;
     let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
     let file_menu = Submenu::with_items(
@@ -173,6 +199,7 @@ fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         &[
             &open,
+            &import_xml,
             &export,
             &reload,
             &PredefinedMenuItem::separator(app)?,
@@ -233,6 +260,9 @@ fn emit_menu_action(app: &AppHandle, id: &str) {
         "open" => {
             let _ = app.emit("open-dialog", ());
         }
+        "import-open-exchange" => {
+            let _ = app.emit("import-open-exchange", ());
+        }
         "export" => {
             let _ = app.emit("export-view", ());
         }
@@ -252,6 +282,7 @@ pub fn run() {
             take_startup_path,
             read_plein_file,
             open_plein_dialog,
+            open_open_exchange_dialog,
             pick_export_path,
             write_export_file
         ])
