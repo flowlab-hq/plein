@@ -136,9 +136,10 @@ jobs:
             if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
               extra+=(--target "${GITHUB_SHA}")
             fi
+            # macOS /bin/bash is 3.2: with set -u, "${extra[@]}" is unbound when empty.
             gh release create "${tag}" "${dmg}" \
               --title "Plein ${version}" \
               --notes-file "${notes}" \
-              "${extra[@]}"
+              ${extra[@]+"${extra[@]}"}
           fi
           echo "Release ${tag}: ${dmg}"
