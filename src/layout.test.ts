@@ -1986,6 +1986,59 @@ test("orthogonal bend points and mid-spans do not get end markers", () => {
   assert.notEqual(nestedMarker.y2, 300);
 });
 
+test("orthogonal fan-in heads clear the stroke and stay on the final segment", () => {
+  // ELK parks the last bend 10px outside the border. That is the dense fan-in
+  // stub: a horizontal bus, then a short rise into the bottom (or a short run
+  // into the side). The head has to clear the stroke and still fit on that rise.
+  const service = gapBox("service", 200, 40, "businessService");
+  const bottom = service.y + service.height;
+  const right = service.x + service.width;
+  const legacy = gapBox("legacy", 40, 180, "businessProcess");
+  const core = gapBox("core", 220, 180, "businessProcess");
+  const platforms = gapBox("platforms", 400, 180, "applicationComponent");
+  const side = gapBox("archive", 460, 40, "businessObject");
+  const intoBottom = (source: LayoutNode, x: number, type: ViewpointLayout["edges"][number]["type"]) =>
+    gapLink(source, service, type, [
+      { x: source.x + source.width / 2, y: source.y },
+      { x: source.x + source.width / 2, y: bottom + 10 },
+      { x, y: bottom + 10 },
+      { x, y: bottom },
+    ]);
+  const fromLegacy = intoBottom(legacy, 250, "realizes");
+  const fromCore = intoBottom(core, 290, "realizes");
+  const fromPlatforms = intoBottom(platforms, 330, "flowsTo");
+  const fromSide = gapLink(side, service, "accesses", [
+    { x: side.x, y: 66 },
+    { x: right + 10, y: 66 },
+    { x: right, y: 66 },
+  ]);
+  const scene = gapScene(
+    [service, legacy, core, platforms, side],
+    [fromLegacy, fromCore, fromPlatforms, fromSide],
+  );
+  const svg = renderViewpointSvg(scene);
+  const tips: number[] = [];
+  for (const edge of scene.edges) {
+    const measured = measureConnector(svg, scene, edge);
+    assertStraightEndGaps(edge.id, measured);
+    assertOverhangAccounted(edge.id, svg, measured);
+    assertEndMarkerOnly(svg, edge.id);
+    assertHeadOnFinalSegment(edge.id, svg, edge.id);
+    tips.push(measured.tipGap);
+  }
+  assert.ok(Math.max(...tips) - Math.min(...tips) <= 0.05, "bottom and side tips share one clearance");
+  for (const edge of [fromLegacy, fromCore, fromPlatforms]) {
+    const marker = endMarker(svg, edge.id);
+    assert.equal(marker.x1, marker.x2, edge.id);
+    assert.ok(marker.y2 < marker.y1, `${edge.id} points up into the bottom`);
+    assert.ok(marker.y2 > bottom, `${edge.id} tip line stays outside the box`);
+  }
+  const sideMarker = endMarker(svg, fromSide.id);
+  assert.equal(sideMarker.y1, sideMarker.y2);
+  assert.ok(sideMarker.x2 < sideMarker.x1, "side head points into the box");
+  assert.ok(sideMarker.x2 > right, "side tip line stays outside the box");
+});
+
 test("connector gap holds for nested containers and auto-layout modes", async () => {
   const dense = loadPleinSource(
     `model {
@@ -2327,6 +2380,35 @@ function assertOverhangAccounted(
   );
 }
 
+/** Distance from the path end back to the arrow base. The head occupies this, so the shaft is not left floating. */
+function markerTailPx(svg: string): number {
+  const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
+  const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
+  const baseX = Math.min(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
+  const stroke = Number(/<polyline[^>]* stroke-width="([^"]+)"/.exec(svg)?.[1]);
+  return (refX - baseX) * stroke;
+}
+
+/**
+ * The triangle must lie on the final segment. If the tail reaches the previous
+ * bend, that span cuts through the head and the tip looks flattened on the border.
+ */
+function assertHeadOnFinalSegment(where: string, svg: string, edgeId: string): void {
+  const points = renderedPolyline(svg, edgeId);
+  const end = points[points.length - 1]!;
+  let from = points[points.length - 2]!;
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    if (points[index]!.x !== end.x || points[index]!.y !== end.y) {
+      from = points[index]!;
+      break;
+    }
+  }
+  const stub = Math.hypot(end.x - from.x, end.y - from.y);
+  const tail = markerTailPx(svg);
+  assert.ok(tail > 1 && tail < 6, `${where} tail ${tail}`);
+  assert.ok(stub - tail >= 0.75, `${where} head crosses the bend: stub ${stub} tail ${tail}`);
+}
+
 function markerOverhangPx(svg: string): number {
   const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
   const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
@@ -2363,15 +2445,16 @@ function assertRenderedConnectorGap(
     assert.equal(strictlyInside(point, target), false, where);
   }
   assertEndMarkerOnly(svg, edge.id);
+  assertHeadOnFinalSegment(where, svg, edge.id);
 }
 
 function assertSharedArrowMarker(svg: string): void {
   assert.equal(svg.match(/<marker /g)?.length, 1);
   assert.match(
     svg,
-    /<marker [^>]*markerUnits="strokeWidth" markerWidth="12" markerHeight="9" refX="9" refY="3.5" orient="auto" viewBox="-1 -1 12 9" overflow="visible">/,
+    /<marker [^>]*markerUnits="strokeWidth" markerWidth="5" markerHeight="4" refX="3" refY="2" orient="auto" viewBox="0 0 5 4" overflow="visible">/,
   );
-  assert.match(svg, /<polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" \/>/);
+  assert.match(svg, /<polygon points="1 1, 4 2, 1 3" fill="#6e6e73" \/>/);
   const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
   const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
   const tipX = Math.max(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
