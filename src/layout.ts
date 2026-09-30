@@ -14,6 +14,7 @@ import {
   wrapLabel,
 } from "./label-fit.js";
 import { filterModel } from "./list-model.js";
+import { routeOrganicOrthogonal } from "./organic-routing.js";
 import type { ElementDecl, PleinModel, RelationshipDecl, ViewDecl } from "./parser.js";
 
 /** Default element box. Short labels stay this size; longer names wrap and may grow. */
@@ -1235,8 +1236,10 @@ type LevelPlacer = (
 /**
  * Seeded ELK Force (Fruchterman–Reingold), then a deterministic scale toward
  * `ORGANIC_PACK_RATIO`. `elk.randomSeed` is fixed so the same graph yields
- * the same coordinates. Direction does not re-rank nodes; orthogonal routing
- * still uses it for bend axis. Disconnected components are simulated
+ * the same coordinates. Direction does not re-rank nodes. Orthogonal
+ * connectors are then bent through open gaps so a dense pack does not stack
+ * every association on one midpoint bar; the view direction only breaks ties.
+ * Polyline stays a straight center line. Disconnected components are simulated
  * separately and then packed with the rest of the level.
  */
 async function layoutOrganic(
@@ -1247,7 +1250,7 @@ async function layoutOrganic(
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): Promise<PackedLayout> {
-  return layoutCompound(
+  const packed = await layoutCompound(
     elements,
     relationships,
     direction,
@@ -1256,6 +1259,55 @@ async function layoutOrganic(
     parentOf,
     placeOrganic,
   );
+  if (routing === "orthogonal") {
+    applyOrganicOrthogonalRoutes(packed, elements, relationships, direction, parentOf);
+  }
+  return packed;
+}
+
+/**
+ * Replace the midpoint orthogonal polylines from `attachInterBandEdges`.
+ * Node coordinates stay on the packed force layout. Layered, layers, and grid
+ * never call this.
+ */
+function applyOrganicOrthogonalRoutes(
+  packed: PackedLayout,
+  elements: ElementDecl[],
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+  parentOf: Map<string, string>,
+): void {
+  const nodeById = new Map(packed.nodes.map((node) => [node.id, node]));
+  const present = new Set(elements.map((element) => element.id));
+  const jobs: Array<{ id: string; source: string; target: string }> = [];
+  for (const rel of relationships) {
+    if (!present.has(rel.source) || !present.has(rel.target)) {
+      continue;
+    }
+    if (NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source) {
+      continue;
+    }
+    if (!nodeById.has(rel.source) || !nodeById.has(rel.target)) {
+      continue;
+    }
+    jobs.push({ id: edgeId(rel.source, rel.target, rel.type), source: rel.source, target: rel.target });
+  }
+  const routed = routeOrganicOrthogonal(packed.nodes, jobs, direction);
+  for (const job of jobs) {
+    const points = routed.get(job.id);
+    if (!points || points.length < 2) {
+      continue;
+    }
+    const start = points[0]!;
+    const end = points[points.length - 1]!;
+    packed.edges.set(job.id, {
+      x1: start.x,
+      y1: start.y,
+      x2: end.x,
+      y2: end.y,
+      points,
+    });
+  }
 }
 
 /**

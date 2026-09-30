@@ -420,7 +420,7 @@ Organic runs **ELK Force** (Fruchterman–Reingold) with a fixed seed (`elk.rand
 
 Use it for landscape and inventory diagrams with many relationship types and no single reading direction. Do not use it when edge ranks or ArchiMate aspect bands are the point; those stay `layered` and `layers`.
 
-Disconnected components are simulated on their own and then packed, so an isolated box does not fly away from the cluster. Direction (`tb|bt|lr|rl`) does not re-rank organic nodes. It is still recorded on the view, and orthogonal routing uses it as the bend axis. `autoLayout organic lr polyline` keeps the force placement and draws straight (possibly diagonal) connectors. `nesting nested` still draws children inside the parent; each container is force-laid-out on its own, then placed in the parent simulation.
+Disconnected components are simulated on their own and then packed, so an isolated box does not fly away from the cluster. Direction (`tb|bt|lr|rl`) does not re-rank organic nodes and does not move them. Orthogonal connectors on that packed layout are right-angle polylines that prefer an open gap between the two boxes and keep parallel spans a lane apart. The view direction only breaks a tie between equally clear routes, so a dense service line does not draw every association through the same midpoint bar. `autoLayout organic lr polyline` keeps the force placement and draws straight (possibly diagonal) connectors. `nesting nested` still draws children inside the parent; each container is force-laid-out on its own, then placed in the parent simulation.
 
 ### Grid (`autoLayout grid`)
 
