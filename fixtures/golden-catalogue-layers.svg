@@ -7,13 +7,16 @@
   </defs>
   <g class="edges">
     <g data-edge-id="planning->onTime:realizes">
-      <polyline points="108,76.63 108,126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="108,76.63 108,126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="108" y1="76.63" x2="108" y2="126.88" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rates->shipper:serves">
-      <polyline points="332,131.38 332,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="332,131.38 332,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="332" y1="131.38" x2="332" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rollout->planning:realizes">
-      <polyline points="528,131.38 528,86 164,86 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="528,131.38 528,86 164,86 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="164" y1="86" x2="164" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
   </g>
   <g class="nodes">

@@ -67,6 +67,7 @@ const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD * 2;
 const MARKER_HEIGHT = MARKER_BASE_HEIGHT + MARKER_PAD * 2;
 /** How far the tip extends past the path endpoint, in user px. Marker units are strokeWidth. */
 const MARKER_OVERHANG = (MARKER_TIP_X - MARKER_REF_X) * EDGE_STROKE_WIDTH;
+const EDGE_STROKE_ATTRS = `fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round"`;
 
 /** Mac/web viewer engine: Eclipse Layout Kernel layered (elkjs). */
 export const LAYOUT_ENGINE = "elk-layered";
@@ -794,9 +795,41 @@ function renderEdge(
   const opened = source && target ? insetConnectorEnds(raw, source, target) : raw;
   const points = opened.length >= 2 ? opened : raw;
   const pointAttr = points.map((point) => `${formatCoord(point.x)},${formatCoord(point.y)}`).join(" ");
+  // The shaft stays one polyline so orthogonal corners keep a single round join.
+  // `marker-end` is not on that polyline: WKWebView paints it at every segment
+  // end, so a bend gets a head aimed along the segment that arrived there
+  // (upward triangles on a horizontal span, shaft entering the side of the
+  // triangle). A two-point line has no mid vertex, so the head can only sit on
+  // the target attachment. The source stays unmarked. Tip clearance is still
+  // `insetConnectorEnds` — shaft on the stroke, overhang only at this end.
+  const shaft = `      <polyline points="${pointAttr}" ${EDGE_STROKE_ATTRS} marker-start="none" marker-mid="none" marker-end="none" />`;
+  const terminal = terminalSegment(points);
+  const tip = terminal
+    ? `\n      <line x1="${formatCoord(terminal.from.x)}" y1="${formatCoord(terminal.from.y)}" x2="${formatCoord(terminal.to.x)}" y2="${formatCoord(terminal.to.y)}" ${EDGE_STROKE_ATTRS} marker-start="none" marker-mid="none" marker-end="url(#${markerId})" />`
+    : "";
   return `    <g data-edge-id="${escapeXml(edge.id)}">
-      <polyline points="${pointAttr}" fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round" marker-end="url(#${markerId})" />
+${shaft}${tip}
     </g>`;
+}
+
+/** Final non-degenerate segment. The marker line is only these two points. */
+function terminalSegment(points: ElkPoint[]): { from: ElkPoint; to: ElkPoint } | null {
+  if (points.length < 2) {
+    return null;
+  }
+  const to = points[points.length - 1]!;
+  const toKey = coordKey(to);
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const from = points[index]!;
+    if (coordKey(from) !== toKey) {
+      return { from, to };
+    }
+  }
+  return null;
+}
+
+function coordKey(point: ElkPoint): string {
+  return `${formatCoord(point.x)},${formatCoord(point.y)}`;
 }
 
 type Box = { x: number; y: number; width: number; height: number };

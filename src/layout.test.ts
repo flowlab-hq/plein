@@ -1627,6 +1627,7 @@ test("marker tips clear the stroke and unmarked shafts stay on it", () => {
     const measured = measureConnector(svg, layout, edge);
     assertStraightEndGaps(edge.id, measured);
     assertOverhangAccounted(edge.id, svg, measured);
+    assertEndMarkerOnly(svg, edge.id);
     tips.push(measured.tipGap);
   }
   assert.ok(Math.max(...tips) - Math.min(...tips) <= 0.05, "fan-in tips share one clearance");
@@ -1642,6 +1643,7 @@ test("marker tips clear the stroke and unmarked shafts stay on it", () => {
   const centerMeasured = measureConnector(centerSvg, centerScene, centerRouted);
   assertStraightEndGaps("center", centerMeasured);
   assertOverhangAccounted("center", centerSvg, centerMeasured);
+  assertEndMarkerOnly(centerSvg, centerRouted.id);
 
   const diagonalSource = gapBox("quote", 40, 40, "businessProcess");
   const diagonalTarget = gapBox("order", 360, 180, "businessObject");
@@ -1652,6 +1654,7 @@ test("marker tips clear the stroke and unmarked shafts stay on it", () => {
   const diagonalScene = gapScene([diagonalSource, diagonalTarget], [diagonal]);
   const diagonalSvg = renderViewpointSvg(diagonalScene);
   assertStraightEndGaps("diagonal", measureConnector(diagonalSvg, diagonalScene, diagonal));
+  assertEndMarkerOnly(diagonalSvg, diagonal.id);
 });
 
 test("short connectors keep tip clearance ahead of the shaft and do not reverse", () => {
@@ -1668,6 +1671,7 @@ test("short connectors keep tip clearance ahead of the shaft and do not reverse"
   const measured = measureConnector(svg, scene, edge);
   assertStraightEndGaps(edge.id, measured);
   assertOverhangAccounted(edge.id, svg, measured);
+  assertEndMarkerOnly(svg, edge.id);
 
   const closeTarget = gapBox("booking", 40, 100, "businessService");
   const close = gapLink(source, closeTarget, "serves", [
@@ -1687,8 +1691,113 @@ test("short connectors keep tip clearance ahead of the shaft and do not reverse"
   const closeMeasured = measureConnector(closeSvg, closeScene, close);
   assertStraightEndGaps(close.id, closeMeasured);
   assertOverhangAccounted(close.id, closeSvg, closeMeasured);
+  assertEndMarkerOnly(closeSvg, close.id);
   assertNodeChromeUnchanged(closeSvg, source);
   assertNodeChromeUnchanged(closeSvg, closeTarget);
+});
+
+test("orthogonal bend points and mid-spans do not get end markers", () => {
+  const prototyping = { ...gapBox("prototyping", 40, 24, "businessProcess"), width: 320, height: 56 };
+  const development = { ...gapBox("development", 400, 24, "businessProcess"), width: 320, height: 56 };
+  const research = gapBox("research", 40, 280, "businessService");
+  const design = gapBox("design", 400, 280, "businessService");
+  const archive = gapBox("archive", 800, 120, "businessObject");
+  const platform = {
+    ...gapBox("platform", 200, 80, "grouping"),
+    width: 400,
+    height: 280,
+    container: true,
+  };
+  const tms = { ...gapBox("tms", 280, 160, "applicationComponent"), parentId: "platform" };
+  const shipper = gapBox("shipper", 40, 200, "businessActor");
+
+  // Vertical rise onto a horizontal bus, then a final rise into the box.
+  // The rise onto the bus is a mid vertex — an upward head there is the Mac failure.
+  const intoProto = gapLink(research, prototyping, "triggers", [
+    { x: 124, y: 280 },
+    { x: 124, y: 150 },
+    { x: 124, y: 150 },
+    { x: 200, y: 150 },
+    { x: 200, y: 50 },
+  ]);
+  // Extra jog: a vertical mid-span under the box, then a horizontal run, then up.
+  const intoDev = gapLink(design, development, "flowsTo", [
+    { x: 484, y: 280 },
+    { x: 484, y: 210 },
+    { x: 700, y: 210 },
+    { x: 700, y: 150 },
+    { x: 560, y: 150 },
+    { x: 560, y: 50 },
+  ]);
+  // Final segment is horizontal. The vertical bend beside the box must not be a head.
+  const intoSide = gapLink(archive, development, "accesses", [
+    { x: 800, y: 146 },
+    { x: 760, y: 146 },
+    { x: 760, y: 52 },
+    { x: 680, y: 52 },
+  ]);
+  // Bends inside a nested parent are not relationship ends. The head is on the child.
+  const intoNested = gapLink(shipper, tms, "serves", [
+    { x: 208, y: 226 },
+    { x: 240, y: 226 },
+    { x: 240, y: 300 },
+    { x: 360, y: 300 },
+    { x: 360, y: 186 },
+  ]);
+
+  const scene = gapScene(
+    [prototyping, development, research, design, archive, platform, tms, shipper],
+    [intoProto, intoDev, intoSide, intoNested],
+  );
+  const svg = renderViewpointSvg(scene);
+  assert.equal(svg.includes('marker-mid="url('), false);
+  assert.equal(svg.includes('marker-start="url('), false);
+  assert.equal(svg.match(/marker-end="url\(/g)?.length, scene.edges.length);
+
+  for (const edge of scene.edges) {
+    assertEndMarkerOnly(svg, edge.id);
+    const measured = measureConnector(svg, scene, edge);
+    assertStraightEndGaps(edge.id, measured);
+    assertOverhangAccounted(edge.id, svg, measured);
+  }
+
+  const protoPoints = renderedPolyline(svg, intoProto.id);
+  assert.ok(protoPoints.length >= 4, "orthogonal route keeps its bend points");
+  assert.ok(protoPoints.some((point) => point.x === 124 && point.y === 150));
+  assert.ok(protoPoints.some((point) => point.x === 200 && point.y === 150));
+  const protoMarker = endMarker(svg, intoProto.id);
+  assert.equal(protoMarker.x1, protoMarker.x2);
+  assert.ok(protoMarker.y2 < protoMarker.y1, "head points up into the box");
+  assert.ok(protoMarker.y2 < 120, `head sits on the box edge, not the bus (${protoMarker.y2})`);
+  assert.notEqual(protoMarker.y2, 150);
+  assert.notEqual(protoMarker.x2, 124);
+
+  const devPoints = renderedPolyline(svg, intoDev.id);
+  assert.ok(devPoints.some((point) => point.x === 700 && point.y === 150));
+  assert.ok(devPoints.some((point) => point.x === 700 && point.y === 210));
+  const devMarker = endMarker(svg, intoDev.id);
+  assert.equal(devMarker.x1, devMarker.x2);
+  assert.equal(devMarker.x2, 560);
+  assert.ok(devMarker.y2 < devMarker.y1);
+  assert.ok(Math.abs(devMarker.y2 - 150) > 20);
+  assert.ok(Math.abs(devMarker.y2 - 210) > 20);
+  assert.notEqual(devMarker.x2, 700);
+
+  const sideMarker = endMarker(svg, intoSide.id);
+  assert.equal(sideMarker.y1, sideMarker.y2);
+  assert.ok(sideMarker.x2 < sideMarker.x1, "head points along the final segment toward the box");
+  assert.notEqual(sideMarker.x2, 760);
+  assert.ok(Math.abs(sideMarker.y2 - 146) > 20, "vertical bend is not the marker position");
+
+  const nestedPoints = renderedPolyline(svg, intoNested.id);
+  assert.ok(nestedPoints.some((point) => point.x === 240 && point.y === 300));
+  assert.ok(nestedPoints.some((point) => point.x === 360 && point.y === 300));
+  const nestedMarker = endMarker(svg, intoNested.id);
+  assert.equal(nestedMarker.x1, nestedMarker.x2);
+  assert.equal(nestedMarker.x2, 360);
+  assert.ok(nestedMarker.y2 < nestedMarker.y1);
+  assert.ok(nestedMarker.y2 < 250, `nested head is on the child, not the interior bend (${nestedMarker.y2})`);
+  assert.notEqual(nestedMarker.y2, 300);
 });
 
 test("connector gap holds for nested containers and auto-layout modes", async () => {
@@ -1877,6 +1986,68 @@ function gapScene(nodes: LayoutNode[], edges: ViewpointLayout["edges"]): Viewpoi
   };
 }
 
+type MarkerLine = { x1: number; y1: number; x2: number; y2: number };
+
+function edgeGroup(svg: string, edgeId: string): string {
+  const escaped = edgeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = svg.match(new RegExp(`<g data-edge-id="${escaped}">[\\s\\S]*?</g>`));
+  assert.ok(match, edgeId);
+  return match[0]!;
+}
+
+function endMarker(svg: string, edgeId: string): MarkerLine {
+  const group = edgeGroup(svg, edgeId);
+  const marked = [...group.matchAll(/<line\b([^>]*)\/>/g)].filter((line) => /marker-end="url\(/.test(line[1]!));
+  assert.equal(marked.length, 1, `${edgeId} marker lines`);
+  const attrs = marked[0]![1]!;
+  const num = (name: string): number => {
+    const found = new RegExp(`\\b${name}="([^"]+)"`).exec(attrs);
+    assert.ok(found, `${edgeId} ${name}`);
+    return Number(found[1]);
+  };
+  return { x1: num("x1"), y1: num("y1"), x2: num("x2"), y2: num("y2") };
+}
+
+/**
+ * The head is a two-point line on the final segment. Bend points stay on the
+ * unmarked shaft polyline, so they cannot receive marker-end or marker-mid.
+ */
+function assertEndMarkerOnly(svg: string, edgeId: string): void {
+  const group = edgeGroup(svg, edgeId);
+  const points = renderedPolyline(svg, edgeId);
+  assert.equal(group.match(/marker-end="url\(/g)?.length ?? 0, 1, edgeId);
+  assert.equal(group.match(/marker-mid="url\(/g)?.length ?? 0, 0, edgeId);
+  assert.equal(group.match(/marker-start="url\(/g)?.length ?? 0, 0, edgeId);
+  const shaft = /<polyline\b([^>]*)\/>/.exec(group);
+  assert.ok(shaft, edgeId);
+  assert.match(shaft[1]!, /marker-start="none"/);
+  assert.match(shaft[1]!, /marker-mid="none"/);
+  assert.match(shaft[1]!, /marker-end="none"/);
+  assert.doesNotMatch(shaft[1]!, /marker-(?:start|mid|end)="url\(/);
+
+  const marker = endMarker(svg, edgeId);
+  assert.match(group, /<line\b[^>]*marker-start="none"/);
+  assert.match(group, /<line\b[^>]*marker-mid="none"/);
+  const end = points[points.length - 1]!;
+  let fromIndex = points.length - 2;
+  while (fromIndex > 0 && points[fromIndex]!.x === end.x && points[fromIndex]!.y === end.y) {
+    fromIndex -= 1;
+  }
+  const from = points[fromIndex]!;
+  assert.ok(from.x !== end.x || from.y !== end.y, `${edgeId} has no drawable final segment`);
+  assert.deepEqual(marker, { x1: from.x, y1: from.y, x2: end.x, y2: end.y });
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const point = points[index]!;
+    if (point.x === end.x && point.y === end.y) {
+      continue;
+    }
+    assert.ok(
+      point.x !== marker.x2 || point.y !== marker.y2,
+      `${edgeId} mid vertex ${point.x},${point.y} carries the end marker`,
+    );
+  }
+}
+
 function renderedPolyline(svg: string, edgeId: string): Array<{ x: number; y: number }> {
   const escaped = edgeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = svg.match(new RegExp(`data-edge-id="${escaped}"[\\s\\S]*?<polyline points="([^"]+)"`));
@@ -2005,6 +2176,7 @@ function assertRenderedConnectorGap(
     assert.equal(strictlyInside(point, source), false, where);
     assert.equal(strictlyInside(point, target), false, where);
   }
+  assertEndMarkerOnly(svg, edge.id);
 }
 
 function assertSharedArrowMarker(svg: string): void {
