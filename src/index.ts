@@ -108,11 +108,14 @@ export {
   exportSavePaths,
   exportViewpoint,
   isExportFormat,
+  isMacExportFormat,
+  MAC_EXPORT_FORMATS,
   resolveNamedView,
   wrapViewpointHtml,
   type ExportFormat,
   type ExportPaths,
   type ExportedView,
+  type MacExportFormat,
 } from "./export.js";
 export {
   OPEN_EXCHANGE_NS,

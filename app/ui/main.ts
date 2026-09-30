@@ -46,9 +46,10 @@ import {
   ExportError,
   exportSavePaths,
   exportViewpoint,
-  isExportFormat,
-  type ExportFormat,
+  isMacExportFormat,
+  type MacExportFormat,
 } from "../../src/export.ts";
+import { exportOpenExchange } from "../../src/open-exchange.ts";
 
 type TauriBridge = {
   core: {
@@ -73,6 +74,7 @@ const errorBox = document.querySelector("#error") as HTMLElement;
 const errorLead = document.querySelector("#error-lead") as HTMLElement;
 const errorDetail = document.querySelector("#error-detail") as HTMLElement;
 const exportDialog = document.querySelector("#export-dialog") as HTMLElement;
+const exportDialogTitle = document.querySelector("#export-dialog-title") as HTMLElement;
 const exportDialogDetail = document.querySelector("#export-dialog-detail") as HTMLElement;
 const exportForm = document.querySelector("#export-form") as HTMLFormElement;
 const exportFormatNote = document.querySelector("#export-format-note") as HTMLElement;
@@ -156,14 +158,19 @@ let zoomBasisHeight = 0;
 let canvasMarginLeft = 0;
 let canvasMarginTop = 0;
 /** Last format chosen in Export…. HTML matches `plein export`. */
-let lastExportFormat: ExportFormat = "html";
+let lastExportFormat: MacExportFormat = "html";
+/** View caption shown in the sheet for HTML, SVG, and HTML and SVG. */
+let exportViewCaption = "";
 
 const LOAD_ERROR_LEAD = "This .plein did not load";
 const EXPORT_ERROR_LEAD = "Could not export this view";
-const EXPORT_FORMAT_NOTES: Record<ExportFormat, string> = {
+const OPEN_EXCHANGE_ERROR_LEAD = "Could not export Open Exchange";
+const EXPORT_FORMAT_NOTES: Record<MacExportFormat, string> = {
   html: "A self-contained HTML page. It opens in a browser without Plein.",
   svg: "An SVG file. It opens in a browser or Preview without Plein.",
   both: "Saves two files from the name you choose: one .html and one .svg.",
+  "open-exchange":
+    "Open Exchange XML for the whole open model (not this view). Comments, geometry, and styles are omitted, same as plein export-open-exchange.",
 };
 
 function tauri(): TauriBridge | undefined {
@@ -188,6 +195,10 @@ function showError(message: string | null, lead = LOAD_ERROR_LEAD): void {
 
 function showExportError(message: string): void {
   showError(message, EXPORT_ERROR_LEAD);
+}
+
+function showOpenExchangeError(message: string): void {
+  showError(message, OPEN_EXCHANGE_ERROR_LEAD);
 }
 
 /** Open/read failures use the same banner as `checkPlein` / `plein check`. */
@@ -1363,26 +1374,49 @@ function exportFileStem(viewName: string): string {
 }
 
 function exportDirectory(): string | null {
-  if (!loaded?.ok || !isFilesystemPath(loaded.file)) {
+  if (!loaded?.ok) {
     return null;
   }
-  const slash = Math.max(loaded.file.lastIndexOf("/"), loaded.file.lastIndexOf("\\"));
+  return directoryOfPath(loaded.file);
+}
+
+function directoryOfPath(file: string): string | null {
+  if (!isFilesystemPath(file)) {
+    return null;
+  }
+  const slash = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
   if (slash <= 0) {
     return null;
   }
-  return loaded.file.slice(0, slash);
+  return file.slice(0, slash);
 }
 
-function selectedExportFormat(): ExportFormat {
+/** Save-panel stem for Open Exchange. The `.plein` file name, not the view. */
+function openExchangeSuggestedStem(file: string): string {
+  const base = file.split(/[\\/]/).pop() ?? "";
+  const stem = base.replace(/\.plein$/i, "").replace(/^\.+/, "").trim();
+  return stem.length > 0 ? stem : "model";
+}
+
+function selectedExportFormat(): MacExportFormat {
   const chosen = new FormData(exportForm).get("export-format");
-  if (typeof chosen === "string" && isExportFormat(chosen)) {
+  if (typeof chosen === "string" && isMacExportFormat(chosen)) {
     return chosen;
   }
   return "html";
 }
 
 function syncExportFormatNote(): void {
-  exportFormatNote.textContent = EXPORT_FORMAT_NOTES[selectedExportFormat()];
+  const format = selectedExportFormat();
+  exportFormatNote.textContent = EXPORT_FORMAT_NOTES[format];
+  if (format === "open-exchange") {
+    exportDialogTitle.textContent = "Export Open Exchange";
+    const stem = loaded?.ok ? openExchangeSuggestedStem(loaded.file) : "model";
+    exportDialogDetail.textContent = `${stem}.plein — the whole model, not only the view on screen.`;
+    return;
+  }
+  exportDialogTitle.textContent = "Export view";
+  exportDialogDetail.textContent = exportViewCaption;
 }
 
 function closeExportDialog(restoreFocus = true): void {
@@ -1436,7 +1470,7 @@ function beginExport(): void {
   }
   exportDialog.dataset.viewName = lastLayout.viewName;
   const caption = diagramHeading.textContent?.trim() || lastLayout.title || lastLayout.viewName;
-  exportDialogDetail.textContent = `${caption} (${lastLayout.viewName})`;
+  exportViewCaption = `${caption} (${lastLayout.viewName})`;
   const radio = exportForm.querySelector(`input[name="export-format"][value="${lastExportFormat}"]`);
   if (radio instanceof HTMLInputElement) {
     radio.checked = true;
@@ -1506,7 +1540,11 @@ function downloadText(filename: string, mime: string, body: string): void {
   URL.revokeObjectURL(url);
 }
 
-async function commitExport(format: ExportFormat, viewName: string): Promise<void> {
+async function commitExport(format: MacExportFormat, viewName: string): Promise<void> {
+  if (format === "open-exchange") {
+    await commitOpenExchangeExport();
+    return;
+  }
   const reason = exportBlockReason();
   if (reason) {
     showExportError(reason);
@@ -1579,6 +1617,76 @@ async function commitExport(format: ExportFormat, viewName: string): Promise<voi
     const wrote = written.length > 0 ? `Wrote ${written.join(", ")}.` : "";
     const detail = [errorMessage(error).replace(/\.$/, ""), wrote].filter((part) => part.length > 0).join(" ");
     showExportError(detail);
+    return;
+  }
+  showError(null);
+}
+
+/**
+ * Write Open Exchange XML for the open model.
+ * Same writer as `plein export-open-exchange` (`exportOpenExchange`).
+ * Not the viewpoint on the canvas.
+ */
+async function commitOpenExchangeExport(): Promise<void> {
+  if (!loaded?.ok) {
+    showOpenExchangeError(
+      loaded
+        ? "This file did not load, so there is no model to export."
+        : "Open a .plein file before exporting.",
+    );
+    return;
+  }
+  const model = loaded.model;
+  const file = loaded.file;
+
+  let xml: string;
+  try {
+    const exported = exportOpenExchange(model, { file });
+    if (!exported.xml.includes("<model") || !exported.xml.includes("</model>")) {
+      throw new ExportError("Export did not produce Open Exchange XML.");
+    }
+    xml = exported.xml;
+  } catch (error) {
+    showOpenExchangeError(error instanceof ExportError ? error.message : errorMessage(error));
+    return;
+  }
+
+  const suggested = openExchangeSuggestedStem(file);
+  const api = tauri();
+  if (!api) {
+    try {
+      downloadText(`${suggested}.xml`, "application/xml", xml);
+      showError(null);
+    } catch (error) {
+      showOpenExchangeError(errorMessage(error));
+    }
+    return;
+  }
+
+  let path: string;
+  try {
+    const picked = await api.core.invoke<string | null>("pick_export_path", {
+      suggestedName: suggested,
+      format: "open-exchange",
+      directory: directoryOfPath(file),
+    });
+    if (!picked) {
+      return;
+    }
+    const targets = exportSavePaths(picked, "open-exchange");
+    if (!targets.xml) {
+      throw new ExportError("Export did not produce an XML path.");
+    }
+    path = targets.xml;
+  } catch (error) {
+    showOpenExchangeError(error instanceof ExportError ? error.message : errorMessage(error));
+    return;
+  }
+
+  try {
+    await api.core.invoke("write_export_file", { path, contents: xml });
+  } catch (error) {
+    showOpenExchangeError(errorMessage(error));
     return;
   }
   showError(null);

@@ -42,8 +42,10 @@ async fn open_plein_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String>
     Ok(Some(read_opened(path_from_dialog(file)?)?))
 }
 
-/// Native save panel for the current view. Async + `spawn_blocking`, same as
-/// Open: a sync command plus `blocking_save_file` deadlocks NSSavePanel.
+/// Native save panel. HTML, SVG, and both are the current view.
+/// `open-exchange` is one `.xml` file for the whole model.
+/// Async + `spawn_blocking`, same as Open: a sync command plus
+/// `blocking_save_file` deadlocks NSSavePanel.
 #[tauri::command]
 async fn pick_export_path(
     app: AppHandle,
@@ -56,6 +58,7 @@ async fn pick_export_path(
         "html" => ("Export HTML", "HTML", "html"),
         "svg" => ("Export SVG", "SVG", "svg"),
         "both" => ("Export HTML and SVG", "HTML", "html"),
+        "open-exchange" => ("Export Open Exchange", "Open Exchange XML", "xml"),
         other => return Err(format!("unknown export format '{other}'")),
     };
     let file_name = format!("{stem}.{extension}");

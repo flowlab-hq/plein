@@ -17,7 +17,7 @@
         <button type="button" id="reload-button" disabled title="Re-read the open .plein and redraw the diagram (⌘R)">
           Reload
         </button>
-        <button type="button" id="export-button" title="Export the current view as HTML or SVG (⇧⌘E)">
+        <button type="button" id="export-button" title="Export the current view as HTML or SVG, or the open model as Open Exchange XML (⇧⌘E)">
           Export…
         </button>
         <input
@@ -57,6 +57,10 @@
               <label>
                 <input type="radio" name="export-format" value="both" />
                 HTML and SVG
+              </label>
+              <label>
+                <input type="radio" name="export-format" value="open-exchange" />
+                Open Exchange
               </label>
             </fieldset>
             <p id="export-format-note" class="export-note"></p>
