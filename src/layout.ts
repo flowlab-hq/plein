@@ -52,18 +52,28 @@ export const CONNECTOR_TIP_CLEARANCE = 3;
 export const CONNECTOR_TIP_GAP = CONNECTOR_SHAFT_GAP + CONNECTOR_TIP_CLEARANCE;
 
 /**
- * Arrowhead in marker user units. The viewport is padded past the triangle and
- * `overflow` is visible so the tip is not clipped — that clip is what read as a
- * squashed head. `refX` sits one unit behind the tip; that overhang is retracted
- * only at a marked end, so the tip (not the shaft) lands on `CONNECTOR_TIP_GAP`.
+ * Arrowhead in marker user units.
+ *
+ * Orthogonal routes keep the last bend about 10px outside the target (ELK
+ * edge–node spacing). After the tip gap and the overhang, the final segment
+ * is only ~4.9px. The head has to sit on that segment. A longer triangle
+ * crosses the bend, the previous span cuts through it, and the tip reads as
+ * a flat wedge crushed into the stroke — the dense bottom fan-in failure.
+ *
+ * The viewport is padded past the triangle and starts at 0 so the point is
+ * not on the clip edge. `refX` sits one unit behind the tip; that overhang
+ * is retracted only at a marked end, so the tip (not the shaft) lands on
+ * `CONNECTOR_TIP_GAP`.
  */
-const MARKER_TIP_X = 10;
-const MARKER_TIP_Y = 3.5;
-const MARKER_BASE_HEIGHT = 7;
 const MARKER_PAD = 1;
-const MARKER_REF_X = MARKER_TIP_X - MARKER_PAD;
+/** Base-to-tip length. 3 stroke-widths × 1.5px = 4.5px, inside the ~4.9px stub. */
+const MARKER_LENGTH = 3;
+const MARKER_BASE_HEIGHT = 2;
+const MARKER_TIP_X = MARKER_PAD + MARKER_LENGTH;
+const MARKER_TIP_Y = MARKER_PAD + MARKER_BASE_HEIGHT / 2;
+const MARKER_REF_X = MARKER_TIP_X - 1;
 const MARKER_REF_Y = MARKER_TIP_Y;
-const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD * 2;
+const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD;
 const MARKER_HEIGHT = MARKER_BASE_HEIGHT + MARKER_PAD * 2;
 /** How far the tip extends past the path endpoint, in user px. Marker units are strokeWidth. */
 const MARKER_OVERHANG = (MARKER_TIP_X - MARKER_REF_X) * EDGE_STROKE_WIDTH;
@@ -692,8 +702,8 @@ ${containerMarkup}
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
-    <marker id="${markerId}" markerUnits="strokeWidth" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto" viewBox="-${MARKER_PAD} -${MARKER_PAD} ${MARKER_WIDTH} ${MARKER_HEIGHT}" overflow="visible">
-      <polygon points="0 0, ${MARKER_TIP_X} ${MARKER_TIP_Y}, 0 ${MARKER_BASE_HEIGHT}" fill="#6e6e73" />
+    <marker id="${markerId}" markerUnits="strokeWidth" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto" viewBox="0 0 ${MARKER_WIDTH} ${MARKER_HEIGHT}" overflow="visible">
+      <polygon points="${MARKER_PAD} ${MARKER_PAD}, ${MARKER_TIP_X} ${MARKER_TIP_Y}, ${MARKER_PAD} ${MARKER_PAD + MARKER_BASE_HEIGHT}" fill="#6e6e73" />
     </marker>
   </defs>
 ${containersBlock}  <g class="edges">

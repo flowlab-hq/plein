@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
   <title>ArchiMate layers sample</title>
   <defs>
-    <marker id="arrow-catalogue-layers" markerUnits="strokeWidth" markerWidth="12" markerHeight="9" refX="9" refY="3.5" orient="auto" viewBox="-1 -1 12 9" overflow="visible">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" />
+    <marker id="arrow-catalogue-layers" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" refX="3" refY="2" orient="auto" viewBox="0 0 5 4" overflow="visible">
+      <polygon points="1 1, 4 2, 1 3" fill="#6e6e73" />
     </marker>
   </defs>
   <g class="edges">
