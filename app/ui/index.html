@@ -17,6 +17,9 @@
         <button type="button" id="reload-button" disabled title="Re-read the open .plein and redraw the diagram (⌘R)">
           Reload
         </button>
+        <button type="button" id="export-button" title="Export the current view as HTML or SVG (⇧⌘E)">
+          Export…
+        </button>
         <input
           id="file-input"
           type="file"
@@ -27,8 +30,42 @@
       </header>
 
       <div id="error" class="error" hidden role="alert">
-        <p class="error-lead">This .plein did not load</p>
+        <p id="error-lead" class="error-lead">This .plein did not load</p>
         <pre id="error-detail" class="error-detail"></pre>
+      </div>
+
+      <div id="export-dialog" class="export-dialog" hidden>
+        <div
+          class="export-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-dialog-title"
+        >
+          <h2 id="export-dialog-title">Export view</h2>
+          <p id="export-dialog-detail" class="export-detail"></p>
+          <form id="export-form">
+            <fieldset class="export-formats">
+              <legend>Format</legend>
+              <label>
+                <input type="radio" name="export-format" value="html" checked />
+                HTML
+              </label>
+              <label>
+                <input type="radio" name="export-format" value="svg" />
+                SVG
+              </label>
+              <label>
+                <input type="radio" name="export-format" value="both" />
+                HTML and SVG
+              </label>
+            </fieldset>
+            <p id="export-format-note" class="export-note"></p>
+            <div class="export-actions">
+              <button type="button" id="export-cancel">Cancel</button>
+              <button type="submit" id="export-save">Save…</button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <main id="workspace" class="workspace empty">

@@ -6,12 +6,16 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { browseNamedView } from "./browser.js";
 import {
+  ExportError,
   exportNamedView,
+  exportSavePaths,
+  exportViewpoint,
   resolveNamedView,
   wrapViewpointHtml,
 } from "./export.js";
-import type { ViewpointLayout } from "./layout.js";
+import { svgMembership, type ViewpointLayout } from "./layout.js";
 import { loadPleinSource } from "./list-model.js";
 import type { PleinModel } from "./parser.js";
 
@@ -115,6 +119,64 @@ test("golden booking-context HTML export matches the snapshot", async () => {
     committed,
     "fixtures/golden-booking-context.html is stale; re-render with: npx plein export fixtures/valid-basic.plein --view booking-context --format html > fixtures/golden-booking-context.html",
   );
+});
+
+test("exportViewpoint matches the viewpoint on the canvas, including a local layout", async () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const structure = await browseNamedView(result.model, "applicationStructure");
+  const cooperation = await browseNamedView(result.model, "applicationCooperation");
+  const structureExport = exportViewpoint(structure.layout, "fixtures/valid-views.plein");
+  const cooperationExport = exportViewpoint(cooperation.layout, "fixtures/valid-views.plein");
+
+  assert.equal(structureExport.svg, structure.svg);
+  assert.equal(cooperationExport.svg, cooperation.svg);
+  assert.deepEqual(svgMembership(structureExport.svg), svgMembership(structure.svg));
+  assert.deepEqual(svgMembership(cooperationExport.svg), svgMembership(cooperation.svg));
+  assert.notDeepEqual(svgMembership(structureExport.svg).nodes, svgMembership(cooperationExport.svg).nodes);
+  assert.ok(structureExport.html.includes(structureExport.svg));
+  assertSelfContained(structureExport.html);
+  assertSelfContained(cooperationExport.svg);
+
+  const basic = loadPleinSource(readFixture("valid-basic.plein"), "fixtures/valid-basic.plein");
+  assert.equal(basic.ok, true);
+  if (!basic.ok) {
+    return;
+  }
+  const sideways = await browseNamedView(basic.model, "booking-context", { direction: "lr" });
+  const sidewaysExport = exportViewpoint(sideways.layout, "fixtures/valid-basic.plein");
+  const cliExport = await exportNamedView(basic.model, "booking-context", "fixtures/valid-basic.plein");
+  assert.equal(sidewaysExport.svg, sideways.svg);
+  assert.match(sidewaysExport.svg, /data-layout="lr"/);
+  assert.match(sidewaysExport.html, /data-layout="lr"/);
+  assert.deepEqual(svgMembership(sidewaysExport.svg).nodes, svgMembership(cliExport.svg).nodes);
+  assert.notEqual(sidewaysExport.svg, cliExport.svg);
+});
+
+test("exportSavePaths pairs HTML and SVG from the save-panel path", () => {
+  assert.deepEqual(exportSavePaths("/tmp/booking-context.html", "html"), {
+    html: "/tmp/booking-context.html",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking-context.html", "svg"), {
+    svg: "/tmp/booking-context.svg",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking-context.SVG", "html"), {
+    html: "/tmp/booking-context.html",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/booking-context", "both"), {
+    html: "/tmp/booking-context.html",
+    svg: "/tmp/booking-context.svg",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/nested/booking.html", "both"), {
+    html: "/tmp/nested/booking.html",
+    svg: "/tmp/nested/booking.svg",
+  });
+  assert.deepEqual(exportSavePaths("/tmp/", "svg"), { svg: "/tmp/view.svg" });
+  assert.throws(() => exportSavePaths("   ", "html"), ExportError);
 });
 
 test("plein export writes the golden HTML to stdout", () => {

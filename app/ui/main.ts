@@ -42,6 +42,13 @@ import {
   placeZoomAnchor,
   wheelGestureIsZoom,
 } from "../../src/canvas-zoom.ts";
+import {
+  ExportError,
+  exportSavePaths,
+  exportViewpoint,
+  isExportFormat,
+  type ExportFormat,
+} from "../../src/export.ts";
 
 type TauriBridge = {
   core: {
@@ -59,10 +66,17 @@ type OpenedFile = {
 
 const openButton = document.querySelector("#open-button") as HTMLButtonElement;
 const reloadButton = document.querySelector("#reload-button") as HTMLButtonElement;
+const exportButton = document.querySelector("#export-button") as HTMLButtonElement;
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
 const fileLabel = document.querySelector("#file-label") as HTMLElement;
 const errorBox = document.querySelector("#error") as HTMLElement;
+const errorLead = document.querySelector("#error-lead") as HTMLElement;
 const errorDetail = document.querySelector("#error-detail") as HTMLElement;
+const exportDialog = document.querySelector("#export-dialog") as HTMLElement;
+const exportDialogDetail = document.querySelector("#export-dialog-detail") as HTMLElement;
+const exportForm = document.querySelector("#export-form") as HTMLFormElement;
+const exportFormatNote = document.querySelector("#export-format-note") as HTMLElement;
+const exportCancel = document.querySelector("#export-cancel") as HTMLButtonElement;
 const workspace = document.querySelector("#workspace") as HTMLElement;
 const emptyHint = document.querySelector("#empty-hint") as HTMLElement;
 const viewList = document.querySelector("#view-list") as HTMLElement;
@@ -141,6 +155,16 @@ let zoomBasisHeight = 0;
 /** Shift used when zoom-out would otherwise scroll above the top-left. */
 let canvasMarginLeft = 0;
 let canvasMarginTop = 0;
+/** Last format chosen in Export…. HTML matches `plein export`. */
+let lastExportFormat: ExportFormat = "html";
+
+const LOAD_ERROR_LEAD = "This .plein did not load";
+const EXPORT_ERROR_LEAD = "Could not export this view";
+const EXPORT_FORMAT_NOTES: Record<ExportFormat, string> = {
+  html: "A self-contained HTML page. It opens in a browser without Plein.",
+  svg: "An SVG file. It opens in a browser or Preview without Plein.",
+  both: "Saves two files from the name you choose: one .html and one .svg.",
+};
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
@@ -150,18 +174,25 @@ function isFilesystemPath(file: string): boolean {
   return file.includes("/") || file.includes("\\");
 }
 
-function showError(message: string | null): void {
+function showError(message: string | null, lead = LOAD_ERROR_LEAD): void {
   if (!message) {
     errorBox.hidden = true;
+    errorLead.textContent = LOAD_ERROR_LEAD;
     errorDetail.textContent = "";
     return;
   }
   errorBox.hidden = false;
+  errorLead.textContent = lead;
   errorDetail.textContent = message;
+}
+
+function showExportError(message: string): void {
+  showError(message, EXPORT_ERROR_LEAD);
 }
 
 /** Open/read failures use the same banner as `checkPlein` / `plein check`. */
 function failOpen(file: string, error: unknown): void {
+  closeExportDialog(false);
   lastSource = null;
   loaded = { ok: false, file, error: formatLoadError(error) };
   selectedView = null;
@@ -803,6 +834,7 @@ function escapeHtml(value: string): string {
 }
 
 function openSource(source: string, file: string): void {
+  closeExportDialog(false);
   lastSource = source;
   manualPositions.clear();
   autoLayoutOverride = "file";
@@ -816,6 +848,7 @@ function openSource(source: string, file: string): void {
 }
 
 function applyReload(source: string, file: string): void {
+  closeExportDialog(false);
   lastSource = source;
   const next = reloadPleinSource(source, file, selectedView);
   loaded = next.loaded;
@@ -883,6 +916,33 @@ reloadButton.addEventListener("click", () => {
   void reloadOpen();
 });
 
+exportButton.addEventListener("click", () => {
+  beginExport();
+});
+
+exportCancel.addEventListener("click", () => {
+  closeExportDialog();
+});
+
+exportDialog.addEventListener("click", (event) => {
+  if (event.target === exportDialog) {
+    closeExportDialog();
+  }
+});
+
+exportForm.addEventListener("change", () => {
+  syncExportFormatNote();
+});
+
+exportForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const format = selectedExportFormat();
+  const viewName = exportDialog.dataset.viewName ?? "";
+  lastExportFormat = format;
+  closeExportDialog(false);
+  void commitExport(format, viewName);
+});
+
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
   if (!file) {
@@ -921,6 +981,11 @@ document.addEventListener("pointerdown", (event) => {
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (!exportDialog.hidden) {
+      event.preventDefault();
+      closeExportDialog();
+      return;
+    }
     if (layoutOptionsOpen()) {
       event.preventDefault();
       setLayoutOptionsOpen(false);
@@ -931,6 +996,16 @@ window.addEventListener("keydown", (event) => {
       event.preventDefault();
       setSelection(null);
     }
+    return;
+  }
+  if (
+    (event.metaKey || event.ctrlKey) &&
+    event.shiftKey &&
+    !event.altKey &&
+    event.key.toLowerCase() === "e"
+  ) {
+    event.preventDefault();
+    beginExport();
     return;
   }
   if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
@@ -1278,6 +1353,233 @@ window.addEventListener("drop", async (event) => {
   }
 });
 
+function exportFileStem(viewName: string): string {
+  const stem = viewName.replace(/[\\/]/g, "-").replace(/^\.+/, "");
+  return stem.length > 0 ? stem : "view";
+}
+
+function exportDirectory(): string | null {
+  if (!loaded?.ok || !isFilesystemPath(loaded.file)) {
+    return null;
+  }
+  const slash = Math.max(loaded.file.lastIndexOf("/"), loaded.file.lastIndexOf("\\"));
+  if (slash <= 0) {
+    return null;
+  }
+  return loaded.file.slice(0, slash);
+}
+
+function selectedExportFormat(): ExportFormat {
+  const chosen = new FormData(exportForm).get("export-format");
+  if (typeof chosen === "string" && isExportFormat(chosen)) {
+    return chosen;
+  }
+  return "html";
+}
+
+function syncExportFormatNote(): void {
+  exportFormatNote.textContent = EXPORT_FORMAT_NOTES[selectedExportFormat()];
+}
+
+function closeExportDialog(restoreFocus = true): void {
+  if (exportDialog.hidden) {
+    return;
+  }
+  exportDialog.hidden = true;
+  delete exportDialog.dataset.viewName;
+  if (restoreFocus) {
+    exportButton.focus();
+  }
+}
+
+/** Why Export… cannot run. Null when the canvas is showing a named view. */
+function exportBlockReason(): string | null {
+  if (!loaded) {
+    return "Open a .plein file before exporting.";
+  }
+  if (!loaded.ok) {
+    return "This file did not load, so there is no view to export.";
+  }
+  const viewName = namedViewForDiagram();
+  if (!viewName || !loaded.model.views.some((view) => view.name === viewName)) {
+    return "This file has no named view to export.";
+  }
+  const empty = diagram.querySelector(".diagram-empty");
+  if (empty) {
+    const detail = empty.textContent?.trim();
+    return detail && detail.length > 0
+      ? detail
+      : "The current view did not render, so it cannot be exported.";
+  }
+  if (!lastLayout || lastLayout.viewName !== viewName) {
+    return "The current view is not ready to export yet.";
+  }
+  return null;
+}
+
+function beginExport(): void {
+  if (!exportDialog.hidden) {
+    return;
+  }
+  const reason = exportBlockReason();
+  if (reason) {
+    showExportError(reason);
+    return;
+  }
+  if (!lastLayout) {
+    showExportError("The current view is not ready to export yet.");
+    return;
+  }
+  exportDialog.dataset.viewName = lastLayout.viewName;
+  const caption = diagramHeading.textContent?.trim() || lastLayout.title || lastLayout.viewName;
+  exportDialogDetail.textContent = `${caption} (${lastLayout.viewName})`;
+  const radio = exportForm.querySelector(`input[name="export-format"][value="${lastExportFormat}"]`);
+  if (radio instanceof HTMLInputElement) {
+    radio.checked = true;
+  }
+  syncExportFormatNote();
+  exportDialog.hidden = false;
+  const checked = exportForm.querySelector('input[name="export-format"]:checked');
+  if (checked instanceof HTMLElement) {
+    checked.focus();
+  }
+}
+
+function idsByAttr(root: ParentNode, attr: string): string[] {
+  return [...root.querySelectorAll(`[${attr}]`)]
+    .map((node) => node.getAttribute(attr) ?? "")
+    .filter((id) => id.length > 0)
+    .sort();
+}
+
+function idsInExport(svg: string, attr: string): string[] {
+  const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (doc.querySelector("parsererror")) {
+    throw new ExportError("Export did not produce a diagram.");
+  }
+  return idsByAttr(doc, attr);
+}
+
+function assertExportMatchesCanvas(svg: string): void {
+  for (const attr of ["data-node-id", "data-edge-id"]) {
+    const onCanvas = idsByAttr(diagram, attr);
+    const exported = idsInExport(svg, attr);
+    if (onCanvas.join("\n") !== exported.join("\n")) {
+      throw new ExportError(
+        "Export does not match the diagram on screen. Wait for the view to finish drawing, then try again.",
+      );
+    }
+  }
+}
+
+function errorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+  const text = String(error);
+  return text && text !== "[object Object]" ? text : "Export failed.";
+}
+
+function downloadText(filename: string, mime: string, body: string): void {
+  const blob = new Blob([body], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function commitExport(format: ExportFormat, viewName: string): Promise<void> {
+  const reason = exportBlockReason();
+  if (reason) {
+    showExportError(reason);
+    return;
+  }
+  if (!loaded?.ok || !lastLayout || lastLayout.viewName !== viewName) {
+    showExportError("The view changed before export. Choose Export… again.");
+    return;
+  }
+
+  let exported;
+  try {
+    exported = exportViewpoint(lastLayout, loaded.file);
+    if (!exported.svg.includes("<svg") || !exported.html.includes(exported.svg)) {
+      throw new ExportError("Export did not produce a diagram.");
+    }
+    assertExportMatchesCanvas(exported.svg);
+  } catch (error) {
+    showExportError(error instanceof ExportError ? error.message : errorMessage(error));
+    return;
+  }
+
+  const api = tauri();
+  if (!api) {
+    const stem = exportFileStem(exported.viewName);
+    try {
+      if (format === "html" || format === "both") {
+        downloadText(`${stem}.html`, "text/html", exported.html);
+      }
+      if (format === "svg" || format === "both") {
+        downloadText(`${stem}.svg`, "image/svg+xml", exported.svg);
+      }
+      showError(null);
+    } catch (error) {
+      showExportError(errorMessage(error));
+    }
+    return;
+  }
+
+  let targets;
+  try {
+    const picked = await api.core.invoke<string | null>("pick_export_path", {
+      suggestedName: exportFileStem(exported.viewName),
+      format,
+      directory: exportDirectory(),
+    });
+    if (!picked) {
+      return;
+    }
+    targets = exportSavePaths(picked, format);
+  } catch (error) {
+    showExportError(error instanceof ExportError ? error.message : errorMessage(error));
+    return;
+  }
+
+  const jobs: Array<[string, string]> = [];
+  if (targets.html) {
+    jobs.push([targets.html, exported.html]);
+  }
+  if (targets.svg) {
+    jobs.push([targets.svg, exported.svg]);
+  }
+  const written: string[] = [];
+  try {
+    for (const [path, contents] of jobs) {
+      await api.core.invoke("write_export_file", { path, contents });
+      written.push(path);
+    }
+  } catch (error) {
+    const wrote = written.length > 0 ? `Wrote ${written.join(", ")}.` : "";
+    const detail = [errorMessage(error).replace(/\.$/, ""), wrote].filter((part) => part.length > 0).join(" ");
+    showExportError(detail);
+    return;
+  }
+  showError(null);
+}
+
 async function boot(): Promise<void> {
   const api = tauri();
   if (api) {
@@ -1293,6 +1595,9 @@ async function boot(): Promise<void> {
     });
     await api.event.listen("reload-file", () => {
       void reloadOpen();
+    });
+    await api.event.listen("export-view", () => {
+      beginExport();
     });
   }
   void render();

@@ -39,13 +39,88 @@ async fn open_plein_dialog(app: AppHandle) -> Result<Option<OpenedFile>, String>
     let Some(file) = picked else {
         return Ok(None);
     };
-    let path = match file {
-        tauri_plugin_dialog::FilePath::Path(path) => path,
+    Ok(Some(read_opened(path_from_dialog(file)?)?))
+}
+
+/// Native save panel for the current view. Async + `spawn_blocking`, same as
+/// Open: a sync command plus `blocking_save_file` deadlocks NSSavePanel.
+#[tauri::command]
+async fn pick_export_path(
+    app: AppHandle,
+    suggested_name: String,
+    format: String,
+    directory: Option<String>,
+) -> Result<Option<String>, String> {
+    let stem = sanitize_export_name(&suggested_name);
+    let (title, filter_name, extension) = match format.as_str() {
+        "html" => ("Export HTML", "HTML", "html"),
+        "svg" => ("Export SVG", "SVG", "svg"),
+        "both" => ("Export HTML and SVG", "HTML", "html"),
+        other => return Err(format!("unknown export format '{other}'")),
+    };
+    let file_name = format!("{stem}.{extension}");
+    let title = title.to_string();
+    let filter_name = filter_name.to_string();
+
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = app
+            .dialog()
+            .file()
+            .set_title(&title)
+            .set_file_name(&file_name)
+            .add_filter(&filter_name, &[extension]);
+        if let Some(directory) = directory.filter(|dir| !dir.is_empty()) {
+            dialog = dialog.set_directory(directory);
+        }
+        dialog.blocking_save_file()
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let Some(file) = picked else {
+        return Ok(None);
+    };
+    let path = path_from_dialog(file)?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+fn write_export_file(path: String, contents: String) -> Result<(), String> {
+    let path = PathBuf::from(path.trim());
+    if path.as_os_str().is_empty() {
+        return Err("export path is empty".to_string());
+    }
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|error| {
+                format!("could not create {}: {error}", parent.display())
+            })?;
+        }
+    }
+    std::fs::write(&path, contents)
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+fn path_from_dialog(file: tauri_plugin_dialog::FilePath) -> Result<PathBuf, String> {
+    match file {
+        tauri_plugin_dialog::FilePath::Path(path) => Ok(path),
         tauri_plugin_dialog::FilePath::Url(url) => url
             .to_file_path()
-            .map_err(|()| "could not convert the picked file to a path".to_string())?,
-    };
-    Ok(Some(read_opened(path)?))
+            .map_err(|()| "could not convert the picked file to a path".to_string()),
+    }
+}
+
+fn sanitize_export_name(name: &str) -> String {
+    let stem = name
+        .replace(['\\', '/'], "-")
+        .trim()
+        .trim_start_matches('.')
+        .to_string();
+    if stem.is_empty() {
+        "view".to_string()
+    } else {
+        stem
+    }
 }
 
 fn read_opened(path: PathBuf) -> Result<OpenedFile, String> {
@@ -87,6 +162,7 @@ fn files_from_cli_args() -> Vec<PathBuf> {
 
 fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", "Open…", true, Some("CmdOrCtrl+O"))?;
+    let export = MenuItem::with_id(app, "export", "Export…", true, Some("CmdOrCtrl+Shift+E"))?;
     let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
     let file_menu = Submenu::with_items(
         app,
@@ -94,6 +170,7 @@ fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         &[
             &open,
+            &export,
             &reload,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::close_window(app, None)?,
@@ -153,6 +230,9 @@ fn emit_menu_action(app: &AppHandle, id: &str) {
         "open" => {
             let _ = app.emit("open-dialog", ());
         }
+        "export" => {
+            let _ = app.emit("export-view", ());
+        }
         "reload" => {
             let _ = app.emit("reload-file", ());
         }
@@ -168,7 +248,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_startup_path,
             read_plein_file,
-            open_plein_dialog
+            open_plein_dialog,
+            pick_export_path,
+            write_export_file
         ])
         .setup(|app| {
             let files = files_from_cli_args();
