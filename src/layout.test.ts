@@ -8,6 +8,9 @@ import {
   LAYOUT_ENGINE,
   NEST_HEADER_HEIGHT,
   ORGANIC_RANDOM_SEED,
+  ORGANIC_NODE_SPACING,
+  ORGANIC_PACK_RATIO,
+  ORGANIC_PACK_GAP,
   layerBandOf,
   layoutEngineFor,
   layoutViewpoint,
@@ -978,6 +981,46 @@ function boxesOverlap(a: LayoutNode, b: LayoutNode): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+function layoutArea(layout: ViewpointLayout): number {
+  return layout.width * layout.height;
+}
+
+function rootOverlaps(layout: ViewpointLayout): number {
+  const roots = layout.nodes.filter((node) => !node.parentId);
+  let count = 0;
+  for (let left = 0; left < roots.length; left += 1) {
+    for (let right = left + 1; right < roots.length; right += 1) {
+      if (boxesOverlap(roots[left]!, roots[right]!)) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+function minRootGap(layout: ViewpointLayout): number {
+  const roots = layout.nodes.filter((node) => !node.parentId);
+  let min = Infinity;
+  for (let left = 0; left < roots.length; left += 1) {
+    for (let right = left + 1; right < roots.length; right += 1) {
+      const a = roots[left]!;
+      const b = roots[right]!;
+      const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      let gap: number;
+      if (overlapX > 0 && overlapY > 0) {
+        gap = -Math.min(overlapX, overlapY);
+      } else {
+        const gapX = overlapX > 0 ? 0 : -overlapX;
+        const gapY = overlapY > 0 ? 0 : -overlapY;
+        gap = Math.hypot(gapX, gapY);
+      }
+      min = Math.min(min, gap);
+    }
+  }
+  return min;
+}
+
 test("organic is seeded force-directed and does not replace the layered default", async () => {
   const result = loadPleinSource(
     readFixture("valid-organic-grid.plein"),
@@ -1045,6 +1088,149 @@ test("organic is seeded force-directed and does not replace the layered default"
       .sort((a, b) => a.id.localeCompare(b.id)),
     golden.organic.nodes,
   );
+  assert.equal(ORGANIC_NODE_SPACING, 80);
+  assert.equal(ORGANIC_PACK_RATIO, 8);
+  assert.equal(ORGANIC_PACK_GAP, 24);
+});
+
+test("organic packing is denser than the force default and stays seeded", async () => {
+  const source = `plein {
+  model {
+    business-actor "Customer" as customer
+    business-actor "Ops desk" as ops
+    business-actor "Auditor" as auditor
+    business-service "Inquire" as inquire
+    business-service "Quote freight" as quote
+    business-service "Book shipment" as book
+    business-service "Execute move" as execute
+    business-service "Invoice customer" as invoice
+    business-service "Settle" as settle
+    business-process "Capture request" as capture
+    business-process "Price lane" as price
+    business-process "Confirm booking" as confirm
+    business-process "Dispatch" as dispatch
+    business-process "Bill shipment" as bill
+    application-component "Customer portal" as portal
+    application-component "Pricing" as pricing
+    application-component "TMS" as tms
+    application-component "Billing" as billing
+    application-component "Settlement" as settlement
+    node "NordFreight cloud" as cloud
+    goal "On-time delivery" as onTime
+    goal "Lane margin" as margin
+    business-object "Waybill" as waybill
+    customer -> inquire: serving
+    inquire -> quote: flow
+    quote -> book: flow
+    book -> execute: flow
+    execute -> invoice: flow
+    invoice -> settle: flow
+    capture -> inquire: realization
+    price -> quote: realization
+    confirm -> book: realization
+    dispatch -> execute: realization
+    bill -> invoice: realization
+    portal -> capture: serving
+    pricing -> price: serving
+    tms -> confirm: serving
+    tms -> dispatch: serving
+    billing -> bill: serving
+    settlement -> settle: serving
+    cloud -> portal: serving
+    cloud -> tms: serving
+    cloud -> billing: serving
+    execute -> onTime: realization
+    quote -> margin: realization
+    dispatch -> waybill: access
+    ops -> dispatch: assignment
+  }
+  views {
+    viewpoint line "Service line" {
+      include customer ops auditor inquire quote book execute invoice settle capture price confirm dispatch bill portal pricing tms billing settlement cloud onTime margin waybill
+      autoLayout organic
+    }
+  }
+}
+`;
+  const result = loadPleinSource(source, "service-line.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const organic = await layoutViewpoint(result.model, "line");
+  const again = await layoutViewpoint(result.model, "line");
+  const layered = await layoutViewpoint(result.model, "line", { mode: "layered" });
+  const layers = await layoutViewpoint(result.model, "line", { mode: "layers" });
+  assert.equal(organic.mode, "organic");
+  assert.equal(layered.mode, "layered");
+  assert.equal(layers.mode, "layers");
+  assert.equal(parseLayoutMode(undefined), "layered");
+  const organicArea = layoutArea(organic);
+  const layeredArea = layoutArea(layered);
+  const layersArea = layoutArea(layers);
+  assert.ok(organicArea < layeredArea * 1.45, `organic ${organicArea} vs layered ${layeredArea}`);
+  assert.ok(organicArea < layersArea * 1.7, `organic ${organicArea} vs layers ${layersArea}`);
+  assert.ok(organicArea > layeredArea * 0.7, `organic collapsed to ${organicArea} vs layered ${layeredArea}`);
+  assert.ok(minRootGap(organic) >= 16, `organic gap ${minRootGap(organic)}`);
+  assert.equal(rootOverlaps(organic), 0);
+  assert.deepEqual(
+    organic.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+    again.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+  );
+});
+
+test("layered and layers coordinates stay on the pinned fixtures", async () => {
+  const golden = JSON.parse(
+    readFileSync(join(repoRoot, "fixtures", "golden-layered-layers.json"), "utf8"),
+  ) as {
+    views: Array<{
+      file: string;
+      view: string;
+      override?: "layered";
+      width: number;
+      height: number;
+      direction: string;
+      mode: string;
+      nodes: Array<{ id: string; x: number; y: number; width: number; height: number }>;
+      edges: Array<{ id: string; points: Array<{ x: number; y: number }> }>;
+    }>;
+  };
+  for (const expected of golden.views) {
+    const result = loadPleinSource(readFileSync(join(repoRoot, expected.file), "utf8"), expected.file);
+    assert.equal(result.ok, true, expected.file);
+    if (!result.ok) {
+      continue;
+    }
+    const layout = await layoutViewpoint(
+      result.model,
+      expected.view,
+      expected.override ? { mode: expected.override } : undefined,
+    );
+    assert.equal(layout.mode, expected.mode, `${expected.file} ${expected.view}`);
+    assert.equal(layout.direction, expected.direction);
+    assert.equal(layout.width, expected.width);
+    assert.equal(layout.height, expected.height);
+    assert.deepEqual(
+      layout.nodes
+        .map((node) => ({
+          id: node.id,
+          x: node.x,
+          y: node.y,
+          width: node.width,
+          height: node.height,
+          ...(node.parentId ? { parentId: node.parentId } : {}),
+          ...(node.container ? { container: true } : {}),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+      expected.nodes,
+    );
+    assert.deepEqual(
+      layout.edges
+        .map((edge) => ({ id: edge.id, points: edge.points ?? [] }))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+      expected.edges,
+    );
+  }
 });
 
 test("organic layout is stable when element declaration order changes", async () => {

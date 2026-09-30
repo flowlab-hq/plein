@@ -3,18 +3,18 @@
   "view": "landscape",
   "seed": "1",
   "engine": "elk-force",
-  "note": "Rounded ELK Force coordinates. Same file and seed must keep this pin.",
+  "note": "Rounded coordinates after seeded ELK Force and organic packing. Same file and seed must keep this pin.",
   "organic": {
     "nodes": [
-      { "id": "book", "x": 362, "y": 330 },
-      { "id": "carrier", "x": 1251, "y": 24 },
-      { "id": "cloud", "x": 706, "y": 537 },
+      { "id": "book", "x": 252, "y": 230 },
+      { "id": "carrier", "x": 852, "y": 24 },
+      { "id": "cloud", "x": 485, "y": 370 },
       { "id": "fulfill", "x": 24, "y": 24 },
-      { "id": "invoice", "x": 24, "y": 921 },
-      { "id": "onTime", "x": 488, "y": 121 },
-      { "id": "rates", "x": 872, "y": 198 },
-      { "id": "shipper", "x": 234, "y": 789 },
-      { "id": "tms", "x": 1003, "y": 660 }
+      { "id": "invoice", "x": 24, "y": 629 },
+      { "id": "onTime", "x": 337, "y": 89 },
+      { "id": "rates", "x": 596, "y": 142 },
+      { "id": "shipper", "x": 165, "y": 540 },
+      { "id": "tms", "x": 685, "y": 453 }
     ]
   }
 }

@@ -1,0 +1,733 @@
+{
+  "note": "Pinned ELK Layered and layers coordinates. Organic density changes must leave these in place.",
+  "views": [
+    {
+      "file": "fixtures/valid-layer-bands.plein",
+      "view": "layerBands",
+      "width": 412,
+      "height": 1076,
+      "direction": "tb",
+      "mode": "layers",
+      "nodes": [
+        {
+          "id": "booking",
+          "x": 122,
+          "y": 396,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "cloud",
+          "x": 220,
+          "y": 844,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "onTime",
+          "x": 122,
+          "y": 132,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "orderApi",
+          "x": 24,
+          "y": 844,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "planning",
+          "x": 122,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "platform",
+          "x": 106,
+          "y": 552,
+          "width": 200,
+          "height": 188,
+          "container": true
+        },
+        {
+          "id": "rates",
+          "x": 122,
+          "y": 672,
+          "width": 168,
+          "height": 52,
+          "parentId": "platform"
+        },
+        {
+          "id": "rollout",
+          "x": 122,
+          "y": 1000,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "shipper",
+          "x": 122,
+          "y": 288,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "tms",
+          "x": 122,
+          "y": 600,
+          "width": 168,
+          "height": 52,
+          "parentId": "platform"
+        }
+      ],
+      "edges": [
+        {
+          "id": "booking->tms:serves",
+          "points": [
+            {
+              "x": 206,
+              "y": 422
+            },
+            {
+              "x": 206,
+              "y": 524
+            },
+            {
+              "x": 206,
+              "y": 524
+            },
+            {
+              "x": 206,
+              "y": 626
+            }
+          ]
+        },
+        {
+          "id": "cloud->tms:serves",
+          "points": [
+            {
+              "x": 304,
+              "y": 870
+            },
+            {
+              "x": 304,
+              "y": 748
+            },
+            {
+              "x": 206,
+              "y": 748
+            },
+            {
+              "x": 206,
+              "y": 626
+            }
+          ]
+        },
+        {
+          "id": "orderApi->tms:realizes",
+          "points": [
+            {
+              "x": 108,
+              "y": 870
+            },
+            {
+              "x": 108,
+              "y": 748
+            },
+            {
+              "x": 206,
+              "y": 748
+            },
+            {
+              "x": 206,
+              "y": 626
+            }
+          ]
+        },
+        {
+          "id": "planning->onTime:realizes",
+          "points": [
+            {
+              "x": 206,
+              "y": 76
+            },
+            {
+              "x": 206,
+              "y": 132
+            }
+          ]
+        },
+        {
+          "id": "platform->rates:aggregates",
+          "points": []
+        },
+        {
+          "id": "platform->tms:aggregates",
+          "points": []
+        },
+        {
+          "id": "rollout->planning:realizes",
+          "points": [
+            {
+              "x": 206,
+              "y": 1026
+            },
+            {
+              "x": 206,
+              "y": 538
+            },
+            {
+              "x": 206,
+              "y": 538
+            },
+            {
+              "x": 206,
+              "y": 50
+            }
+          ]
+        },
+        {
+          "id": "shipper->booking:serves",
+          "points": [
+            {
+              "x": 206,
+              "y": 340
+            },
+            {
+              "x": 206,
+              "y": 396
+            }
+          ]
+        },
+        {
+          "id": "tms->rates:flowsTo",
+          "points": [
+            {
+              "x": 206,
+              "y": 652
+            },
+            {
+              "x": 206,
+              "y": 672
+            }
+          ]
+        },
+        {
+          "id": "tms->shipper:serves",
+          "points": [
+            {
+              "x": 206,
+              "y": 626
+            },
+            {
+              "x": 206,
+              "y": 470
+            },
+            {
+              "x": 206,
+              "y": 470
+            },
+            {
+              "x": 206,
+              "y": 314
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "fixtures/valid-layer-bands.plein",
+      "view": "layerBands",
+      "override": "layered",
+      "width": 788,
+      "height": 570,
+      "direction": "tb",
+      "mode": "layered",
+      "nodes": [
+        {
+          "id": "booking",
+          "x": 400,
+          "y": 386,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "cloud",
+          "x": 416,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "onTime",
+          "x": 596,
+          "y": 386,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "orderApi",
+          "x": 220,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "planning",
+          "x": 596,
+          "y": 205,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "platform",
+          "x": 246,
+          "y": 137,
+          "width": 228,
+          "height": 188,
+          "container": true
+        },
+        {
+          "id": "rates",
+          "x": 290,
+          "y": 257,
+          "width": 168,
+          "height": 52,
+          "parentId": "platform"
+        },
+        {
+          "id": "rollout",
+          "x": 24,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "shipper",
+          "x": 223,
+          "y": 494,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "tms",
+          "x": 262,
+          "y": 185,
+          "width": 168,
+          "height": 52,
+          "parentId": "platform"
+        }
+      ],
+      "edges": [
+        {
+          "id": "booking->tms:serves",
+          "points": [
+            {
+              "x": 484,
+              "y": 386
+            },
+            {
+              "x": 484,
+              "y": 106
+            },
+            {
+              "x": 388,
+              "y": 106
+            },
+            {
+              "x": 388,
+              "y": 185
+            }
+          ]
+        },
+        {
+          "id": "cloud->tms:serves",
+          "points": [
+            {
+              "x": 500,
+              "y": 76
+            },
+            {
+              "x": 500,
+              "y": 96
+            },
+            {
+              "x": 346,
+              "y": 96
+            },
+            {
+              "x": 346,
+              "y": 185
+            }
+          ]
+        },
+        {
+          "id": "orderApi->tms:realizes",
+          "points": [
+            {
+              "x": 304,
+              "y": 76
+            },
+            {
+              "x": 304,
+              "y": 185
+            }
+          ]
+        },
+        {
+          "id": "planning->onTime:realizes",
+          "points": [
+            {
+              "x": 680,
+              "y": 257
+            },
+            {
+              "x": 680,
+              "y": 386
+            }
+          ]
+        },
+        {
+          "id": "platform->rates:aggregates",
+          "points": []
+        },
+        {
+          "id": "platform->tms:aggregates",
+          "points": []
+        },
+        {
+          "id": "rollout->planning:realizes",
+          "points": [
+            {
+              "x": 108,
+              "y": 76
+            },
+            {
+              "x": 108,
+              "y": 86
+            },
+            {
+              "x": 680,
+              "y": 86
+            },
+            {
+              "x": 680,
+              "y": 205
+            }
+          ]
+        },
+        {
+          "id": "shipper->booking:serves",
+          "points": [
+            {
+              "x": 335,
+              "y": 494
+            },
+            {
+              "x": 335,
+              "y": 448
+            },
+            {
+              "x": 484,
+              "y": 448
+            },
+            {
+              "x": 484,
+              "y": 438
+            }
+          ]
+        },
+        {
+          "id": "tms->rates:flowsTo",
+          "points": [
+            {
+              "x": 374,
+              "y": 237
+            },
+            {
+              "x": 374,
+              "y": 257
+            }
+          ]
+        },
+        {
+          "id": "tms->shipper:serves",
+          "points": [
+            {
+              "x": 318,
+              "y": 237
+            },
+            {
+              "x": 318,
+              "y": 247
+            },
+            {
+              "x": 279,
+              "y": 247
+            },
+            {
+              "x": 279,
+              "y": 494
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "fixtures/valid-organic-grid.plein",
+      "view": "ranked",
+      "width": 412,
+      "height": 208,
+      "direction": "tb",
+      "mode": "layered",
+      "nodes": [
+        {
+          "id": "book",
+          "x": 52,
+          "y": 132,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "rates",
+          "x": 220,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "shipper",
+          "x": 24,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        }
+      ],
+      "edges": [
+        {
+          "id": "book->rates:serves",
+          "points": [
+            {
+              "x": 164,
+              "y": 132
+            },
+            {
+              "x": 164,
+              "y": 86
+            },
+            {
+              "x": 304,
+              "y": 86
+            },
+            {
+              "x": 304,
+              "y": 76
+            }
+          ]
+        },
+        {
+          "id": "shipper->book:serves",
+          "points": [
+            {
+              "x": 108,
+              "y": 76
+            },
+            {
+              "x": 108,
+              "y": 132
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "fixtures/samples/value-stream-demo.plein",
+      "view": "strategy",
+      "width": 1087,
+      "height": 247,
+      "direction": "lr",
+      "mode": "layered",
+      "nodes": [
+        {
+          "id": "book",
+          "x": 243,
+          "y": 117,
+          "width": 168,
+          "height": 52,
+          "parentId": "quoteToCash"
+        },
+        {
+          "id": "collect",
+          "x": 431,
+          "y": 117,
+          "width": 168,
+          "height": 52,
+          "parentId": "quoteToCash"
+        },
+        {
+          "id": "orderExecution",
+          "x": 671,
+          "y": 171,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "quote",
+          "x": 55,
+          "y": 108,
+          "width": 168,
+          "height": 52,
+          "parentId": "quoteToCash"
+        },
+        {
+          "id": "quoteToCash",
+          "x": 39,
+          "y": 60,
+          "width": 576,
+          "height": 127,
+          "container": true
+        },
+        {
+          "id": "rateEngine",
+          "x": 895,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "rateQuote",
+          "x": 671,
+          "y": 24,
+          "width": 168,
+          "height": 52
+        },
+        {
+          "id": "tms",
+          "x": 895,
+          "y": 171,
+          "width": 168,
+          "height": 52
+        }
+      ],
+      "edges": [
+        {
+          "id": "book->collect:triggers",
+          "points": [
+            {
+              "x": 411,
+              "y": 143
+            },
+            {
+              "x": 431,
+              "y": 143
+            }
+          ]
+        },
+        {
+          "id": "orderExecution->book:serves",
+          "points": [
+            {
+              "x": 671,
+              "y": 197
+            },
+            {
+              "x": 24,
+              "y": 197
+            },
+            {
+              "x": 24,
+              "y": 170
+            },
+            {
+              "x": 233,
+              "y": 170
+            },
+            {
+              "x": 233,
+              "y": 151
+            },
+            {
+              "x": 243,
+              "y": 151
+            }
+          ]
+        },
+        {
+          "id": "quote->book:flowsTo",
+          "points": [
+            {
+              "x": 223,
+              "y": 134
+            },
+            {
+              "x": 243,
+              "y": 134
+            }
+          ]
+        },
+        {
+          "id": "quoteToCash->book:composedOf",
+          "points": []
+        },
+        {
+          "id": "quoteToCash->collect:composedOf",
+          "points": []
+        },
+        {
+          "id": "quoteToCash->quote:composedOf",
+          "points": []
+        },
+        {
+          "id": "rateEngine->rateQuote:realizes",
+          "points": [
+            {
+              "x": 895,
+              "y": 50
+            },
+            {
+              "x": 839,
+              "y": 50
+            }
+          ]
+        },
+        {
+          "id": "rateQuote->quote:serves",
+          "points": [
+            {
+              "x": 671,
+              "y": 50
+            },
+            {
+              "x": 24,
+              "y": 50
+            },
+            {
+              "x": 24,
+              "y": 134
+            },
+            {
+              "x": 55,
+              "y": 134
+            }
+          ]
+        },
+        {
+          "id": "tms->orderExecution:realizes",
+          "points": [
+            {
+              "x": 895,
+              "y": 197
+            },
+            {
+              "x": 839,
+              "y": 197
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
