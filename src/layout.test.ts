@@ -1095,7 +1095,73 @@ test("organic is seeded force-directed and does not replace the layered default"
   assert.equal(ORGANIC_PACK_GAP, 24);
 });
 
-test("organic packing is denser than the force default and stays seeded", async () => {
+/** Visible orthogonal clutter: stacked spans, edge crossings, and cuts through a foreign box. */
+function associationClutter(
+  layout: ViewpointLayout,
+  svg: string,
+): { stacks: number; crossings: number; boxCuts: number } {
+  const drawn = layout.edges
+    .filter((edge) => !edge.impliedByNest)
+    .map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      points: renderedPolyline(svg, edge.id),
+    }));
+  const segs = drawn.map((edge) => ({
+    id: edge.id,
+    parts: edge.points.slice(1).map((point, index) => {
+      const previous = edge.points[index]!;
+      return { a: previous, b: point, len: Math.hypot(point.x - previous.x, point.y - previous.y) };
+    }).filter((part) => part.len >= 1),
+  }));
+  let stacks = 0;
+  let crossings = 0;
+  const orient = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  for (let left = 0; left < segs.length; left += 1) {
+    for (let right = left + 1; right < segs.length; right += 1) {
+      for (const a of segs[left]!.parts) {
+        for (const b of segs[right]!.parts) {
+          const o1 = orient(a.a, a.b, b.a);
+          const o2 = orient(a.a, a.b, b.b);
+          const o3 = orient(b.a, b.b, a.a);
+          const o4 = orient(b.a, b.b, a.b);
+          if (!(Math.abs(o1) < 0.5 && Math.abs(o2) < 0.5) && o1 * o2 < -0.5 && o3 * o4 < -0.5) {
+            crossings += 1;
+          }
+          const aH = Math.abs(a.a.y - a.b.y) <= 0.6;
+          const bH = Math.abs(b.a.y - b.b.y) <= 0.6;
+          const aV = Math.abs(a.a.x - a.b.x) <= 0.6;
+          const bV = Math.abs(b.a.x - b.b.x) <= 0.6;
+          const overlap = (p0: number, p1: number, q0: number, q1: number) =>
+            Math.min(Math.max(p0, p1), Math.max(q0, q1)) - Math.max(Math.min(p0, p1), Math.min(q0, q1));
+          if (aH && bH && overlap(a.a.x, a.b.x, b.a.x, b.b.x) >= 16 && Math.abs(a.a.y - b.a.y) < 3) {
+            stacks += 1;
+          }
+          if (aV && bV && overlap(a.a.y, a.b.y, b.a.y, b.b.y) >= 16 && Math.abs(a.a.x - b.a.x) < 3) {
+            stacks += 1;
+          }
+        }
+      }
+    }
+  }
+  let boxCuts = 0;
+  for (const edge of drawn) {
+    for (const node of layout.nodes) {
+      if (node.id === edge.source || node.id === edge.target || node.container) {
+        continue;
+      }
+      if (polylineCrossesBox(edge.points, node)) {
+        boxCuts += 1;
+        break;
+      }
+    }
+  }
+  return { stacks, crossings, boxCuts };
+}
+
+test("organic packing stays denser than layered and keeps associations readable", async () => {
   const source = `plein {
   model {
     business-actor "Customer" as customer
@@ -1178,6 +1244,27 @@ test("organic packing is denser than the force default and stays seeded", async 
   assert.deepEqual(
     organic.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
     again.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+  );
+  assert.deepEqual(
+    organic.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+    again.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+  );
+  assert.equal(diagonalSegments(organic), 0);
+  const polyline = await layoutViewpoint(result.model, "line", { routing: "polyline" });
+  assert.deepEqual(
+    polyline.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+    organic.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
+    "edge routing does not move organic nodes",
+  );
+  const clutter = associationClutter(organic, renderViewpointSvg(organic));
+  // v0.1.21 density pack drew this service line with the midpoint Z: 19 stacked
+  // spans, 30 crossings, and 22 associations cutting through a foreign box.
+  assert.ok(clutter.stacks <= 4, `organic stacks ${clutter.stacks}`);
+  assert.ok(clutter.crossings <= 28, `organic crossings ${clutter.crossings}`);
+  assert.ok(clutter.boxCuts <= 4, `organic box cuts ${clutter.boxCuts}`);
+  assert.ok(
+    clutter.stacks + clutter.boxCuts + clutter.crossings < 19 + 22 + 30,
+    `organic clutter ${JSON.stringify(clutter)}`,
   );
 });
 
