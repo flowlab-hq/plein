@@ -1,0 +1,58 @@
+// Header stays on top.
+plein {
+  views {
+    view bookingContext {
+      autoLayout left-right poly-line
+      nesting side-by-side
+      include   booking,shipper
+      include order
+      title "Booking context"
+      position  shipper 40 240
+      position booking 10.50 0
+    }
+    viewpoint story "Story" {
+      nesting inside
+      autoLayout manual
+      include shipper, booking, order
+      position order 0 0
+    }
+    // catalogue packs by name
+    viewpoint catalogue "Catalogue" {
+      exclude "* -> legacy"
+      autoLayout name polyline grid lr
+      include applicationComponent, shipper
+    }
+  }
+
+  styles {
+      element business-actor { background "#E8F1FF" }
+  }
+
+  model {
+    businessActor "Shipper" as shipper
+    // rates is an application
+    applicationComponent "Rate engine" as rates
+
+    organization nordfreight {
+      specialization customer specializes businessActor
+    }
+
+    // infix becomes arrow
+    shipper serves booking
+    booking -> order: access
+    customer "Acme" as acme
+
+    specialization express-order specializes business-object
+
+    valueStream "Quote to cash" as quoteToCash {
+      valueStreamStage "Quote" as quote
+      valueStreamStage "Book" as book
+      quote flowsTo book
+    }
+
+    business-service "Booking service" as booking
+    businessObject "Freight order" as order
+
+    acme -> quote: serving
+  }
+}

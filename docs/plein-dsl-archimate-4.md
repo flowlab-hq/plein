@@ -506,6 +506,62 @@ The example intentionally excludes `rates` from the context view while retaining
 
 File-level `styles { }` blocks are accepted and ignored. The Mac renderer colours boxes by ArchiMate layer and draws a type glyph from a built-in map — see [ArchiMate type colours and icons](archimate-style.md). That map is not overridden by `styles` and is not an Open Exchange or full Archi skin.
 
+## Canonical layout (`plein format`)
+
+`plein format` rewrites a checked `.plein` file to one layout so a pull-request diff shows architecture changes instead of whitespace and spelling. Formatting twice produces identical bytes. Indentation is **two spaces** per level. The file uses LF newlines and ends with one newline. `//` comments stay with the statement they precede. A `styles` block is kept and reindented; check and the Mac renderer still ignore it.
+
+Top-level order inside `plein { }` is `model`, then `views`, then `styles`. An empty block is omitted. A file with no `plein` wrapper gains one.
+
+### Model statement order
+
+Inside `model`, statements are grouped:
+
+1. `profile` and model-level `specialization` declarations, in source order. Hooks stay inside their profile. `organization` is written `profile`. A blank line separates a profile from the next declaration.
+2. Elements, in source order. A blank line separates this group from declarations when both exist.
+3. Relationships, in source order. A blank line separates them from the elements when both exist.
+
+An element is one line, keys in this order:
+
+```plein
+<keyword> "<label>" as <id>
+<keyword> "<label>" as <id> hook <name>
+```
+
+Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
+
+Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, `composition`, `flow`, and the rest of the [relationships table](#relationships)). An infix verb (`shipper serves booking`) is rewritten to that arrow form. A specialization parent that is a catalogue keyword is kebab-case.
+
+### View clause order
+
+A view with a title is `viewpoint <name> "<title>"`. A view with no title is `view <name>`. A `title` clause is folded onto that header. When the header and a `title` clause both set a label, the clause is the one `plein check` keeps, and format writes that label on the header.
+
+Clauses inside the view are written in this order:
+
+1. `include` — one line. Selectors stay in source order and are joined with `, `. A catalogue keyword in the list is kebab-case.
+2. `exclude` — the same joining rules. A selector that is not one identifier is quoted (`"* -> legacyBatch"`).
+3. `autoLayout`
+4. `nesting` — only when it is nested. `nesting beside` and its aliases are omitted, because beside is the default.
+5. `position <id> <x> <y>` — source order. Whole numbers have no decimal point. Trailing zeros on a fractional coordinate are dropped (`10.50` is `10.5`).
+
+`autoLayout` tokens are written in this order. A token that is the default is omitted:
+
+| Slot | Written when | Canonical token |
+| --- | --- | --- |
+| mode | not the default `layered` | `layers`, `organic`, or `grid` (`layer` is written `layers`) |
+| grid order | mode is `grid` and the order is `name` | `name` (`kind` is omitted) |
+| direction | not the default `tb` | `bt`, `lr`, or `rl` (`left-right` and the other shorthands collapse to these) |
+| routing | not the default `orthogonal` | `polyline` (`poly-line` is written `polyline`) |
+
+`autoLayout off` is the only token when layout is frozen (`manual` is written `off`). A clause whose every token is the default is bare `autoLayout`. A view that never had an `autoLayout` clause still omits it.
+
+```bash
+plein format fixtures/format-messy.plein
+plein format --write fixtures/format-messy.plein
+plein format --check fixtures/golden-format-messy.plein
+```
+
+Without `--write` or `-o`, the canonical source is written to stdout. `--check` exits 0 when the file is already canonical and prints `would reformat <file>` on stderr otherwise. The before/after pair is [`fixtures/format-messy.plein`](../fixtures/format-messy.plein) and [`fixtures/golden-format-messy.plein`](../fixtures/golden-format-messy.plein). `npm test` (`src/format.test.ts`) fails if that golden drifts, or if formatting any valid fixture twice changes a byte.
+
 ## Mac-app authoring (wrong vs right)
 
 Humans and LLMs often generate `.plein` that the Mac app cannot parse. These rules match `plein check` and the golden fixtures [`fixtures/samples/value-stream-demo.plein`](../fixtures/samples/value-stream-demo.plein) and [`fixtures/valid-views.plein`](../fixtures/valid-views.plein).

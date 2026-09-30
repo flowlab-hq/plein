@@ -29,6 +29,8 @@ fi
 # Golden / pass fixtures (exit 0). Matches fixtures/README.md.
 GOLDEN=(
   fixtures/valid-basic.plein
+  fixtures/format-messy.plein
+  fixtures/golden-format-messy.plein
   fixtures/valid-views.plein
   fixtures/valid-catalogue-layers.plein
   fixtures/valid-layer-bands.plein

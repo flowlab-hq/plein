@@ -11,6 +11,13 @@ export {
   type PositionDecl,
 } from "./parser.js";
 export {
+  FormatError,
+  canonicalAutoLayout,
+  canonicalStyleBody,
+  formatPlein,
+  formatPleinSource,
+} from "./format.js";
+export {
   formatInspect,
   inspectModel,
   type InspectDump,
