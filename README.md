@@ -7,6 +7,7 @@ One text model → many consistent ArchiMate viewpoints. Git-friendly, PR-review
 ## Documentation
 
 * [Plein DSL language reference (ArchiMate 4)](docs/plein-dsl-archimate-4.md) — document shape, element vocabulary, relationships, views, and validation guidance.
+* [Relationship matrix](docs/relationship-matrix.md) — allowed source, relationship, and target pairs. `plein check` rejects a combination that is not in the matrix.
 * [Mac-app / LLM formatting pitfalls](docs/plein-dsl-archimate-4.md#mac-app-authoring-wrong-vs-right) — header is only `plein {`; labeled elements need `as id`; kebab-case keywords; `id -> id: serving`; unique `viewpoint` ids; copy-paste example with two views.
 * [ArchiMate type colours and icons](docs/archimate-style.md) — layer fills and decorator glyphs used by the Mac SVG renderer.
 * [Open Exchange import and export](docs/open-exchange-import.md) — `plein import` and `plein export-open-exchange` for a documented ArchiMate exchange subset.
@@ -157,7 +158,7 @@ Until the `.dmg` is published, the same steps work from a local `Plein.app` (`np
 
 ## CLI
 
-Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, and malformed views exit non-zero with `file:line:column` diagnostics on stderr. The `styles` block is still ignored; diagram colours come from the built-in type/layer map ([docs/archimate-style.md](docs/archimate-style.md)).
+Structural check: load a model (elements, typed relationships, and views) and exit 0 when it is valid. Syntax errors, unknown keywords, malformed views, and relationship pairs that are not in the [relationship matrix](docs/relationship-matrix.md) exit non-zero with `file:line:column` diagnostics on stderr. An invalid pair names the source type, relationship, and target type (`invalid relationship 'realization' from 'application-component' to 'business-object'`). The `styles` block is still ignored; diagram colours come from the built-in type/layer map ([docs/archimate-style.md](docs/archimate-style.md)).
 
 `plein inspect` writes that same loaded model as JSON on stdout (elements, relationships, and views, in document order). It does not render a diagram. Parse errors use the same diagnostics and a non-zero exit as `plein check`. See [Inspect a model](#inspect-a-model).
 

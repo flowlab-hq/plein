@@ -23,7 +23,7 @@ plein {
     acme -> rush: access
     priority -> acme: specialization
     booking -> acme: serving
-    lane -> desk: assignment
+    desk -> lane: assignment
   }
 
   views {

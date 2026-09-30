@@ -227,7 +227,7 @@ test("reload keeps element positions when auto-layout is off", async () => {
 
   const edited = original.replace(
     "booking -> rates: serving",
-    "booking -> rates: serving\n    rates -> order: realization",
+    "booking -> rates: serving\n    rates -> order: access",
   );
   const reloaded = reloadPleinSource(edited, file, "story");
   assert.equal(reloaded.loaded.ok, true);

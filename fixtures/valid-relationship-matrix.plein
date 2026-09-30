@@ -1,0 +1,35 @@
+plein {
+  model {
+    capability "Rate and quote" as rateQuote
+    value-stream "Quote to cash" as quoteToCash {
+      value-stream-stage "Quote freight" as quote
+      value-stream-stage "Book shipment" as book
+      quote -> book: flow
+    }
+    application-component "Rate engine" as rateEngine
+    business-actor "Shipper" as shipper
+    business-process "Book freight" as bookFreight
+    business-service "Booking" as booking
+    business-object "Order" as order
+    node "Cloud" as cloud
+    goal "On time" as onTime
+    assessment "Late risk" as risk
+    work-package "Rollout" as rollout
+
+    rateQuote -> quote: serving
+    rateEngine -> rateQuote: realization
+    shipper -> bookFreight: assignment
+    booking -> order: access
+    cloud -> rateEngine: serving
+    bookFreight -> booking: flow
+    risk -> onTime: influence
+    rollout -> rateQuote: realization
+  }
+
+  views {
+    viewpoint matrix "Relationship matrix" {
+      include quoteToCash quote book rateQuote rateEngine shipper bookFreight booking order cloud onTime risk rollout
+      autoLayout tb
+    }
+  }
+}

@@ -13,7 +13,7 @@ plein {
     business-actor "Shipper & Co" as id-shipper
     // name (nl): Verlader
     business-role "Booking clerk" as id-clerk
-    business-process "Book freight" as id-book
+    value-stream "Book freight" as id-book
     business-event "Order placed" as id-placed
     business-service "Booking service" as id-booking
     business-object "Freight order" as id-order
@@ -30,14 +30,14 @@ plein {
     id-risk -> id-ontime: influence
     // modifier: -
     id-booking -> id-shipper: serving
-    id-clerk -> id-book: assignment
-    id-book -> id-placed: triggering
-    id-book -> id-order: flow
+    id-clerk -> id-booking: assignment
+    id-booking -> id-placed: triggering
+    id-rates -> id-cloud: flow
     id-booking -> id-order: access
     // accessType: Write
     id-rates -> id-booking: realization
     id-rates -> id-ratecard: access
-    id-cloud -> id-rates: composition
+    id-cloud -> id-rates: realization
     id-express -> id-order: specialization
     id-shipper -> id-clerk: association
     id-rotterdam -> id-cloud: association

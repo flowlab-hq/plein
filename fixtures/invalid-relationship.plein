@@ -1,0 +1,8 @@
+plein {
+  model {
+    application-component "Rate engine" as rates
+    business-object "Freight order" as order
+
+    rates -> order: realization
+  }
+}

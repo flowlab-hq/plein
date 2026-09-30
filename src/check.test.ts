@@ -165,3 +165,21 @@ test("plein check exits non-zero on unknown value stream step keyword with line 
   assert.match(result.stderr, /unknown-value-stream-step\.plein:\d+:\d+:/);
   assert.match(result.stderr, /unknown step keyword/i);
 });
+
+test("plein check exits 0 on fixtures/valid-relationship-matrix.plein", () => {
+  const result = runCheck("fixtures/valid-relationship-matrix.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-relationship-matrix\.plein/);
+  assert.match(result.stdout, /13 elements/);
+  assert.match(result.stdout, /11 relationships/);
+  assert.match(result.stdout, /1 views/);
+});
+
+test("plein check exits non-zero on an invalid relationship pair with line and types", () => {
+  const result = runCheck("fixtures/invalid-relationship.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /invalid-relationship\.plein:\d+:\d+: invalid relationship 'realization' from 'application-component' to 'business-object'/,
+  );
+});

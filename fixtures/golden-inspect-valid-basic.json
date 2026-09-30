@@ -46,7 +46,7 @@
       "line": 10
     },
     {
-      "type": "realizes",
+      "type": "accesses",
       "source": "rates",
       "target": "order",
       "line": 11
