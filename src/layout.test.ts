@@ -29,6 +29,7 @@ import {
   MANUAL_LAYOUT_ENGINE,
   NODE_HEIGHT,
   NODE_WIDTH,
+  CONNECTOR_END_GAP,
   RANK_GAP,
   svgMembership,
   svgNodeStyles,
@@ -1577,3 +1578,418 @@ views {
   assertLabelInsideBox(svg, pricing);
   assertLabelInsideBox(svg, borrowed);
 });
+
+/** Element stroke is centered on the box, so a gap must clear half of this width. */
+const NODE_STROKE = 1.25;
+
+test("connector ends leave a shared gap around arrowheads", () => {
+  const booking = gapBox("booking", 300, 200, "businessService");
+  const shipper = gapBox("shipper", 300, 40, "businessActor");
+  const planner = gapBox("planner", 40, 200, "businessRole");
+  const tms = gapBox("tms", 560, 200, "applicationComponent");
+  const vertical = gapLink(shipper, booking, "serves", [
+    { x: 384, y: shipper.y + shipper.height },
+    { x: 384, y: booking.y },
+  ]);
+  const fromLeft = gapLink(planner, booking, "triggers", [
+    { x: planner.x + planner.width, y: 226 },
+    { x: booking.x, y: 226 },
+  ]);
+  const fromRight = gapLink(tms, booking, "realizes", [
+    { x: tms.x, y: 226 },
+    { x: booking.x + booking.width, y: 226 },
+  ]);
+  const layout = gapScene([booking, shipper, planner, tms], [vertical, fromLeft, fromRight]);
+  const edgesBefore = JSON.stringify(layout.edges);
+  const nodesBefore = JSON.stringify(layout.nodes);
+  const svg = renderViewpointSvg(layout);
+  assert.equal(JSON.stringify(layout.edges), edgesBefore);
+  assert.equal(JSON.stringify(layout.nodes), nodesBefore);
+  assertSharedArrowMarker(svg);
+  assert.match(svg, new RegExp(`width="${layout.width}" height="${layout.height}"`));
+
+  for (const node of layout.nodes) {
+    assertNodeChromeUnchanged(svg, node);
+    assertLabelInsideBox(svg, node);
+  }
+
+  const intoBooking = [vertical, fromLeft, fromRight];
+  const gaps: number[] = [];
+  for (const edge of intoBooking) {
+    const { startGap, tipGap } = measureConnector(svg, layout, edge);
+    assert.ok(Math.abs(startGap - CONNECTOR_END_GAP) <= 0.05, `${edge.id} start ${startGap}`);
+    assert.ok(Math.abs(tipGap - CONNECTOR_END_GAP) <= 0.05, `${edge.id} tip ${tipGap}`);
+    gaps.push(startGap, tipGap);
+  }
+  assert.ok(Math.max(...gaps) - Math.min(...gaps) <= 0.05);
+
+  const centerRouted = gapLink(shipper, booking, "flowsTo", [
+    { x: 384, y: 66 },
+    { x: 384, y: 146 },
+    { x: 384, y: 146 },
+    { x: 384, y: 226 },
+  ]);
+  const centerSvg = renderViewpointSvg(gapScene([shipper, booking], [centerRouted]));
+  const center = measureConnector(centerSvg, gapScene([shipper, booking], [centerRouted]), centerRouted);
+  assert.ok(Math.abs(center.startGap - CONNECTOR_END_GAP) <= 0.05);
+  assert.ok(Math.abs(center.tipGap - CONNECTOR_END_GAP) <= 0.05);
+
+  const diagonalSource = gapBox("quote", 40, 40, "businessProcess");
+  const diagonalTarget = gapBox("order", 360, 180, "businessObject");
+  const diagonal = gapLink(diagonalSource, diagonalTarget, "accesses", [
+    { x: 183, y: diagonalSource.y + diagonalSource.height },
+    { x: 385, y: diagonalTarget.y },
+  ]);
+  const diagonalSvg = renderViewpointSvg(gapScene([diagonalSource, diagonalTarget], [diagonal]));
+  const diagonalGap = measureConnector(diagonalSvg, gapScene([diagonalSource, diagonalTarget], [diagonal]), diagonal);
+  assert.ok(Math.abs(diagonalGap.startGap - CONNECTOR_END_GAP) <= 0.05, `diagonal start ${diagonalGap.startGap}`);
+  assert.ok(Math.abs(diagonalGap.tipGap - CONNECTOR_END_GAP) <= 0.05, `diagonal tip ${diagonalGap.tipGap}`);
+});
+
+test("short connectors keep a gap and do not reverse", () => {
+  const source = gapBox("shipper", 40, 40, "businessActor");
+  const target = gapBox("booking", 40, 112, "businessService");
+  const edge = gapLink(source, target, "serves", [
+    { x: 124, y: source.y + source.height },
+    { x: 124, y: target.y },
+  ]);
+  const svg = renderViewpointSvg(gapScene([source, target], [edge]));
+  const points = renderedPolyline(svg, edge.id);
+  assert.deepEqual(points, [
+    { x: 124, y: 94.5 },
+    { x: 124, y: 109.5 },
+  ]);
+  const measured = measureConnector(svg, gapScene([source, target], [edge]), edge);
+  assert.equal(measured.startGap, 2.5);
+  assert.equal(measured.tipGap, 2.5);
+  assert.ok(measured.tipGap > NODE_STROKE / 2);
+  assert.ok(points[1]!.y > points[0]!.y);
+
+  const closeTarget = gapBox("booking", 40, 100, "businessService");
+  const close = gapLink(source, closeTarget, "serves", [
+    { x: 124, y: 66 },
+    { x: 124, y: 96 },
+    { x: 124, y: 96 },
+    { x: 124, y: 126 },
+  ]);
+  const closeSvg = renderViewpointSvg(gapScene([source, closeTarget], [close]));
+  const closePoints = renderedPolyline(closeSvg, close.id);
+  assert.deepEqual(closePoints, [
+    { x: 124, y: 93 },
+    { x: 124, y: 96 },
+    { x: 124, y: 99 },
+  ]);
+  for (const point of closePoints) {
+    assert.equal(strictlyInside(point, source), false);
+    assert.equal(strictlyInside(point, closeTarget), false);
+  }
+  const closeGap = measureConnector(closeSvg, gapScene([source, closeTarget], [close]), close);
+  assert.equal(closeGap.startGap, 1);
+  assert.equal(closeGap.tipGap, 1);
+  assert.ok(closeGap.tipGap > NODE_STROKE / 2);
+  assert.ok(closePoints[closePoints.length - 1]!.y > closePoints[0]!.y);
+  assertNodeChromeUnchanged(closeSvg, source);
+  assertNodeChromeUnchanged(closeSvg, closeTarget);
+});
+
+test("connector gap holds for nested containers and auto-layout modes", async () => {
+  const dense = loadPleinSource(
+    `model {
+  business-actor "Shipper" as shipper
+  business-role "Planner" as planner
+  business-process "Book" as book
+  application-component "TMS" as tms
+  business-service "Booking" as booking
+  shipper -> booking: serving
+  planner -> booking: serving
+  book -> booking: triggering
+  tms -> booking: realization
+  booking -> tms: flow
+}
+views {
+  view dense {
+    include shipper, planner, book, tms, booking
+    autoLayout tb
+  }
+}
+`,
+    "connector-gap-dense.plein",
+  );
+  assert.equal(dense.ok, true);
+  if (!dense.ok) {
+    return;
+  }
+
+  const modes = ["layered", "layers", "organic", "grid"] as const;
+  for (const mode of modes) {
+    const routings = mode === "layered" || mode === "organic" ? (["orthogonal", "polyline"] as const) : (["orthogonal"] as const);
+    for (const routing of routings) {
+      const layout = await layoutViewpoint(dense.model, "dense", { mode, routing });
+      const edgesBefore = JSON.stringify(layout.edges);
+      const nodesBefore = JSON.stringify(layout.nodes.map((node) => ({ ...node })));
+      const svg = renderViewpointSvg(layout);
+      assert.equal(JSON.stringify(layout.edges), edgesBefore, mode);
+      assert.equal(JSON.stringify(layout.nodes.map((node) => ({ ...node }))), nodesBefore, mode);
+      assertSharedArrowMarker(svg);
+      assert.match(svg, new RegExp(`width="${layout.width}" height="${layout.height}"`));
+      for (const node of layout.nodes) {
+        assertNodeChromeUnchanged(svg, node);
+      }
+      const intoBooking = layout.edges.filter((edge) => edge.target === "booking" && !edge.impliedByNest);
+      assert.ok(intoBooking.length >= 3, mode);
+      const fanIn = new Set(intoBooking.map((edge) => edge.type));
+      assert.ok(fanIn.has("serves") && fanIn.has("triggers") && fanIn.has("realizes"), mode);
+      for (const edge of layout.edges) {
+        if (edge.impliedByNest) {
+          continue;
+        }
+        assertRenderedConnectorGap(svg, layout, edge);
+      }
+    }
+  }
+
+  const nested = loadPleinSource(
+    `model {
+  grouping "Platform" as platform
+  application-component "TMS" as tms
+  application-component "Billing" as billing
+  business-actor "Shipper" as shipper
+  platform -> tms: composition
+  platform -> billing: composition
+  tms -> billing: flow
+  shipper -> tms: serving
+}
+views {
+  view nested {
+    include platform, tms, billing, shipper
+    nesting nested
+    autoLayout tb
+  }
+}
+`,
+    "connector-gap-nested.plein",
+  );
+  assert.equal(nested.ok, true);
+  if (!nested.ok) {
+    return;
+  }
+  for (const mode of modes) {
+    const layout = await layoutViewpoint(nested.model, "nested", { mode, nesting: "nested" });
+    const svg = renderViewpointSvg(layout);
+    const platform = layout.nodes.find((node) => node.id === "platform");
+    const tms = layout.nodes.find((node) => node.id === "tms");
+    const billing = layout.nodes.find((node) => node.id === "billing");
+    assert.ok(platform?.container, mode);
+    assert.equal(tms?.parentId, "platform", mode);
+    assert.equal(billing?.parentId, "platform", mode);
+    assert.ok(tms && billing && isInside(tms, platform!), mode);
+    for (const node of layout.nodes) {
+      assertNodeChromeUnchanged(svg, node);
+    }
+    const drawn = layout.edges.filter((edge) => !edge.impliedByNest);
+    assert.ok(drawn.length >= 2, mode);
+    for (const edge of drawn) {
+      assertRenderedConnectorGap(svg, layout, edge);
+    }
+  }
+
+  const manual = loadPleinSource(
+    `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+  application-component "TMS" as tms
+  shipper -> booking: serving
+  tms -> booking: realization
+}
+views {
+  view placed {
+    include shipper, booking, tms
+    autoLayout off
+    position shipper 40 40
+    position booking 280 40
+    position tms 40 200
+  }
+}
+`,
+    "connector-gap-manual.plein",
+  );
+  assert.equal(manual.ok, true);
+  if (!manual.ok) {
+    return;
+  }
+  const placed = await layoutViewpoint(manual.model, "placed");
+  assert.equal(placed.auto, false);
+  const placedSvg = renderViewpointSvg(placed);
+  assert.match(placedSvg, /data-layout-engine="manual"/);
+  const shipper = placed.nodes.find((node) => node.id === "shipper");
+  assert.equal(shipper?.x, 40);
+  assert.equal(shipper?.y, 40);
+  for (const edge of placed.edges) {
+    assertRenderedConnectorGap(placedSvg, placed, edge);
+  }
+  for (const node of placed.nodes) {
+    assertNodeChromeUnchanged(placedSvg, node);
+    assertLabelInsideBox(placedSvg, node);
+  }
+});
+
+function gapBox(
+  id: string,
+  x: number,
+  y: number,
+  keyword: LayoutNode["keyword"],
+): LayoutNode {
+  return { id, label: id, keyword, x, y, width: NODE_WIDTH, height: NODE_HEIGHT };
+}
+
+function gapLink(
+  source: LayoutNode,
+  target: LayoutNode,
+  type: ViewpointLayout["edges"][number]["type"],
+  points: Array<{ x: number; y: number }>,
+): ViewpointLayout["edges"][number] {
+  const start = points[0]!;
+  const end = points[points.length - 1]!;
+  return {
+    id: `${source.id}->${target.id}:${type}`,
+    source: source.id,
+    target: target.id,
+    type,
+    x1: start.x,
+    y1: start.y,
+    x2: end.x,
+    y2: end.y,
+    points,
+  };
+}
+
+function gapScene(nodes: LayoutNode[], edges: ViewpointLayout["edges"]): ViewpointLayout {
+  return {
+    viewName: "gap",
+    direction: "tb",
+    mode: "layered",
+    routing: "orthogonal",
+    nesting: "beside",
+    auto: false,
+    width: 900,
+    height: 520,
+    nodes,
+    edges,
+  };
+}
+
+function renderedPolyline(svg: string, edgeId: string): Array<{ x: number; y: number }> {
+  const escaped = edgeId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = svg.match(new RegExp(`data-edge-id="${escaped}"[\\s\\S]*?<polyline points="([^"]+)"`));
+  assert.ok(match, edgeId);
+  return match[1]!.trim().split(/\s+/).map((pair) => {
+    const [x, y] = pair.split(",");
+    return { x: Number(x), y: Number(y) };
+  });
+}
+
+function markerTip(svg: string, points: Array<{ x: number; y: number }>): { x: number; y: number } {
+  const refX = Number(/<marker[^>]* refX="([^"]+)"/.exec(svg)?.[1]);
+  const polygon = /<polygon points="([^"]+)"/.exec(svg)?.[1] ?? "";
+  const tipX = Math.max(...polygon.split(",").map((part) => Number(part.trim().split(/\s+/)[0])));
+  const stroke = Number(/<polyline[^>]* stroke-width="([^"]+)"/.exec(svg)?.[1]);
+  const overhang = (tipX - refX) * stroke;
+  const end = points[points.length - 1]!;
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const dx = end.x - points[index]!.x;
+    const dy = end.y - points[index]!.y;
+    const length = Math.hypot(dx, dy);
+    if (length > 0.01) {
+      return { x: end.x + (dx / length) * overhang, y: end.y + (dy / length) * overhang };
+    }
+  }
+  return end;
+}
+
+function rectDistance(point: { x: number; y: number }, node: LayoutNode): number {
+  const right = node.x + node.width;
+  const bottom = node.y + node.height;
+  const dx = point.x < node.x ? node.x - point.x : point.x > right ? point.x - right : 0;
+  const dy = point.y < node.y ? node.y - point.y : point.y > bottom ? point.y - bottom : 0;
+  return Math.hypot(dx, dy);
+}
+
+function nodeSeparation(a: LayoutNode, b: LayoutNode): number {
+  const dx = Math.max(0, Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width)));
+  const dy = Math.max(0, Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height)));
+  return Math.hypot(dx, dy);
+}
+
+function strictlyInside(point: { x: number; y: number }, node: LayoutNode): boolean {
+  return (
+    point.x > node.x &&
+    point.x < node.x + node.width &&
+    point.y > node.y &&
+    point.y < node.y + node.height
+  );
+}
+
+function measureConnector(
+  svg: string,
+  layout: ViewpointLayout,
+  edge: ViewpointLayout["edges"][number],
+): { startGap: number; tipGap: number } {
+  const points = renderedPolyline(svg, edge.id);
+  const source = layout.nodes.find((node) => node.id === edge.source);
+  const target = layout.nodes.find((node) => node.id === edge.target);
+  assert.ok(source && target, edge.id);
+  return {
+    startGap: rectDistance(points[0]!, source),
+    tipGap: rectDistance(markerTip(svg, points), target),
+  };
+}
+
+function assertRenderedConnectorGap(
+  svg: string,
+  layout: ViewpointLayout,
+  edge: ViewpointLayout["edges"][number],
+): void {
+  const points = renderedPolyline(svg, edge.id);
+  assert.ok(points.length >= 2, edge.id);
+  const source = layout.nodes.find((node) => node.id === edge.source);
+  const target = layout.nodes.find((node) => node.id === edge.target);
+  assert.ok(source && target, edge.id);
+  const { startGap, tipGap } = measureConnector(svg, layout, edge);
+  const where = `${layout.mode}/${layout.routing} ${edge.id}`;
+  assert.ok(startGap > NODE_STROKE / 2, `${where} source ${startGap}`);
+  assert.ok(tipGap > NODE_STROKE / 2, `${where} tip ${tipGap}`);
+  assert.ok(Math.abs(startGap - tipGap) <= 0.35, `${where} ${startGap} vs ${tipGap}`);
+  assert.ok(startGap <= CONNECTOR_END_GAP * Math.SQRT2 + 0.25, where);
+  assert.ok(tipGap <= CONNECTOR_END_GAP * Math.SQRT2 + 0.25, where);
+  if (nodeSeparation(source, target) >= 32) {
+    assert.ok(startGap >= CONNECTOR_END_GAP - 0.15, `${where} start ${startGap}`);
+    assert.ok(tipGap >= CONNECTOR_END_GAP - 0.15, `${where} tip ${tipGap}`);
+  }
+  for (const point of points) {
+    assert.equal(strictlyInside(point, source), false, where);
+    assert.equal(strictlyInside(point, target), false, where);
+  }
+}
+
+function assertSharedArrowMarker(svg: string): void {
+  assert.equal(svg.match(/<marker /g)?.length, 1);
+  assert.match(svg, /<marker [^>]*markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">/);
+  assert.match(svg, /<polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" \/>/);
+}
+
+function assertNodeChromeUnchanged(svg: string, node: LayoutNode): void {
+  assert.match(
+    svg,
+    new RegExp(
+      `data-node-id="${node.id}"[^>]*transform="translate\\(${node.x} ${node.y}\\)"[\\s\\S]*?<rect width="${node.width}" height="${node.height}" rx="\\d+" fill="[^"]+" stroke="[^"]+" stroke-width="1.25"`,
+    ),
+    node.id,
+  );
+  assert.match(
+    svg,
+    new RegExp(
+      `data-node-id="${node.id}"[\\s\\S]*?class="type-icon"[^>]*transform="translate\\(${node.width - TYPE_ICON_INSET_X} 4\\)"`,
+    ),
+    node.id,
+  );
+}

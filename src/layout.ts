@@ -31,6 +31,23 @@ export const NEST_HEADER_HEIGHT = 48;
 /** Padding around nested children inside a parent. */
 export const NEST_PAD = 16;
 
+/**
+ * Shared pull-back from each element border to the drawn connector end.
+ * The arrowhead reference point sits on the marker tip, so this same inset
+ * is the gap at the source line and at the target arrowhead.
+ */
+export const CONNECTOR_END_GAP = 6;
+
+/** Arrowhead in marker units. `refX` is the tip so the end inset is not eaten by the head. */
+const MARKER_WIDTH = 10;
+const MARKER_HEIGHT = 7;
+const MARKER_TIP_X = 10;
+const MARKER_REF_Y = 3.5;
+const MARKER_REF_X = MARKER_TIP_X;
+/** Default marker units are strokeWidth, so the head trails this many user px behind the tip. */
+const EDGE_STROKE_WIDTH = 1.5;
+const MARKER_TAIL = MARKER_TIP_X * EDGE_STROKE_WIDTH;
+
 /** Mac/web viewer engine: Eclipse Layout Kernel layered (elkjs). */
 export const LAYOUT_ENGINE = "elk-layered";
 
@@ -628,9 +645,10 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
     .filter((node) => node.container)
     .map((node) => renderNode(node))
     .join("\n");
+  const nodeById = new Map(layout.nodes.map((node) => [node.id, node]));
   const edgeMarkup = layout.edges
     .filter((edge) => !edge.impliedByNest)
-    .map((edge) => renderEdge(edge, markerId))
+    .map((edge) => renderEdge(edge, markerId, nodeById))
     .join("\n");
   const nodeMarkup = layout.nodes
     .filter((node) => !node.container)
@@ -653,8 +671,8 @@ ${containerMarkup}
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
-    <marker id="${markerId}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#6e6e73" />
+    <marker id="${markerId}" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto">
+      <polygon points="0 0, ${MARKER_TIP_X} ${MARKER_REF_Y}, 0 ${MARKER_HEIGHT}" fill="#6e6e73" />
     </marker>
   </defs>
 ${containersBlock}  <g class="edges">
@@ -739,18 +757,217 @@ function renderLabelText(node: LayoutNode, ink: string): string {
   return `<text x="${LABEL_PAD_X}" y="${baselines[0]}" ${attrs}>${spans}</text>`;
 }
 
-function renderEdge(edge: LayoutEdge, markerId: string): string {
-  const points =
+function renderEdge(
+  edge: LayoutEdge,
+  markerId: string,
+  nodeById: Map<string, LayoutNode>,
+): string {
+  const raw =
     edge.points && edge.points.length >= 2
       ? edge.points
       : [
           { x: edge.x1, y: edge.y1 },
           { x: edge.x2, y: edge.y2 },
         ];
-  const pointAttr = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const source = nodeById.get(edge.source);
+  const target = nodeById.get(edge.target);
+  const opened = source && target ? insetConnectorEnds(raw, source, target) : raw;
+  const points = opened.length >= 2 ? opened : raw;
+  const pointAttr = points.map((point) => `${formatCoord(point.x)},${formatCoord(point.y)}`).join(" ");
   return `    <g data-edge-id="${escapeXml(edge.id)}">
-      <polyline points="${pointAttr}" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" marker-end="url(#${markerId})" />
+      <polyline points="${pointAttr}" fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round" marker-end="url(#${markerId})" />
     </g>`;
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/**
+ * Stop each end of the polyline `CONNECTOR_END_GAP` px outside the element
+ * box. Routes that still end on the stroke, and routes that run to the box
+ * center, share this inset. A connector shorter than the arrowhead keeps a
+ * smaller equal gap instead of folding back on itself.
+ */
+function insetConnectorEnds(points: ElkPoint[], source: LayoutNode, target: LayoutNode): ElkPoint[] {
+  if (points.length < 2) {
+    return points;
+  }
+  const bordered = trimEnds(points, source, target, 0);
+  const free = polylineLength(bordered);
+  if (bordered.length < 2 || free <= 0) {
+    return points;
+  }
+  const minShaft = Math.min(MARKER_TAIL, Math.max(1, free - 2));
+  let gap = Math.min(CONNECTOR_END_GAP, Math.max(0, (free - minShaft) / 2));
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const cut = trimEnds(points, source, target, gap);
+    const shaftOk = polylineLength(cut) + 0.05 >= minShaft;
+    if (clearanceFits(cut, source, target, gap) && (shaftOk || gap <= 2)) {
+      return cut;
+    }
+    gap *= 0.8;
+    if (gap < 0.5) {
+      break;
+    }
+  }
+  return bordered;
+}
+
+function trimEnds(points: ElkPoint[], source: Box, target: Box, gap: number): ElkPoint[] {
+  return dedupePoints(cutEnd(cutStart(points, inflate(source, gap)), inflate(target, gap)));
+}
+
+function clearanceFits(points: ElkPoint[], source: Box, target: Box, gap: number): boolean {
+  if (points.length < 2 || polylineLength(points) < 1) {
+    return false;
+  }
+  const start = distanceToRect(points[0]!, source);
+  const end = distanceToRect(points[points.length - 1]!, target);
+  if (start + 0.05 < gap || end + 0.05 < gap) {
+    return false;
+  }
+  const limit = gap * Math.SQRT2 + 0.75;
+  return start <= limit && end <= limit;
+}
+
+function inflate(box: Box, gap: number): Box {
+  return {
+    x: box.x - gap,
+    y: box.y - gap,
+    width: box.width + gap * 2,
+    height: box.height + gap * 2,
+  };
+}
+
+function cutStart(points: ElkPoint[], rect: Box): ElkPoint[] {
+  if (points.length < 2 || !contains(rect, points[0]!)) {
+    return points.slice();
+  }
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    if (samePoint(from, to)) {
+      continue;
+    }
+    if (!contains(rect, to)) {
+      const hit = clipSegment(from, to, rect);
+      const t = hit ? clamp01(hit.t1) : 1;
+      return [lerp(from, to, t), ...points.slice(index + 1)];
+    }
+  }
+  return points.slice();
+}
+
+function cutEnd(points: ElkPoint[], rect: Box): ElkPoint[] {
+  if (points.length < 2 || !contains(rect, points[points.length - 1]!)) {
+    return points.slice();
+  }
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    if (samePoint(from, to)) {
+      continue;
+    }
+    if (!contains(rect, from)) {
+      const hit = clipSegment(from, to, rect);
+      const t = hit ? clamp01(hit.t0) : 0;
+      return [...points.slice(0, index + 1), lerp(from, to, t)];
+    }
+  }
+  return points.slice();
+}
+
+/** Liang–Barsky clip of a segment to an axis-aligned box. `t` is 0 at `from` and 1 at `to`. */
+function clipSegment(
+  from: ElkPoint,
+  to: ElkPoint,
+  rect: Box,
+): { t0: number; t1: number } | null {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const edges: Array<[number, number]> = [
+    [-dx, from.x - rect.x],
+    [dx, rect.x + rect.width - from.x],
+    [-dy, from.y - rect.y],
+    [dy, rect.y + rect.height - from.y],
+  ];
+  for (const [p, q] of edges) {
+    if (Math.abs(p) < 1e-9) {
+      if (q < -1e-6) {
+        return null;
+      }
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) {
+      if (t > t1) {
+        return null;
+      }
+      if (t > t0) {
+        t0 = t;
+      }
+    } else if (t < t0) {
+      return null;
+    } else if (t < t1) {
+      t1 = t;
+    }
+  }
+  return { t0, t1 };
+}
+
+function contains(rect: Box, point: ElkPoint): boolean {
+  return (
+    point.x >= rect.x - 1e-6 &&
+    point.x <= rect.x + rect.width + 1e-6 &&
+    point.y >= rect.y - 1e-6 &&
+    point.y <= rect.y + rect.height + 1e-6
+  );
+}
+
+function distanceToRect(point: ElkPoint, rect: Box): number {
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  const dx = point.x < rect.x ? rect.x - point.x : point.x > right ? point.x - right : 0;
+  const dy = point.y < rect.y ? rect.y - point.y : point.y > bottom ? point.y - bottom : 0;
+  return Math.hypot(dx, dy);
+}
+
+function polylineLength(points: ElkPoint[]): number {
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    length += Math.hypot(points[index]!.x - points[index - 1]!.x, points[index]!.y - points[index - 1]!.y);
+  }
+  return length;
+}
+
+function lerp(from: ElkPoint, to: ElkPoint, t: number): ElkPoint {
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function samePoint(a: ElkPoint, b: ElkPoint): boolean {
+  return Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01;
+}
+
+function dedupePoints(points: ElkPoint[]): ElkPoint[] {
+  const out: ElkPoint[] = [];
+  for (const point of points) {
+    const last = out[out.length - 1];
+    if (last && samePoint(last, point)) {
+      continue;
+    }
+    out.push(point);
+  }
+  return out;
+}
+
+function formatCoord(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return String(rounded);
 }
 
 function emptyForest(): Map<string, string[]> {
