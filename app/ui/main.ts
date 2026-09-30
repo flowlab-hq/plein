@@ -52,6 +52,7 @@ import {
   exportSavePaths,
   exportViewpoint,
   isMacExportFormat,
+  openExchangeSuggestedStem,
   type MacExportFormat,
 } from "../../src/export.ts";
 import {
@@ -1641,13 +1642,6 @@ function directoryOfPath(file: string): string | null {
     return null;
   }
   return file.slice(0, slash);
-}
-
-/** Save-panel stem for Open Exchange. The `.plein` file name, not the view. */
-function openExchangeSuggestedStem(file: string): string {
-  const base = file.split(/[\\/]/).pop() ?? "";
-  const stem = base.replace(/\.plein$/i, "").replace(/^\.+/, "").trim();
-  return stem.length > 0 ? stem : "model";
 }
 
 function selectedExportFormat(): MacExportFormat {
