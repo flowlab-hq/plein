@@ -216,6 +216,29 @@ test("openExchangeSuggestedStem drops a trailing xml before the export extension
   assert.equal(openExchangeSuggestedStem("my.model"), "my.model");
 });
 
+test("openExchangeSuggestedStem collapses trailing dots before the extension", () => {
+  assert.equal(openExchangeSuggestedStem("booking2..xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2...xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2..XML"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2..Xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("/tmp/booking2..xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("C:\\docs\\booking2..xml"), "booking2");
+  assert.equal(openExchangeSuggestedStem("something..xml"), "something");
+  assert.equal(openExchangeSuggestedStem("my.file..xml"), "my.file");
+  assert.equal(openExchangeSuggestedStem("booking2..plein"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2..xml.plein"), "booking2");
+  assert.equal(openExchangeSuggestedStem("booking2."), "booking2");
+  assert.equal(`${openExchangeSuggestedStem("booking2..xml")}.xml`, "booking2.xml");
+  assert.equal(`${openExchangeSuggestedStem("something..xml")}.xml`, "something.xml");
+  assert.equal(`${openExchangeSuggestedStem("booking.xml")}.xml`, "booking.xml");
+  assert.equal(`${openExchangeSuggestedStem("booking.XML")}.xml`, "booking.xml");
+  assert.equal(openExchangeSuggestedStem("booking.xml.xml"), "booking.xml");
+  assert.equal(openExchangeSuggestedStem("..xml"), "model");
+  assert.equal(openExchangeSuggestedStem("..."), "model");
+  assert.equal(openExchangeSuggestedStem(".xml"), "model");
+  assert.equal(openExchangeSuggestedStem(""), "model");
+});
+
 test("plein export writes the golden HTML to stdout", () => {
   const result = runExport([
     "fixtures/valid-basic.plein",

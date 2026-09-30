@@ -152,11 +152,19 @@ export async function exportNamedView(
  * Save-panel stem for Open Exchange. The open file name, not the view.
  * A trailing `.plein` or `.xml` is removed so the dialog appends `.xml` once.
  * Import keeps the document path as `booking.xml`; without this strip the
- * panel would suggest `booking.xml.xml`.
+ * panel would suggest `booking.xml.xml`. Dots left at the end of that stem
+ * are removed too (`booking2..xml` → `booking2`), so the suggestion is
+ * `booking2.xml`.
  */
 export function openExchangeSuggestedStem(file: string): string {
   const base = (file.split(/[\\/]/).pop() ?? "").trim();
-  const stem = base.replace(/\.plein$/i, "").replace(/\.xml$/i, "").replace(/^\.+/, "").trim();
+  const stem = base
+    .replace(/\.plein$/i, "")
+    .replace(/\.xml$/i, "")
+    .trim()
+    .replace(/^\.+/, "")
+    .replace(/\.+$/, "")
+    .trim();
   return stem.length > 0 ? stem : "model";
 }
 
