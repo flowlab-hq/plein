@@ -11,24 +11,31 @@ class Plein < Formula
   # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
   # Additional Competing Use terms in LICENSE. GitHub may show Other / View license.
   license :cannot_represent
-  version "0.1.0"
+  version "0.1.17"
 
-  # No tagged release yet; install latest main. Pin url + sha256 when tagging.
-  url "https://github.com/flowlab-hq/plein.git", branch: "main"
+  # Stable install is the v0.1.17 release tarball. `brew install --HEAD` tracks main.
+  url "https://github.com/flowlab-hq/plein/archive/refs/tags/v0.1.17.tar.gz"
+  sha256 "dd4b1be8c54f05bf3700cf7850eb9a83b418670a7114b03e2b56b92a6efa7b18"
   head "https://github.com/flowlab-hq/plein.git", branch: "main"
 
   depends_on "node"
 
+  # Git tags on the stable archive URL. Capture `0.1.17` from `v0.1.17`.
   livecheck do
-    skip "Installs from the main branch until a tagged release exists"
+    url :stable
+    regex(/^v(\d+(?:\.\d+)+)$/i)
   end
 
   def install
     system "npm", "ci"
     system "npm", "run", "build"
+    # typescript and the Mac app toolchain are devDependencies. elkjs is a
+    # runtime dependency of dist/layout.js and must stay in node_modules.
+    system "npm", "prune", "--omit=dev"
 
     # ESM loads via package.json "type": "module" walking up from dist/.
-    libexec.install "dist", "package.json"
+    # Node resolves elkjs from libexec/node_modules (not from the build tree).
+    libexec.install "dist", "package.json", "node_modules"
 
     (bin/"plein").write <<~EOS
       #!/bin/bash
@@ -111,6 +118,10 @@ class Plein < Formula
     assert_match(/<!DOCTYPE html>/, html)
     assert_match(/data-view="booking-context"/, html)
     assert_no_match(/<script/, html)
+
+    svg = shell_output("#{bin}/plein export #{export_model} --view booking-context --format svg")
+    assert_match(%r{<svg xmlns="http://www.w3.org/2000/svg"}, svg)
+    assert_match(/data-view="booking-context"/, svg)
 
     view_json = shell_output("#{bin}/plein inspect #{export_model}")
     assert_match(/"name": "booking-context"/, view_json)
