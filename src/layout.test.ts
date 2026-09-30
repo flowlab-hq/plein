@@ -1477,7 +1477,7 @@ test("long borrowed names wrap inside layers boxes and short names stay tidy", a
   grouping "${LONG_BORROWED}" as bucket
   capability "Strategic Planning Capability (BORROWED)" as planning
   bucket -> planning: composition
-  borrowed -> shipper: serving
+  borrowed -> shipper: association
 }
 views {
   view layers {
