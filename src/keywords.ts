@@ -131,6 +131,16 @@ const RELATIONSHIP_ALIASES: Record<string, RelationshipKeyword> = {
   association: "associatedWith",
 };
 
+const LANGUAGE_NAME_BY_RELATIONSHIP = new Map<RelationshipKeyword, string>();
+for (const [alias, keyword] of Object.entries(RELATIONSHIP_ALIASES)) {
+  LANGUAGE_NAME_BY_RELATIONSHIP.set(keyword, alias);
+}
+
+/** Language-reference spelling for a canonical relationship (`serves` → `serving`). */
+export function relationshipLanguageName(keyword: RelationshipKeyword): string {
+  return LANGUAGE_NAME_BY_RELATIONSHIP.get(keyword) ?? keyword;
+}
+
 const elementLookup = new Map<string, ElementKeyword>();
 for (const keyword of ELEMENT_KEYWORDS) {
   elementLookup.set(keyword, keyword);

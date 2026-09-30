@@ -53,6 +53,6 @@ plein {
     business-service "Booking service" as booking
     businessObject "Freight order" as order
 
-    acme -> quote: serving
+    acme -> quote: association
   }
 }

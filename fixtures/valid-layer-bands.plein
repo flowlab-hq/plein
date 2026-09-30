@@ -23,7 +23,7 @@ plein {
     booking -> tms: serving
     tms -> shipper: serving
     cloud -> tms: serving
-    orderApi -> tms: serving
+    orderApi -> tms: realization
     rollout -> planning: realization
   }
 

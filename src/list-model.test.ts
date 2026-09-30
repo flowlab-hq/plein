@@ -35,7 +35,7 @@ test("load→list valid-basic.plein lists elements, relationships, and views", (
       "shipper->booking:serves",
       "booking->order:accesses",
       "booking->rates:serves",
-      "rates->order:realizes",
+      "rates->order:accesses",
     ],
   );
   assert.deepEqual(
@@ -121,7 +121,7 @@ test("selecting booking-context on basic.plein filters elements and implied rela
       "shipper->booking:serves",
       "booking->order:accesses",
       "rates->booking:realizes",
-      "cloud->rates:aggregates",
+      "cloud->rates:serves",
     ],
   );
 });
@@ -219,8 +219,8 @@ test("loadPleinSource succeeds on fixtures/samples/research-data.plein", () => {
   );
   assert.ok(edges.has("generalPublic->findPublishedResearch:triggers"));
   assert.ok(edges.has("findPublishedResearch->requestAccess:triggers"));
-  assert.ok(edges.has("researchProject->researchPaper:aggregates"));
-  assert.ok(edges.has("researchProject->researchDataConcept:aggregates"));
+  assert.ok(edges.has("researchProject->researchPaper:accesses"));
+  assert.ok(edges.has("researchProject->researchDataConcept:accesses"));
   assert.ok(edges.has("eprints->researchPaper:associatedWith"));
   assert.ok(edges.has("researchDataArtifact->researchDataConcept:realizes"));
   assert.ok(edges.has("requestAccess->researchDataArtifact:associatedWith"));

@@ -45,6 +45,42 @@ function exchangeShape(model: PleinModel) {
 
 const NS = `xmlns="${OPEN_EXCHANGE_NS}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"`;
 
+/**
+ * One allowed source/target pair per relationship, using catalogue types.
+ * Consecutive element ids are not a valid Appendix B pair, so the import
+ * tests that round-trip every type pick these endpoints instead.
+ */
+const ALLOWED_EXCHANGE_PAIRS: Record<string, [string, string]> = {
+  Composition: ["Grouping", "BusinessActor"],
+  Aggregation: ["Node", "Device"],
+  Assignment: ["BusinessRole", "BusinessProcess"],
+  Realization: ["ApplicationComponent", "Capability"],
+  Serving: ["Capability", "ValueStream"],
+  Access: ["ApplicationComponent", "DataObject"],
+  Influence: ["Assessment", "Goal"],
+  Triggering: ["BusinessProcess", "BusinessEvent"],
+  Flow: ["BusinessProcess", "BusinessService"],
+  Specialization: ["Contract", "BusinessObject"],
+  Association: ["Stakeholder", "Goal"],
+};
+
+function catalogueRelationships(types: readonly string[]): string {
+  return openExchangeRelationshipTypes()
+    .map((type, index) => {
+      const pair = ALLOWED_EXCHANGE_PAIRS[type];
+      if (!pair) {
+        throw new Error(`no allowed pair for ${type}`);
+      }
+      const source = types.indexOf(pair[0]);
+      const target = types.indexOf(pair[1]);
+      if (source < 0 || target < 0) {
+        throw new Error(`catalogue is missing an endpoint for ${type}`);
+      }
+      return `    <relationship identifier="rel-${index}" source="id-${source}" target="id-${target}" xsi:type="${type}"/>`;
+    })
+    .join("\n");
+}
+
 function exchange(body: string, identifier = "id-model"): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <model ${NS} identifier="${identifier}">
@@ -72,12 +108,7 @@ test("every catalogue element type and all eleven relationships import", () => {
         `    <element identifier="id-${index}" xsi:type="${type}"><name>${type}</name></element>`,
     )
     .join("\n");
-  const relationships = openExchangeRelationshipTypes()
-    .map(
-      (type, index) =>
-        `    <relationship identifier="rel-${index}" source="id-${index}" target="id-${index + 1}" xsi:type="${type}"/>`,
-    )
-    .join("\n");
+  const relationships = catalogueRelationships(types);
   const imported = importOpenExchange(
     exchange(`  <elements>\n${elements}\n  </elements>\n  <relationships>\n${relationships}\n  </relationships>`),
   );
@@ -379,12 +410,7 @@ test("every catalogue element type and all eleven relationships round-trip", () 
         `    <element identifier="id-${index}" xsi:type="${type}"><name>${type}</name></element>`,
     )
     .join("\n");
-  const relationships = openExchangeRelationshipTypes()
-    .map(
-      (type, index) =>
-        `    <relationship identifier="rel-${index}" source="id-${index}" target="id-${index + 1}" xsi:type="${type}"/>`,
-    )
-    .join("\n");
+  const relationships = catalogueRelationships(types);
   const imported = importOpenExchange(
     exchange(`  <elements>\n${elements}\n  </elements>\n  <relationships>\n${relationships}\n  </relationships>`),
   );
@@ -431,7 +457,7 @@ test("export records known round-trip deltas for views, quotes, and nesting orde
   assert.equal(titledAgain.views[0]!.title, "Context");
 
   const reordered = checkPlein(
-    `plein {\n  model {\n    business-actor "Parent" as parent\n    business-role "Child" as child\n    parent -> child: composition\n  }\n  views {\n    viewpoint nest "Nest" {\n      nesting nested\n      include child, parent\n    }\n  }\n}\n`,
+    `plein {\n  model {\n    business-actor "Parent" as parent\n    business-actor "Child" as child\n    parent -> child: composition\n  }\n  views {\n    viewpoint nest "Nest" {\n      nesting nested\n      include child, parent\n    }\n  }\n}\n`,
     "nest.plein",
   );
   const nestAgain = checkPlein(
