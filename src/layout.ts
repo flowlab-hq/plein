@@ -256,6 +256,14 @@ export type ViewpointLayout = {
    * Omit or true means the selected mode recomputed the graph.
    */
   auto?: boolean;
+  /**
+   * ViewBox origin. `0` while every node sits at a non-negative coordinate.
+   * Negative when a manual drag moves a node past the previous top or left edge,
+   * so the content box grows and that node stays inside the SVG.
+   */
+  x?: number;
+  /** ViewBox origin. See `x`. */
+  y?: number;
   width: number;
   height: number;
   nodes: LayoutNode[];
@@ -671,6 +679,8 @@ export async function layoutViewpoint(
     ...(mode === "grid" ? { gridOrder } : {}),
     nesting,
     auto,
+    x: packed.x ?? 0,
+    y: packed.y ?? 0,
     width: Math.max(packed.width, PADDING * 2 + NODE_WIDTH),
     height: Math.max(packed.height, PADDING * 2 + NODE_HEIGHT),
     nodes,
@@ -721,7 +731,9 @@ ${containerMarkup}
       : "";
   const autoAttr = manual ? ` data-layout-auto="off"` : "";
   const engine = manual ? MANUAL_LAYOUT_ENGINE : layoutEngineFor(layout.mode);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
+  const originX = layout.x ?? 0;
+  const originY = layout.y ?? 0;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="${originX} ${originY} ${layout.width} ${layout.height}" data-view="${escapeXml(layout.viewName)}" data-layout="${layout.direction}" data-layout-mode="${layout.mode ?? "layered"}" data-layout-routing="${layout.routing ?? DEFAULT_EDGE_ROUTING}" data-layout-engine="${engine}"${gridOrderAttr}${autoAttr} data-nesting="${layout.nesting ?? "beside"}" role="img" aria-label="${escapeXml(title)}">
   <title>${escapeXml(title)}</title>
   <defs>
     <marker id="${markerId}" markerUnits="strokeWidth" markerWidth="${MARKER_WIDTH}" markerHeight="${MARKER_HEIGHT}" refX="${MARKER_REF_X}" refY="${MARKER_REF_Y}" orient="auto" viewBox="0 0 ${MARKER_WIDTH} ${MARKER_HEIGHT}" overflow="visible">
@@ -1160,6 +1172,9 @@ function buildNestForest(elements: ElementDecl[], relationships: RelationshipDec
 type PackedLayout = {
   nodes: LayoutNode[];
   edges: Map<string, { x1: number; y1: number; x2: number; y2: number; points: ElkPoint[] }>;
+  /** ViewBox origin. Omitted for algorithm layouts, which stay at 0, 0. */
+  x?: number;
+  y?: number;
   width: number;
   height: number;
 };
@@ -1754,11 +1769,59 @@ function compareName(a: { label: string; id: string }, b: { label: string; id: s
   return compareText(a.id, b.id);
 }
 
+export type ContentBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Content box around node rectangles.
+ * The origin stays at 0 while every node is still in the non-negative quadrant,
+ * matching diagrams that were never dragged past the old top-left.
+ * Once a node crosses that edge, the origin moves with it and padding is added
+ * outside the node so the box (and its stroke) stays fully inside the viewBox.
+ * Right and bottom already grew with the furthest node; this keeps that, and
+ * adds the same growth past the previous left and top.
+ */
+export function contentBounds(
+  boxes: ReadonlyArray<{ x: number; y: number; width: number; height: number }>,
+  padding: number,
+  minWidth: number,
+  minHeight: number,
+): ContentBounds {
+  if (boxes.length === 0) {
+    return { x: 0, y: 0, width: minWidth, height: minHeight };
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const box of boxes) {
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
+  }
+  const x = minX < 0 ? minX - padding : 0;
+  const y = minY < 0 ? minY - padding : 0;
+  const right = Math.max(maxX + padding, minWidth);
+  const bottom = Math.max(maxY + padding, minHeight);
+  return {
+    x,
+    y,
+    width: right - x,
+    height: bottom - y,
+  };
+}
+
 /**
  * Place nodes from saved coordinates. Does not call ELK or the organic/grid
  * packers, so a later model edit cannot reflow boxes that already have a position.
  * Session positions win over file `position` clauses for the same id.
  * Missing positions stack in declaration order to the right of the placed set.
+ * A node dragged past the previous outermost edge expands the content box.
  */
 function layoutManual(
   elements: ElementDecl[],
@@ -1832,16 +1895,19 @@ function layoutManual(
     expandManualContainers(nodes, nestForest);
   }
 
-  const width = Math.max(PADDING * 2 + NODE_WIDTH, ...nodes.map((node) => node.x + node.width + PADDING));
-  const height = Math.max(
+  const bounds = contentBounds(
+    nodes,
+    PADDING,
+    PADDING * 2 + NODE_WIDTH,
     PADDING * 2 + NODE_HEIGHT,
-    ...nodes.map((node) => node.y + node.height + PADDING),
   );
   return {
     nodes,
     edges: new Map(),
-    width,
-    height,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
   };
 }
 

@@ -32,6 +32,7 @@ import {
   MANUAL_LAYOUT_ENGINE,
   NODE_HEIGHT,
   NODE_WIDTH,
+  PADDING,
   CONNECTOR_SHAFT_GAP,
   CONNECTOR_TIP_CLEARANCE,
   CONNECTOR_TIP_GAP,
@@ -1616,6 +1617,133 @@ views {
   assert.ok(parent.x + parent.width >= child.x + child.width);
   assert.ok(parent.y + parent.height >= child.y + child.height);
 });
+
+test("dragging past the previous outermost edge expands content bounds", async () => {
+  const source = `model {
+  business-actor "West" as west
+  business-actor "East" as east
+  business-actor "North" as north
+  business-actor "South" as south
+  west -> east: serving
+}
+views {
+  view story {
+    include west east north south
+    autoLayout off
+    position west 40 200
+    position east 400 200
+    position north 220 40
+    position south 220 360
+  }
+}
+`;
+  const result = loadPleinSource(source, "drag-bounds.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  const before = await layoutViewpoint(result.model, "story");
+  assert.equal(before.auto, false);
+  assert.equal(before.x, 0);
+  assert.equal(before.y, 0);
+  const expectedWidth = Math.max(
+    PADDING * 2 + NODE_WIDTH,
+    ...before.nodes.map((node) => node.x + node.width + PADDING),
+  );
+  const expectedHeight = Math.max(
+    PADDING * 2 + NODE_HEIGHT,
+    ...before.nodes.map((node) => node.y + node.height + PADDING),
+  );
+  assert.equal(before.width, expectedWidth);
+  assert.equal(before.height, expectedHeight);
+  const beforeSvg = renderViewpointSvg(before);
+  assert.match(beforeSvg, new RegExp(`viewBox="0 0 ${before.width} ${before.height}"`));
+
+  const previousMinX = Math.min(...before.nodes.map((node) => node.x));
+  const previousMaxX = Math.max(...before.nodes.map((node) => node.x + node.width));
+  const previousMinY = Math.min(...before.nodes.map((node) => node.y));
+  const previousMaxY = Math.max(...before.nodes.map((node) => node.y + node.height));
+
+  const west = await layoutWithShift(result.model, before, "west", -120, 0);
+  const movedWest = nodeById(west.layout, "west");
+  assert.ok(movedWest.x < previousMinX, "leftmost node moves further left");
+  assert.ok(movedWest.x < 0, "the move leaves the previous content origin");
+  assertFullyInside(west.layout, west.svg, "west");
+  assert.equal(movedWest.x, (west.layout.x ?? 0) + PADDING);
+  assert.ok((west.layout.x ?? 0) < 0);
+  assert.equal(nodeById(west.layout, "east").x, nodeById(before, "east").x);
+  assert.equal(nodeById(west.layout, "east").y, nodeById(before, "east").y);
+  assert.equal(nodeById(west.layout, "north").x, nodeById(before, "north").x);
+
+  const east = await layoutWithShift(result.model, before, "east", 150, 0);
+  const movedEast = nodeById(east.layout, "east");
+  assert.ok(movedEast.x + movedEast.width > previousMaxX, "rightmost node moves further right");
+  assert.equal(east.layout.x, 0);
+  assert.ok(east.layout.width > before.width);
+  assertFullyInside(east.layout, east.svg, "east");
+  assert.equal(nodeById(east.layout, "west").x, nodeById(before, "west").x);
+  assert.equal(nodeById(east.layout, "west").y, nodeById(before, "west").y);
+
+  const north = await layoutWithShift(result.model, before, "north", 0, -90);
+  const movedNorth = nodeById(north.layout, "north");
+  assert.ok(movedNorth.y < previousMinY, "topmost node moves further up");
+  assert.ok(movedNorth.y < 0);
+  assert.equal(movedNorth.y, (north.layout.y ?? 0) + PADDING);
+  assertFullyInside(north.layout, north.svg, "north");
+  assert.equal(nodeById(north.layout, "south").x, nodeById(before, "south").x);
+  assert.equal(nodeById(north.layout, "south").y, nodeById(before, "south").y);
+
+  const south = await layoutWithShift(result.model, before, "south", 0, 80);
+  const movedSouth = nodeById(south.layout, "south");
+  assert.ok(movedSouth.y + movedSouth.height > previousMaxY, "bottommost node moves further down");
+  assert.equal(south.layout.y, 0);
+  assert.ok(south.layout.height > before.height);
+  assertFullyInside(south.layout, south.svg, "south");
+  assert.equal(nodeById(south.layout, "north").y, nodeById(before, "north").y);
+
+  const inward = await layoutWithShift(result.model, before, "west", 24, 16);
+  assert.equal(inward.layout.x, 0);
+  assert.equal(inward.layout.y, 0);
+  assert.equal(nodeById(inward.layout, "west").x, nodeById(before, "west").x + 24);
+  assert.equal(nodeById(inward.layout, "west").y, nodeById(before, "west").y + 16);
+  assert.equal(nodeById(inward.layout, "east").x, nodeById(before, "east").x);
+  assert.equal(nodeById(inward.layout, "south").y, nodeById(before, "south").y);
+  assertFullyInside(inward.layout, inward.svg, "west");
+});
+
+async function layoutWithShift(
+  model: Parameters<typeof layoutViewpoint>[0],
+  before: ViewpointLayout,
+  id: string,
+  dx: number,
+  dy: number,
+): Promise<{ layout: ViewpointLayout; svg: string }> {
+  const layout = await layoutViewpoint(model, "story", {
+    autoLayout: "off",
+    manualPositions: before.nodes.map((node) => ({
+      id: node.id,
+      x: node.id === id ? node.x + dx : node.x,
+      y: node.id === id ? node.y + dy : node.y,
+      width: node.width,
+      height: node.height,
+    })),
+  });
+  return { layout, svg: renderViewpointSvg(layout) };
+}
+
+function assertFullyInside(layout: ViewpointLayout, svg: string, id: string): void {
+  const node = nodeById(layout, id);
+  const originX = layout.x ?? 0;
+  const originY = layout.y ?? 0;
+  assert.ok(node.x >= originX, `${id} left edge is inside the content box`);
+  assert.ok(node.y >= originY, `${id} top edge is inside the content box`);
+  assert.ok(node.x + node.width <= originX + layout.width, `${id} right edge is inside the content box`);
+  assert.ok(node.y + node.height <= originY + layout.height, `${id} bottom edge is inside the content box`);
+  assert.match(svg, new RegExp(`data-node-id="${id}"`));
+  assert.match(svg, new RegExp(`transform="translate\\(${node.x} ${node.y}\\)"`));
+  assert.match(svg, new RegExp(`viewBox="${originX} ${originY} ${layout.width} ${layout.height}"`));
+}
 
 const LONG_BORROWED = "Customer Onboarding Capability (BORROWED)";
 
