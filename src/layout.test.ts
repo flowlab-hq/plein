@@ -27,6 +27,7 @@ import {
   isAutoLayoutEnabled,
   resolveAutoLayout,
   MANUAL_LAYOUT_ENGINE,
+  NODE_HEIGHT,
   NODE_WIDTH,
   RANK_GAP,
   svgMembership,
@@ -35,6 +36,15 @@ import {
   type LayoutNode,
   type ViewpointLayout,
 } from "./layout.js";
+import {
+  LABEL_DESCENT,
+  LABEL_PAD_X,
+  MAX_NODE_WIDTH,
+  TYPE_ICON_GAP,
+  TYPE_ICON_INSET_X,
+  fitLeafBox,
+  labelTextWidth,
+} from "./label-fit.js";
 import { filterModel, loadPleinSource } from "./list-model.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -1416,4 +1426,154 @@ views {
   assert.equal(child.parentId, "parent");
   assert.ok(parent.x + parent.width >= child.x + child.width);
   assert.ok(parent.y + parent.height >= child.y + child.height);
+});
+
+const LONG_BORROWED = "Customer Onboarding Capability (BORROWED)";
+
+function nodeSlice(svg: string, id: string): string {
+  const start = svg.indexOf(`data-node-id="${id}"`);
+  assert.ok(start >= 0, id);
+  const next = svg.indexOf("data-node-id=", start + 10);
+  return svg.slice(start, next === -1 ? svg.length : next);
+}
+
+function visibleLines(chunk: string): string[] {
+  const spans = [...chunk.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((match) => match[1]!);
+  if (spans.length > 0) {
+    return spans;
+  }
+  const text = chunk.match(/<text[^>]*>([^<]*)<\/text>/);
+  assert.ok(text, chunk);
+  return [text[1]!];
+}
+
+function assertLabelInsideBox(svg: string, node: LayoutNode): void {
+  const chunk = nodeSlice(svg, node.id);
+  const lines = visibleLines(chunk);
+  const icon = chunk.match(/class="type-icon"[^>]*transform="translate\(([-\d.]+) ([\d.]+)\)"/);
+  assert.ok(icon, `${node.id} type icon`);
+  const iconX = Number(icon[1]);
+  const iconY = Number(icon[2]);
+  assert.equal(iconX, node.width - TYPE_ICON_INSET_X);
+  assert.equal(iconY, 4);
+  assert.match(chunk, new RegExp(`data-icon="[^"]+"`));
+  const baselines = [...chunk.matchAll(/<tspan x="\d+" y="([\d.]+)">/g)].map((match) => Number(match[1]));
+  const textY = baselines.length > 0 ? baselines : [Number(chunk.match(/<text x="\d+" y="([\d.]+)"/)?.[1])];
+  const lastY = textY[textY.length - 1]!;
+  assert.ok(lastY + LABEL_DESCENT <= node.height, `${node.id} label stays inside the box`);
+  for (const line of lines) {
+    assert.ok(
+      LABEL_PAD_X + labelTextWidth(line) <= iconX - TYPE_ICON_GAP + 0.01,
+      `${node.id} line "${line}" meets the type icon`,
+    );
+  }
+}
+
+test("long borrowed names wrap inside layers boxes and short names stay tidy", async () => {
+  const source = `model {
+  capability "${LONG_BORROWED}" as borrowed
+  capability "Pricing" as pricing
+  business-actor "Shipper" as shipper
+  grouping "${LONG_BORROWED}" as bucket
+  capability "Strategic Planning Capability (BORROWED)" as planning
+  bucket -> planning: composition
+  borrowed -> shipper: association
+}
+views {
+  view layers {
+    include borrowed, pricing, shipper, bucket, planning
+    autoLayout layers
+    nesting nested
+  }
+}
+`;
+  const result = loadPleinSource(source, "borrowed-layers.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+
+  for (const mode of ["layered", "layers", "organic", "grid"] as const) {
+    const layout = await layoutViewpoint(result.model, "layers", { mode, nesting: "nested" });
+    const svg = renderViewpointSvg(layout);
+    const borrowed = layout.nodes.find((node) => node.id === "borrowed");
+    const pricing = layout.nodes.find((node) => node.id === "pricing");
+    const shipper = layout.nodes.find((node) => node.id === "shipper");
+    const bucket = layout.nodes.find((node) => node.id === "bucket");
+    const planning = layout.nodes.find((node) => node.id === "planning");
+    assert.ok(borrowed && pricing && shipper && bucket && planning, mode);
+
+    const borrowedFit = fitLeafBox(LONG_BORROWED);
+    assert.equal(borrowed.width, borrowedFit.width, mode);
+    assert.equal(borrowed.height, borrowedFit.height, mode);
+    assert.ok(borrowed.width <= MAX_NODE_WIDTH, mode);
+    assert.ok(borrowed.height >= NODE_HEIGHT, mode);
+    assert.equal(pricing.width, NODE_WIDTH, mode);
+    assert.equal(pricing.height, NODE_HEIGHT, mode);
+    assert.equal(shipper.width, NODE_WIDTH, mode);
+    assert.equal(shipper.height, NODE_HEIGHT, mode);
+
+    assertLabelInsideBox(svg, borrowed);
+    assertLabelInsideBox(svg, pricing);
+    assertLabelInsideBox(svg, shipper);
+    assertLabelInsideBox(svg, bucket);
+    assertLabelInsideBox(svg, planning);
+
+    const pricingChunk = nodeSlice(svg, "pricing");
+    assert.equal(pricingChunk.includes("<tspan"), false, mode);
+    assert.match(pricingChunk, />Pricing</);
+    const borrowedChunk = nodeSlice(svg, "borrowed");
+    assert.match(borrowedChunk, /<tspan /);
+    assert.ok(borrowedChunk.includes(`<title>`) && borrowedChunk.includes(LONG_BORROWED), mode);
+
+    assert.equal(bucket.container, true, mode);
+    assert.equal(planning.parentId, "bucket", mode);
+    assert.ok(planning.x >= bucket.x, mode);
+    assert.ok(planning.y > bucket.y, mode);
+    assert.ok(planning.x + planning.width <= bucket.x + bucket.width, mode);
+    assert.ok(planning.y + planning.height <= bucket.y + bucket.height, mode);
+    const planningTop = planning.y - bucket.y;
+    const bucketLines = visibleLines(nodeSlice(svg, "bucket"));
+    const bucketLastY = bucketLines.length > 1
+      ? Number([...nodeSlice(svg, "bucket").matchAll(/<tspan x="\d+" y="([\d.]+)">/g)].at(-1)?.[1])
+      : Number(nodeSlice(svg, "bucket").match(/<text x="\d+" y="([\d.]+)"/)?.[1]);
+    assert.ok(bucketLastY + LABEL_DESCENT <= planningTop, `${mode} container label clears the child`);
+  }
+});
+
+test("manual layout keeps a short label tidy and grows a long one in place", async () => {
+  const source = `model {
+  capability "${LONG_BORROWED}" as borrowed
+  capability "Pricing" as pricing
+}
+views {
+  view story {
+    include borrowed pricing
+    autoLayout off
+    position pricing 40 80
+    position borrowed 40 160
+  }
+}
+`;
+  const result = loadPleinSource(source, "borrowed-manual.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "story");
+  const pricing = layout.nodes.find((node) => node.id === "pricing");
+  const borrowed = layout.nodes.find((node) => node.id === "borrowed");
+  assert.ok(pricing && borrowed);
+  assert.equal(pricing.x, 40);
+  assert.equal(pricing.y, 80);
+  assert.equal(pricing.width, NODE_WIDTH);
+  assert.equal(pricing.height, NODE_HEIGHT);
+  assert.equal(borrowed.x, 40);
+  assert.equal(borrowed.y, 160);
+  const fitted = fitLeafBox(LONG_BORROWED);
+  assert.equal(borrowed.width, fitted.width);
+  assert.equal(borrowed.height, fitted.height);
+  const svg = renderViewpointSvg(layout);
+  assertLabelInsideBox(svg, pricing);
+  assertLabelInsideBox(svg, borrowed);
 });

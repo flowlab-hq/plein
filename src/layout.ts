@@ -2,12 +2,23 @@ import ElkJs from "elkjs/lib/elk.bundled.js";
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPoint } from "elkjs";
 import { elementStyle, layerOf, renderTypeIcon } from "./archimate-style.js";
 import { toKebabCaseKeyword, type ElementKeyword, type RelationshipKeyword } from "./keywords.js";
+import {
+  LABEL_PAD_X,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  TYPE_ICON_INSET_X,
+  bandHeightForLines,
+  fitLeafBox,
+  labelBaselines,
+  labelContentWidth,
+  wrapLabel,
+} from "./label-fit.js";
 import { filterModel } from "./list-model.js";
 import type { ElementDecl, PleinModel, RelationshipDecl, ViewDecl } from "./parser.js";
 
-/** Box size for one element in the viewpoint diagram. */
-export const NODE_WIDTH = 168;
-export const NODE_HEIGHT = 52;
+/** Default element box. Short labels stay this size; longer names wrap and may grow. */
+export { NODE_HEIGHT, NODE_WIDTH };
+
 /** Gap along the rank axis (left→right for `lr`, top→bottom for `tb`). */
 export const RANK_GAP = 56;
 /** Gap between siblings in the same rank. */
@@ -694,14 +705,38 @@ function renderNode(node: LayoutNode): string {
   const parentAttr = node.parentId ? ` data-parent-id="${escapeXml(node.parentId)}"` : "";
   const containerAttr = node.container ? ` data-container="true"` : "";
   const containerIdAttr = node.container ? ` data-container-id="${escapeXml(node.id)}"` : "";
-  const labelY = node.container ? 28 : Math.round(node.height / 2) + 4;
   const rx = node.container ? 10 : 8;
   return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr}${containerIdAttr} transform="translate(${node.x} ${node.y})">
       <title>${escapeXml(`${typeName} — ${node.label}`)}</title>
       <rect width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.25" />
-      ${renderTypeIcon(style.icon, style.stroke, node.width - 20, 4)}
-      <text x="12" y="${labelY}" fill="${style.ink}" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${escapeXml(node.label)}</text>
+      ${renderTypeIcon(style.icon, style.stroke, node.width - TYPE_ICON_INSET_X, 4)}
+      ${renderLabelText(node, style.ink)}
     </g>`;
+}
+
+function linesForNode(node: LayoutNode): string[] {
+  const fitted = fitLeafBox(node.label);
+  if (node.width <= fitted.width) {
+    return fitted.lines;
+  }
+  // A wider container can hold the same name on fewer lines. Never add lines:
+  // the header and box were sized for the narrower wrap.
+  const wider = wrapLabel(node.label, labelContentWidth(node.width));
+  return wider.length <= fitted.lines.length ? wider : fitted.lines;
+}
+
+function renderLabelText(node: LayoutNode, ink: string): string {
+  const lines = linesForNode(node);
+  const bandHeight = node.container ? containerHeaderHeight(node.label) : node.height;
+  const baselines = labelBaselines(lines.length, bandHeight);
+  const attrs = `fill="${ink}" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif"`;
+  if (lines.length === 1) {
+    return `<text x="${LABEL_PAD_X}" y="${baselines[0]}" ${attrs}>${escapeXml(lines[0]!)}</text>`;
+  }
+  const spans = lines
+    .map((line, index) => `<tspan x="${LABEL_PAD_X}" y="${baselines[index]}">${escapeXml(line)}</tspan>`)
+    .join("");
+  return `<text x="${LABEL_PAD_X}" y="${baselines[0]}" ${attrs}>${spans}</text>`;
 }
 
 function renderEdge(edge: LayoutEdge, markerId: string): string {
@@ -831,7 +866,12 @@ type Placement = {
   height: number;
 };
 
-type SizedNode = ElementDecl & { width: number; height: number };
+type SizedNode = ElementDecl & { width: number; height: number; header?: number };
+
+/** Header band for a nested parent. One-line titles keep `NEST_HEADER_HEIGHT`. */
+function containerHeaderHeight(label: string): number {
+  return bandHeightForLines(fitLeafBox(label).lines.length, NEST_HEADER_HEIGHT);
+}
 
 type LevelPlacer = (
   nodes: SizedNode[],
@@ -924,15 +964,19 @@ async function layoutCompound(
       }
       const kids = nestForest.get(id) ?? [];
       if (kids.length === 0) {
-        sized.push({ ...element, width: NODE_WIDTH, height: NODE_HEIGHT });
+        const box = fitLeafBox(element.label);
+        sized.push({ ...element, width: box.width, height: box.height });
         continue;
       }
       const inner = await layoutIds(kids, NEST_PAD);
       innerByParent.set(id, inner);
+      const box = fitLeafBox(element.label);
+      const header = containerHeaderHeight(element.label);
       sized.push({
         ...element,
-        width: Math.max(NODE_WIDTH, inner.width),
-        height: NEST_HEADER_HEIGHT + inner.height,
+        width: Math.max(box.width, inner.width),
+        height: header + inner.height,
+        header,
       });
     }
 
@@ -969,7 +1013,7 @@ async function layoutCompound(
         nodes.push({
           ...child,
           x: child.x + pos.x,
-          y: child.y + pos.y + NEST_HEADER_HEIGHT,
+          y: child.y + pos.y + (element.header ?? NEST_HEADER_HEIGHT),
           parentId: child.parentId ?? element.id,
         });
       }
@@ -1291,14 +1335,17 @@ function layoutManual(
     const known = coords.get(element.id);
     const childIds = nesting === "nested" ? (nestForest.get(element.id) ?? []) : [];
     const parentId = parentOf.get(element.id);
+    const box = fitLeafBox(element.label);
+    const minHeight =
+      childIds.length > 0 ? containerHeaderHeight(element.label) : box.height;
     return {
       id: element.id,
       label: element.label,
       keyword: element.keyword,
       x: known?.x ?? 0,
       y: known?.y ?? 0,
-      width: known?.width ?? NODE_WIDTH,
-      height: known?.height ?? NODE_HEIGHT,
+      width: Math.max(known?.width ?? box.width, box.width),
+      height: Math.max(known?.height ?? minHeight, minHeight),
       ...(parentId ? { parentId } : {}),
       ...(childIds.length > 0 ? { container: true } : {}),
     };
@@ -1350,7 +1397,8 @@ function expandManualContainers(nodes: LayoutNode[], nestForest: Map<string, str
       return;
     }
     let maxX = parent.x + parent.width;
-    let maxY = parent.y + Math.max(parent.height, NEST_HEADER_HEIGHT + NEST_PAD);
+    const header = containerHeaderHeight(parent.label);
+    let maxY = parent.y + Math.max(parent.height, header + NEST_PAD);
     for (const childId of childIds) {
       const child = byId.get(childId);
       if (!child) {
@@ -1469,6 +1517,7 @@ function buildElkGraph(
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): ElkNode {
+  const byId = new Map(elements.map((element) => [element.id, element]));
   const rootIds = elements.filter((element) => !parentOf.has(element.id)).map((element) => element.id);
   const idSet = new Set(elements.map((element) => element.id));
   const edges: ElkExtendedEdge[] = relationships
@@ -1500,7 +1549,7 @@ function buildElkGraph(
       "elk.separateConnectedComponents": "false",
       "elk.randomSeed": "1",
     },
-    children: rootIds.map((id) => buildElkSubtree(id, nestForest)),
+    children: rootIds.map((id) => buildElkSubtree(id, nestForest, byId)),
   };
   if (edges.length > 0) {
     graph.edges = edges;
@@ -1508,22 +1557,37 @@ function buildElkGraph(
   return graph;
 }
 
-function buildElkSubtree(id: string, nestForest: Map<string, string[]>): ElkNode {
+function buildElkSubtree(
+  id: string,
+  nestForest: Map<string, string[]>,
+  byId: Map<string, ElementDecl>,
+): ElkNode {
+  const label = byId.get(id)?.label ?? "";
   const childIds = nestForest.get(id) ?? [];
+  const box = fitLeafBox(label);
   if (childIds.length === 0) {
     return {
       id,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
+      width: box.width,
+      height: box.height,
     };
   }
-  return {
+  const header = containerHeaderHeight(label);
+  const node: ElkNode = {
     id,
     layoutOptions: {
-      "elk.padding": `[top=${NEST_HEADER_HEIGHT},left=${NEST_PAD},bottom=${NEST_PAD},right=${NEST_PAD}]`,
+      "elk.padding": `[top=${header},left=${NEST_PAD},bottom=${NEST_PAD},right=${NEST_PAD}]`,
     },
-    children: childIds.map((childId) => buildElkSubtree(childId, nestForest)),
+    children: childIds.map((childId) => buildElkSubtree(childId, nestForest, byId)),
   };
+  if (box.width > NODE_WIDTH) {
+    node.width = box.width;
+    node.layoutOptions = {
+      ...node.layoutOptions,
+      "elk.nodeSize.constraints": "MINIMUM_SIZE",
+    };
+  }
+  return node;
 }
 
 function collectSubtreeIds(id: string, nestForest: Map<string, string[]>, into: Set<string>): void {
