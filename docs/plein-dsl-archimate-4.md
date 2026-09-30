@@ -349,7 +349,7 @@ Dragging and the Off snapshot last for this open file, including across **Reload
 
 ### Edge routing (`orthogonal` / `polyline`)
 
-For `layered` and `layers`, node placement stays **ELK Layered**. `organic` and `grid` place nodes with their own algorithms (below); the routing token still draws the connectors. Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode, direction, and (for grid) order. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL` on layered/layers; a right-angle polyline on organic and grid). That is the current default, so existing views do not grow diagonal segments.
+For `layered` and `layers`, node placement stays **ELK Layered**. `organic` and `grid` place nodes with their own algorithms (below); the routing token still draws the connectors. Edge routing is a separate token on the same `autoLayout` clause, in any order with the mode, direction, and (for grid) order. Omitting it keeps the viewer default: **orthogonal** right-angle connectors (`elk.edgeRouting: ORTHOGONAL` on layered/layers; a right-angle polyline on organic and grid). Organic orthogonal polylines spread parallel channels after the force pack; grid and layered routes are unchanged. That is the current default, so existing views do not grow diagonal segments.
 
 | Token | Meaning |
 | --- | --- |
@@ -420,7 +420,7 @@ Organic runs **ELK Force** (Fruchterman–Reingold) with a fixed seed (`elk.rand
 
 Use it for landscape and inventory diagrams with many relationship types and no single reading direction. Do not use it when edge ranks or ArchiMate aspect bands are the point; those stay `layered` and `layers`.
 
-Disconnected components are simulated on their own and then packed, so an isolated box does not fly away from the cluster. Direction (`tb|bt|lr|rl`) does not re-rank organic nodes. It is still recorded on the view, and orthogonal routing uses it as the bend axis. `autoLayout organic lr polyline` keeps the force placement and draws straight (possibly diagonal) connectors. `nesting nested` still draws children inside the parent; each container is force-laid-out on its own, then placed in the parent simulation.
+Disconnected components are simulated on their own and then packed, so an isolated box does not fly away from the cluster. Direction (`tb|bt|lr|rl`) does not re-rank organic nodes. It is still recorded on the view. Orthogonal connectors keep that bend axis when the boxes sit on a diagonal. Boxes that share a row or a column connect on the facing sides. Attachment points are spread along the side, and parallel bend channels are pushed apart when the gutter has room, so a dense service line does not pile associations on one centerline or cut through neighbouring boxes when a clear gutter exists. When that gutter is deep enough, the last segment is long enough for the arrowhead; a tight pack gap keeps the spread instead of stretching the stub through the next box. Node coordinates stay the seeded pack; only those organic orthogonal bends move. `autoLayout organic lr polyline` keeps the force placement and draws straight (possibly diagonal) connectors. `nesting nested` still draws children inside the parent; each container is force-laid-out on its own, then placed in the parent simulation.
 
 ### Grid (`autoLayout grid`)
 

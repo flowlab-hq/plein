@@ -11,6 +11,8 @@ import {
   ORGANIC_NODE_SPACING,
   ORGANIC_PACK_RATIO,
   ORGANIC_PACK_GAP,
+  ORGANIC_EDGE_GAP,
+  ORGANIC_EDGE_CLEAR,
   layerBandOf,
   layoutEngineFor,
   layoutViewpoint,
@@ -987,6 +989,108 @@ function layoutArea(layout: ViewpointLayout): number {
   return layout.width * layout.height;
 }
 
+/**
+ * Coincident parallel runs (within 1px) and segments that enter a foreign box.
+ * Crossings of separated channels are counted, but they stay readable.
+ */
+function orthogonalClutter(layout: ViewpointLayout): {
+  coincidentPairs: number;
+  foreignCuts: number;
+  crossings: number;
+} {
+  type Seg = { id: string; x1: number; y1: number; x2: number; y2: number; horiz: boolean };
+  const segs: Seg[] = [];
+  for (const edge of layout.edges) {
+    const points = edge.points ?? [];
+    for (let index = 1; index < points.length; index += 1) {
+      const from = points[index - 1]!;
+      const to = points[index]!;
+      if (Math.abs(from.x - to.x) < 0.5 && Math.abs(from.y - to.y) < 0.5) {
+        continue;
+      }
+      const horiz = Math.abs(from.y - to.y) < 0.5;
+      const vert = Math.abs(from.x - to.x) < 0.5;
+      if (!horiz && !vert) {
+        continue;
+      }
+      segs.push({
+        id: edge.id,
+        x1: Math.min(from.x, to.x),
+        y1: Math.min(from.y, to.y),
+        x2: Math.max(from.x, to.x),
+        y2: Math.max(from.y, to.y),
+        horiz,
+      });
+    }
+  }
+  let coincidentPairs = 0;
+  let crossings = 0;
+  for (let left = 0; left < segs.length; left += 1) {
+    for (let right = left + 1; right < segs.length; right += 1) {
+      const a = segs[left]!;
+      const b = segs[right]!;
+      if (a.id === b.id) {
+        continue;
+      }
+      if (a.horiz === b.horiz) {
+        const separation = a.horiz ? Math.abs(a.y1 - b.y1) : Math.abs(a.x1 - b.x1);
+        const overlap = a.horiz
+          ? Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1)
+          : Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+        if (separation <= 1 && overlap > 8) {
+          coincidentPairs += 1;
+        }
+        continue;
+      }
+      const horiz = a.horiz ? a : b;
+      const vert = a.horiz ? b : a;
+      const x = vert.x1;
+      const y = horiz.y1;
+      if (x > horiz.x1 + 1 && x < horiz.x2 - 1 && y > vert.y1 + 1 && y < vert.y2 - 1) {
+        crossings += 1;
+      }
+    }
+  }
+  let foreignCuts = 0;
+  for (const edge of layout.edges) {
+    const points = edge.points ?? [];
+    for (const node of layout.nodes) {
+      if (node.container || node.id === edge.source || node.id === edge.target) {
+        continue;
+      }
+      for (let index = 1; index < points.length; index += 1) {
+        const from = points[index - 1]!;
+        const to = points[index]!;
+        const horiz = Math.abs(from.y - to.y) < 0.5;
+        const vert = Math.abs(from.x - to.x) < 0.5;
+        if (!horiz && !vert) {
+          continue;
+        }
+        const left = node.x + 1;
+        const top = node.y + 1;
+        const right = node.x + node.width - 1;
+        const bottom = node.y + node.height - 1;
+        if (horiz) {
+          const y = from.y;
+          const x1 = Math.min(from.x, to.x);
+          const x2 = Math.max(from.x, to.x);
+          if (y > top && y < bottom && x2 > left && x1 < right) {
+            foreignCuts += 1;
+          }
+        } else {
+          const x = from.x;
+          const y1 = Math.min(from.y, to.y);
+          const y2 = Math.max(from.y, to.y);
+          if (x > left && x < right && y2 > top && y1 < bottom) {
+            foreignCuts += 1;
+          }
+        }
+      }
+    }
+  }
+  return { coincidentPairs, foreignCuts, crossings };
+}
+
 function rootOverlaps(layout: ViewpointLayout): number {
   const roots = layout.nodes.filter((node) => !node.parentId);
   let count = 0;
@@ -1093,6 +1197,8 @@ test("organic is seeded force-directed and does not replace the layered default"
   assert.equal(ORGANIC_NODE_SPACING, 80);
   assert.equal(ORGANIC_PACK_RATIO, 8);
   assert.equal(ORGANIC_PACK_GAP, 24);
+  assert.equal(ORGANIC_EDGE_GAP, 10);
+  assert.equal(ORGANIC_EDGE_CLEAR, 5);
 });
 
 test("organic packing is denser than the force default and stays seeded", async () => {
@@ -1179,6 +1285,53 @@ test("organic packing is denser than the force default and stays seeded", async 
     organic.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
     again.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })),
   );
+  assert.deepEqual(
+    organic.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+    again.edges.map((edge) => ({ id: edge.id, points: edge.points })),
+  );
+  // Density pack from v0.1.21. Edge channels move; these coordinates do not.
+  assert.deepEqual(
+    organic.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { id: "auditor", x: 1145, y: 24 },
+      { id: "bill", x: 186, y: 962 },
+      { id: "billing", x: 180, y: 429 },
+      { id: "book", x: 482, y: 1013 },
+      { id: "capture", x: 527, y: 1169 },
+      { id: "cloud", x: 369, y: 892 },
+      { id: "confirm", x: 341, y: 1238 },
+      { id: "customer", x: 960, y: 699 },
+      { id: "dispatch", x: 404, y: 597 },
+      { id: "execute", x: 706, y: 914 },
+      { id: "inquire", x: 216, y: 816 },
+      { id: "invoice", x: 833, y: 514 },
+      { id: "margin", x: 149, y: 1268 },
+      { id: "onTime", x: 588, y: 492 },
+      { id: "ops", x: 195, y: 24 },
+      { id: "portal", x: 125, y: 621 },
+      { id: "price", x: 372, y: 439 },
+      { id: "pricing", x: 730, y: 346 },
+      { id: "quote", x: 24, y: 806 },
+      { id: "settle", x: 971, y: 277 },
+      { id: "settlement", x: 801, y: 790 },
+      { id: "tms", x: 323, y: 740 },
+      { id: "waybill", x: 769, y: 642 },
+    ],
+  );
+  // Layered canvas grew with the edge–node gap (larger heads). Organic pack is unchanged.
+  assert.equal(layered.width, 1592);
+  assert.equal(layered.height, 998);
+  assert.equal(layers.width, 1000);
+  assert.equal(layers.height, 1216);
+  assert.equal(diagonalSegments(organic), 0);
+  // v0.1.21 midpoint elbows on this view: 20 coincident stacks (~2500px),
+  // 42 crossings, 26 cuts through foreign boxes.
+  const clutter = orthogonalClutter(organic);
+  assert.equal(clutter.coincidentPairs, 0, `coincident stacks ${clutter.coincidentPairs}`);
+  assert.equal(clutter.foreignCuts, 0, `foreign cuts ${clutter.foreignCuts}`);
+  assert.ok(clutter.crossings < 55, `crossings ${clutter.crossings}`);
 });
 
 test("layered and layers coordinates stay on the pinned fixtures", async () => {
@@ -1284,6 +1437,10 @@ views {
   assert.deepEqual(
     a.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })).sort((left, right) => left.id.localeCompare(right.id)),
     b.nodes.map((node) => ({ id: node.id, x: node.x, y: node.y })).sort((left, right) => left.id.localeCompare(right.id)),
+  );
+  assert.deepEqual(
+    a.edges.map((edge) => ({ id: edge.id, points: edge.points })).sort((left, right) => left.id.localeCompare(right.id)),
+    b.edges.map((edge) => ({ id: edge.id, points: edge.points })).sort((left, right) => left.id.localeCompare(right.id)),
   );
 });
 

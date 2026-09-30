@@ -150,6 +150,23 @@ export const ORGANIC_PACK_RATIO = 8;
 export const ORGANIC_PACK_GAP = 24;
 
 /**
+ * Minimum separation between parallel organic orthogonal channels.
+ * The packed force layout still draws right-angle connectors itself (Force
+ * does not route orthogonally). A shared midpoint elbow stacks those channels
+ * on a dense service line. Layered and layers keep ELK's own routes.
+ */
+export const ORGANIC_EDGE_GAP = 10;
+
+/**
+ * How far an organic orthogonal trunk stays outside a foreign box.
+ * Organic only. Not a node-pack gap — boxes stay at `ORGANIC_PACK_GAP`.
+ */
+export const ORGANIC_EDGE_CLEAR = 5;
+
+/** Shortest last segment the channel search tries to leave, before insets. */
+const ORGANIC_EDGE_STUB = 10;
+
+/**
  * Edge routing on top of ELK Layered placement.
  * `orthogonal` is the viewer default (right-angle connectors).
  * `polyline` is the non-orthogonal alternative and may draw diagonal segments.
@@ -1248,9 +1265,11 @@ type LevelPlacer = (
 /**
  * Seeded ELK Force (Fruchterman–Reingold), then a deterministic scale toward
  * `ORGANIC_PACK_RATIO`. `elk.randomSeed` is fixed so the same graph yields
- * the same coordinates. Direction does not re-rank nodes; orthogonal routing
- * still uses it for bend axis. Disconnected components are simulated
- * separately and then packed with the rest of the level.
+ * the same coordinates. Direction does not re-rank nodes. Orthogonal
+ * connectors are then spread onto facing sides so a dense graph does not
+ * stack associations on one centerline; polyline stays a straight clip.
+ * Disconnected components are simulated separately and then packed with the
+ * rest of the level.
  */
 async function layoutOrganic(
   elements: ElementDecl[],
@@ -1260,7 +1279,7 @@ async function layoutOrganic(
   nestForest: Map<string, string[]>,
   parentOf: Map<string, string>,
 ): Promise<PackedLayout> {
-  return layoutCompound(
+  const packed = await layoutCompound(
     elements,
     relationships,
     direction,
@@ -1269,6 +1288,10 @@ async function layoutOrganic(
     parentOf,
     placeOrganic,
   );
+  if (routing === "orthogonal") {
+    rerouteOrganicOrthogonal(packed, relationships, direction);
+  }
+  return packed;
 }
 
 /**
@@ -2343,6 +2366,803 @@ function edgeNodeSpacingOptions(): Record<string, string> {
     "elk.spacing.edgeNode": gap,
     "elk.layered.spacing.edgeNodeBetweenLayers": gap,
   };
+}
+
+type OrganicSide = "top" | "right" | "bottom" | "left";
+
+type OrganicEdgeSpec = {
+  id: string;
+  source: LayoutNode;
+  target: LayoutNode;
+  sourceSide: OrganicSide;
+  targetSide: OrganicSide;
+  sourcePort: ElkPoint;
+  targetPort: ElkPoint;
+};
+
+type AxisSeg = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  horiz: boolean;
+};
+
+/**
+ * Replace organic midpoint elbows with right-angle routes that leave on
+ * facing sides, spread parallel trunks by `ORGANIC_EDGE_GAP`, and prefer a
+ * channel that does not cut through a foreign box. Node coordinates stay
+ * the seeded pack. Grid and layers keep `orthogonalBetween`.
+ */
+function rerouteOrganicOrthogonal(
+  packed: PackedLayout,
+  relationships: RelationshipDecl[],
+  direction: LayoutDirection,
+): void {
+  const nodeById = new Map(packed.nodes.map((node) => [node.id, node]));
+  const specs: OrganicEdgeSpec[] = [];
+  for (const rel of relationships) {
+    const id = edgeId(rel.source, rel.target, rel.type);
+    if (!packed.edges.has(id)) {
+      continue;
+    }
+    const source = nodeById.get(rel.source);
+    const target = nodeById.get(rel.target);
+    if (!source || !target || source.id === target.id) {
+      continue;
+    }
+    const sides = organicFacingSides(source, target, direction);
+    specs.push({
+      id,
+      source,
+      target,
+      sourceSide: sides.source,
+      targetSide: sides.target,
+      sourcePort: { x: 0, y: 0 },
+      targetPort: { x: 0, y: 0 },
+    });
+  }
+  if (specs.length === 0) {
+    return;
+  }
+  assignOrganicPorts(specs);
+  const obstacles = packed.nodes.filter((node) => !node.container);
+  const committed: AxisSeg[] = [];
+  const ordered = specs.slice().sort((a, b) => {
+    const span = organicCenterSpan(a) - organicCenterSpan(b);
+    if (Math.abs(span) > 0.5) {
+      return span;
+    }
+    return compareText(a.id, b.id);
+  });
+  for (const spec of ordered) {
+    const points = chooseOrganicRoute(spec, obstacles, committed, packed.width, packed.height);
+    const simplified = simplifyOrthogonal(points);
+    const start = simplified[0]!;
+    const end = simplified[simplified.length - 1]!;
+    packed.edges.set(spec.id, { x1: start.x, y1: start.y, x2: end.x, y2: end.y, points: simplified });
+    committed.push(...axisSegments(simplified));
+  }
+  nudgeStackedOrganicChannels(packed, obstacles);
+  lengthenOrganicFinalSegments(packed, obstacles);
+}
+
+/** Diagonal pairs keep the direction bend axis. Shared rows and columns face each other. */
+function organicFacingSides(
+  source: LayoutNode,
+  target: LayoutNode,
+  direction: LayoutDirection,
+): { source: OrganicSide; target: OrganicSide } {
+  const xOverlap = intervalOverlap(source.x, source.x + source.width, target.x, target.x + target.width);
+  const yOverlap = intervalOverlap(source.y, source.y + source.height, target.y, target.y + target.height);
+  const sourceCenter = nodeCenter(source);
+  const targetCenter = nodeCenter(target);
+  if (yOverlap > 0 && xOverlap <= 0) {
+    return sourceCenter.x <= targetCenter.x
+      ? { source: "right", target: "left" }
+      : { source: "left", target: "right" };
+  }
+  if (xOverlap > 0 && yOverlap <= 0) {
+    return sourceCenter.y <= targetCenter.y
+      ? { source: "bottom", target: "top" }
+      : { source: "top", target: "bottom" };
+  }
+  const vertical = direction === "tb" || direction === "bt";
+  if (vertical) {
+    return sourceCenter.y <= targetCenter.y
+      ? { source: "bottom", target: "top" }
+      : { source: "top", target: "bottom" };
+  }
+  return sourceCenter.x <= targetCenter.x
+    ? { source: "right", target: "left" }
+    : { source: "left", target: "right" };
+}
+
+function assignOrganicPorts(specs: OrganicEdgeSpec[]): void {
+  const groups = new Map<string, Map<OrganicSide, OrganicEdgeSpec[]>>();
+  const add = (nodeId: string, side: OrganicSide, spec: OrganicEdgeSpec): void => {
+    let bySide = groups.get(nodeId);
+    if (!bySide) {
+      bySide = new Map();
+      groups.set(nodeId, bySide);
+    }
+    const list = bySide.get(side) ?? [];
+    list.push(spec);
+    bySide.set(side, list);
+  };
+  for (const spec of specs) {
+    add(spec.source.id, spec.sourceSide, spec);
+    add(spec.target.id, spec.targetSide, spec);
+  }
+  for (const [nodeId, bySide] of groups) {
+    for (const [side, list] of bySide) {
+      const node = list[0] ? (side === list[0].sourceSide && list[0].source.id === nodeId ? list[0].source : list[0].target) : undefined;
+      if (!node) {
+        continue;
+      }
+      const ordered = list.slice().sort((a, b) => {
+        const aPartner = a.source.id === nodeId && a.sourceSide === side ? a.target : a.source;
+        const bPartner = b.source.id === nodeId && b.sourceSide === side ? b.target : b.source;
+        const vertical = side === "left" || side === "right";
+        const delta = vertical
+          ? nodeCenter(aPartner).y - nodeCenter(bPartner).y
+          : nodeCenter(aPartner).x - nodeCenter(bPartner).x;
+        if (Math.abs(delta) > 0.5) {
+          return delta;
+        }
+        return compareText(a.id, b.id);
+      });
+      ordered.forEach((spec, index) => {
+        const port = organicPort(node, side, index, ordered.length);
+        if (spec.source.id === nodeId && spec.sourceSide === side) {
+          spec.sourcePort = port;
+        } else {
+          spec.targetPort = port;
+        }
+      });
+    }
+  }
+}
+
+function organicPort(node: LayoutNode, side: OrganicSide, index: number, count: number): ElkPoint {
+  const along = (start: number, length: number, margin: number): number => {
+    const usable = Math.max(length - margin * 2, 1);
+    return roundCoord(start + margin + ((index + 0.5) / count) * usable);
+  };
+  const marginX = Math.min(16, Math.max(4, node.width / 5));
+  const marginY = Math.min(12, Math.max(4, node.height / 5));
+  switch (side) {
+    case "top":
+      return { x: along(node.x, node.width, marginX), y: roundCoord(node.y) };
+    case "bottom":
+      return { x: along(node.x, node.width, marginX), y: roundCoord(node.y + node.height) };
+    case "left":
+      return { x: roundCoord(node.x), y: along(node.y, node.height, marginY) };
+    default:
+      return { x: roundCoord(node.x + node.width), y: along(node.y, node.height, marginY) };
+  }
+}
+
+/**
+ * A tight gutter sometimes leaves two chosen channels one pixel apart.
+ * Slide the later edge's interior trunk onto the next open multiple of
+ * `ORGANIC_EDGE_GAP` when that slide still misses every box.
+ */
+function nudgeStackedOrganicChannels(packed: PackedLayout, obstacles: LayoutNode[]): void {
+  const ids = [...packed.edges.keys()].sort(compareText);
+  for (let pass = 0; pass < 3; pass += 1) {
+    let moved = false;
+    const peers = organicAxisByEdge(packed);
+    for (const id of ids) {
+      const edge = packed.edges.get(id);
+      const points = edge?.points;
+      if (!edge || !points || points.length < 4) {
+        continue;
+      }
+      const ends = edgeEnds(id);
+      for (let index = 1; index < points.length - 2; index += 1) {
+        const from = points[index]!;
+        const to = points[index + 1]!;
+        const horiz = from.y === to.y;
+        const vert = from.x === to.x;
+        if (horiz === vert) {
+          continue;
+        }
+        const peer = stackedPeer(id, from, to, horiz, peers);
+        if (!peer) {
+          continue;
+        }
+        const base = horiz ? from.y : from.x;
+        const limit = horiz ? packed.height : packed.width;
+        const shifts = [1, -1, 2, -2].map((step) => peer.coord + step * ORGANIC_EDGE_GAP);
+        for (const next of shifts) {
+          if (next < 2 || next > limit - 2 || next === base) {
+            continue;
+          }
+          const nudged = points.map((point) => ({ x: point.x, y: point.y }));
+          if (horiz) {
+            nudged[index] = { x: from.x, y: next };
+            nudged[index + 1] = { x: to.x, y: next };
+          } else {
+            nudged[index] = { x: next, y: from.y };
+            nudged[index + 1] = { x: next, y: to.y };
+          }
+          if (!organicRouteClear(nudged, obstacles, ends) || stackedPeer(id, nudged[index]!, nudged[index + 1]!, horiz, peers)) {
+            continue;
+          }
+          // A separated crossing is readable. A stacked run is not. Allow a
+          // couple of new crossings when that is what opens the next channel.
+          if (routeCrossings(nudged, id, peers) > routeCrossings(points, id, peers) + 8) {
+            continue;
+          }
+          const simplified = simplifyOrthogonal(nudged);
+          const start = simplified[0]!;
+          const end = simplified[simplified.length - 1]!;
+          packed.edges.set(id, { x1: start.x, y1: start.y, x2: end.x, y2: end.y, points: simplified });
+          peers.set(id, axisSegments(simplified));
+          moved = true;
+          break;
+        }
+        if (moved) {
+          break;
+        }
+      }
+    }
+    if (!moved) {
+      break;
+    }
+  }
+}
+
+/**
+ * The channel search keeps a short stub so a 24px gutter can still spread.
+ * When the open gap can hold `EDGE_NODE_GAP`, slide the perpendicular trunk
+ * away from the target so the larger arrowhead stays on the final segment.
+ * A move that would restack a channel or cut a foreign box is left alone.
+ */
+function lengthenOrganicFinalSegments(packed: PackedLayout, obstacles: LayoutNode[]): void {
+  const ids = [...packed.edges.keys()].sort(compareText);
+  for (const id of ids) {
+    const edge = packed.edges.get(id);
+    const points = edge?.points;
+    if (!edge || !points || points.length < 4) {
+      continue;
+    }
+    const end = points[points.length - 1]!;
+    const bend = points[points.length - 2]!;
+    const trunkStart = points[points.length - 3]!;
+    const span = Math.hypot(end.x - bend.x, end.y - bend.y);
+    if (span + 0.01 >= EDGE_NODE_GAP) {
+      continue;
+    }
+    const vertical = Math.abs(end.x - bend.x) < 0.5 && Math.abs(end.y - bend.y) >= 0.5;
+    const horizontal = Math.abs(end.y - bend.y) < 0.5 && Math.abs(end.x - bend.x) >= 0.5;
+    const trunkHorizontal = Math.abs(trunkStart.y - bend.y) < 0.5 && Math.abs(trunkStart.x - bend.x) >= 0.5;
+    const trunkVertical = Math.abs(trunkStart.x - bend.x) < 0.5 && Math.abs(trunkStart.y - bend.y) >= 0.5;
+    if ((vertical && !trunkHorizontal) || (horizontal && !trunkVertical) || (!vertical && !horizontal)) {
+      continue;
+    }
+    const away = vertical ? Math.sign(bend.y - end.y) : Math.sign(bend.x - end.x);
+    if (away === 0) {
+      continue;
+    }
+    const endCoord = vertical ? end.y : end.x;
+    const limit = vertical ? packed.height : packed.width;
+    const trunkIndex = points.length - 3;
+    const bendIndex = points.length - 2;
+    const oldBefore = points[trunkIndex - 1]!;
+    const oldDx = trunkStart.x - oldBefore.x;
+    const oldDy = trunkStart.y - oldBefore.y;
+    // The runway is EDGE_NODE_GAP. If that channel is taken, step further
+    // out by ORGANIC_EDGE_GAP. A shorter stub would put the head on the bend.
+    for (let step = 0; step < 8; step += 1) {
+      const coord = roundCoord(endCoord + away * (EDGE_NODE_GAP + step * ORGANIC_EDGE_GAP));
+      if (coord < 2 || coord > limit - 2) {
+        continue;
+      }
+      const nudged = points.map((point) => ({ x: point.x, y: point.y }));
+      if (vertical) {
+        nudged[trunkIndex] = { x: trunkStart.x, y: coord };
+        nudged[bendIndex] = { x: bend.x, y: coord };
+      } else {
+        nudged[trunkIndex] = { x: coord, y: trunkStart.y };
+        nudged[bendIndex] = { x: coord, y: bend.y };
+      }
+      const newSpan = Math.hypot(
+        nudged[nudged.length - 1]!.x - nudged[bendIndex]!.x,
+        nudged[nudged.length - 1]!.y - nudged[bendIndex]!.y,
+      );
+      if (newSpan + 0.01 < EDGE_NODE_GAP) {
+        continue;
+      }
+      const before = nudged[trunkIndex - 1]!;
+      const movedTrunk = nudged[trunkIndex]!;
+      const newDx = movedTrunk.x - before.x;
+      const newDy = movedTrunk.y - before.y;
+      if (oldDx * newDx + oldDy * newDy < 0) {
+        continue;
+      }
+      if (Math.hypot(newDx, newDy) < 2 && Math.hypot(oldDx, oldDy) >= 2) {
+        continue;
+      }
+      const ends = edgeEnds(id);
+      if (!organicRouteClear(nudged, obstacles, ends)) {
+        continue;
+      }
+      const peers = organicAxisByEdge(packed);
+      let stacked = false;
+      for (let index = 0; index < nudged.length - 1; index += 1) {
+        const from = nudged[index]!;
+        const to = nudged[index + 1]!;
+        const horiz = Math.abs(from.y - to.y) < 0.5 && Math.abs(from.x - to.x) >= 0.5;
+        const vert = Math.abs(from.x - to.x) < 0.5 && Math.abs(from.y - to.y) >= 0.5;
+        if (!horiz && !vert) {
+          continue;
+        }
+        if (stackedPeer(id, from, to, horiz, peers)) {
+          stacked = true;
+          break;
+        }
+      }
+      if (stacked) {
+        continue;
+      }
+      const simplified = simplifyOrthogonal(nudged);
+      const start = simplified[0]!;
+      const finish = simplified[simplified.length - 1]!;
+      packed.edges.set(id, { x1: start.x, y1: start.y, x2: finish.x, y2: finish.y, points: simplified });
+      break;
+    }
+  }
+}
+
+function edgeEnds(id: string): { source: string; target: string } {
+  const arrow = id.indexOf("->");
+  const rest = id.slice(arrow + 2);
+  const colon = rest.lastIndexOf(":");
+  return { source: id.slice(0, arrow), target: rest.slice(0, colon) };
+}
+
+function organicAxisByEdge(packed: PackedLayout): Map<string, AxisSeg[]> {
+  const peers = new Map<string, AxisSeg[]>();
+  for (const [id, edge] of packed.edges) {
+    peers.set(id, axisSegments(edge.points ?? []));
+  }
+  return peers;
+}
+
+function stackedPeer(
+  id: string,
+  from: ElkPoint,
+  to: ElkPoint,
+  horiz: boolean,
+  peers: Map<string, AxisSeg[]>,
+): { coord: number } | null {
+  const x1 = Math.min(from.x, to.x);
+  const x2 = Math.max(from.x, to.x);
+  const y1 = Math.min(from.y, to.y);
+  const y2 = Math.max(from.y, to.y);
+  for (const [otherId, segs] of peers) {
+    if (otherId === id) {
+      continue;
+    }
+    for (const seg of segs) {
+      if (seg.horiz !== horiz) {
+        continue;
+      }
+      const separation = horiz ? Math.abs(y1 - seg.y1) : Math.abs(x1 - seg.x1);
+      if (separation >= ORGANIC_EDGE_GAP - 0.5) {
+        continue;
+      }
+      const overlap = horiz ? intervalOverlap(x1, x2, seg.x1, seg.x2) : intervalOverlap(y1, y2, seg.y1, seg.y2);
+      if (overlap > 2) {
+        return { coord: horiz ? seg.y1 : seg.x1 };
+      }
+    }
+  }
+  return null;
+}
+
+function routeCrossings(points: ElkPoint[], id: string, peers: Map<string, AxisSeg[]>): number {
+  let crossings = 0;
+  for (const seg of axisSegments(points)) {
+    for (const [otherId, segs] of peers) {
+      if (otherId === id) {
+        continue;
+      }
+      for (const other of segs) {
+        if (seg.horiz !== other.horiz && axisProperCrossing(seg, other)) {
+          crossings += 1;
+        }
+      }
+    }
+  }
+  return crossings;
+}
+
+function organicRouteClear(points: ElkPoint[], obstacles: LayoutNode[], ends: { source: string; target: string }): boolean {
+  const segs = axisSegments(points);
+  const last = points[points.length - 1]!;
+  const before = points[points.length - 2]!;
+  if (Math.hypot(last.x - before.x, last.y - before.y) < 8) {
+    return false;
+  }
+  for (const seg of segs) {
+    for (const node of obstacles) {
+      const pad = node.id === ends.source || node.id === ends.target ? 0 : ORGANIC_EDGE_CLEAR;
+      if (axisHitsNode(seg, node, pad)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function organicCenterSpan(spec: OrganicEdgeSpec): number {
+  const source = nodeCenter(spec.source);
+  const target = nodeCenter(spec.target);
+  return Math.hypot(target.x - source.x, target.y - source.y);
+}
+
+function chooseOrganicRoute(
+  spec: OrganicEdgeSpec,
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  width: number,
+  height: number,
+): ElkPoint[] {
+  const routes = organicRouteCandidates(spec, obstacles, committed, width, height);
+  let best = orthogonalBetween(spec.source, spec.target, "tb").points;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestKey = "";
+  for (const route of routes) {
+    if (route.length < 2) {
+      continue;
+    }
+    const score = scoreOrganicRoute(route, obstacles, spec, committed);
+    const key = route.map((point) => `${point.x},${point.y}`).join(" ");
+    if (score < bestScore - 1e-6 || (Math.abs(score - bestScore) <= 1e-6 && (bestKey === "" || key < bestKey))) {
+      best = route;
+      bestScore = score;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+function organicRouteCandidates(
+  spec: OrganicEdgeSpec,
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  width: number,
+  height: number,
+): ElkPoint[][] {
+  const verticalExit = spec.sourceSide === "top" || spec.sourceSide === "bottom";
+  const gap = facingInterval(spec);
+  const routes: ElkPoint[][] = [];
+  if (verticalExit) {
+    const ys = channelCandidates(gap, obstacles, committed, height, "y");
+    for (const y of ys) {
+      routes.push(
+        simplifyOrthogonal([
+          spec.sourcePort,
+          { x: spec.sourcePort.x, y },
+          { x: spec.targetPort.x, y },
+          spec.targetPort,
+        ]),
+      );
+    }
+    if (gap && gap.hi - gap.lo >= ORGANIC_EDGE_STUB * 2 + 2) {
+      const sourceDepths = outwardStubs(spec.source, spec.sourceSide, height, gap);
+      const targetDepths = outwardStubs(spec.target, spec.targetSide, height, gap);
+      for (const ySource of sourceDepths) {
+        for (const yTarget of targetDepths) {
+          if (Math.abs(ySource - yTarget) < 4) {
+            continue;
+          }
+          for (const lane of laneCandidates(obstacles, committed, width, "x")) {
+            routes.push(
+              simplifyOrthogonal([
+                spec.sourcePort,
+                { x: spec.sourcePort.x, y: ySource },
+                { x: lane, y: ySource },
+                { x: lane, y: yTarget },
+                { x: spec.targetPort.x, y: yTarget },
+                spec.targetPort,
+              ]),
+            );
+          }
+        }
+      }
+    }
+    return routes;
+  }
+  const xs = channelCandidates(gap, obstacles, committed, width, "x");
+  for (const x of xs) {
+    routes.push(
+      simplifyOrthogonal([
+        spec.sourcePort,
+        { x, y: spec.sourcePort.y },
+        { x, y: spec.targetPort.y },
+        spec.targetPort,
+      ]),
+    );
+  }
+  if (gap && gap.hi - gap.lo >= ORGANIC_EDGE_STUB * 2 + 2) {
+    const sourceDepths = outwardStubs(spec.source, spec.sourceSide, width, gap);
+    const targetDepths = outwardStubs(spec.target, spec.targetSide, width, gap);
+    for (const xSource of sourceDepths) {
+      for (const xTarget of targetDepths) {
+        if (Math.abs(xSource - xTarget) < 4) {
+          continue;
+        }
+        for (const lane of laneCandidates(obstacles, committed, height, "y")) {
+          routes.push(
+            simplifyOrthogonal([
+              spec.sourcePort,
+              { x: xSource, y: spec.sourcePort.y },
+              { x: xSource, y: lane },
+              { x: xTarget, y: lane },
+              { x: xTarget, y: spec.targetPort.y },
+              spec.targetPort,
+            ]),
+          );
+        }
+      }
+    }
+  }
+  return routes;
+}
+
+function facingInterval(spec: OrganicEdgeSpec): { lo: number; hi: number } | null {
+  const source = spec.source;
+  const target = spec.target;
+  let lo = 0;
+  let hi = 0;
+  switch (spec.sourceSide) {
+    case "bottom":
+      lo = source.y + source.height;
+      hi = target.y;
+      break;
+    case "top":
+      lo = target.y + target.height;
+      hi = source.y;
+      break;
+    case "right":
+      lo = source.x + source.width;
+      hi = target.x;
+      break;
+    default:
+      lo = target.x + target.width;
+      hi = source.x;
+      break;
+  }
+  if (hi < lo) {
+    return null;
+  }
+  return { lo, hi };
+}
+
+function channelCandidates(
+  gap: { lo: number; hi: number } | null,
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  limit: number,
+  axis: "x" | "y",
+): number[] {
+  const values: number[] = [];
+  const push = (value: number): void => {
+    const rounded = roundCoord(value);
+    if (rounded >= 2 && rounded <= limit - 2) {
+      values.push(rounded);
+    }
+  };
+  if (gap) {
+    const span = gap.hi - gap.lo;
+    const stub = span >= ORGANIC_EDGE_STUB * 2 ? ORGANIC_EDGE_STUB : Math.max(4, Math.floor(span / 2) - 1);
+    let innerLo = gap.lo + stub;
+    let innerHi = gap.hi - stub;
+    if (innerLo > innerHi) {
+      innerLo = (gap.lo + gap.hi) / 2;
+      innerHi = innerLo;
+    }
+    push((innerLo + innerHi) / 2);
+    for (let cursor = innerLo; cursor <= innerHi + 0.1; cursor += ORGANIC_EDGE_GAP) {
+      push(cursor);
+    }
+  }
+  for (const node of obstacles) {
+    if (axis === "y") {
+      push(node.y - ORGANIC_EDGE_CLEAR);
+      push(node.y + node.height + ORGANIC_EDGE_CLEAR);
+    } else {
+      push(node.x - ORGANIC_EDGE_CLEAR);
+      push(node.x + node.width + ORGANIC_EDGE_CLEAR);
+    }
+  }
+  for (const seg of committed) {
+    const parallel = axis === "y" ? seg.horiz : !seg.horiz;
+    if (!parallel) {
+      continue;
+    }
+    const at = axis === "y" ? seg.y1 : seg.x1;
+    push(at - ORGANIC_EDGE_GAP);
+    push(at + ORGANIC_EDGE_GAP);
+  }
+  return [...new Set(values)];
+}
+
+function laneCandidates(
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  limit: number,
+  axis: "x" | "y",
+): number[] {
+  return channelCandidates(null, obstacles, committed, limit, axis);
+}
+
+/**
+ * Stub depths just outside `side`, staying inside the facing gap.
+ * Several depths let two edges leave the same side on parallel lines
+ * instead of sharing one jog.
+ */
+function outwardStubs(
+  node: LayoutNode,
+  side: OrganicSide,
+  limit: number,
+  gap: { lo: number; hi: number },
+): number[] {
+  const values: number[] = [];
+  for (let step = 0; step < 2; step += 1) {
+    const stub = ORGANIC_EDGE_STUB + step * ORGANIC_EDGE_GAP;
+    let value = 0;
+    switch (side) {
+      case "bottom":
+        value = node.y + node.height + stub;
+        break;
+      case "top":
+        value = node.y - stub;
+        break;
+      case "right":
+        value = node.x + node.width + stub;
+        break;
+      default:
+        value = node.x - stub;
+        break;
+    }
+    const rounded = roundCoord(value);
+    if (rounded < 2 || rounded > limit - 2) {
+      continue;
+    }
+    if (rounded <= gap.lo || rounded >= gap.hi) {
+      continue;
+    }
+    values.push(rounded);
+  }
+  return values;
+}
+
+function scoreOrganicRoute(
+  points: ElkPoint[],
+  obstacles: LayoutNode[],
+  spec: OrganicEdgeSpec,
+  committed: AxisSeg[],
+): number {
+  const segs = axisSegments(points);
+  const ignore = new Set([spec.source.id, spec.target.id]);
+  let hits = 0;
+  for (const seg of segs) {
+    for (const node of obstacles) {
+      const pad = ignore.has(node.id) ? 0 : ORGANIC_EDGE_CLEAR;
+      if (axisHitsNode(seg, node, pad)) {
+        hits += 1;
+      }
+    }
+  }
+  let stack = 0;
+  let crossings = 0;
+  for (const seg of segs) {
+    for (const other of committed) {
+      if (seg.horiz === other.horiz) {
+        const separation = seg.horiz ? Math.abs(seg.y1 - other.y1) : Math.abs(seg.x1 - other.x1);
+        if (separation < ORGANIC_EDGE_GAP - 0.5) {
+          const overlap = seg.horiz
+            ? intervalOverlap(seg.x1, seg.x2, other.x1, other.x2)
+            : intervalOverlap(seg.y1, seg.y2, other.y1, other.y2);
+          if (overlap > 2) {
+            stack += overlap;
+          }
+        }
+      } else if (axisProperCrossing(seg, other)) {
+        crossings += 1;
+      }
+    }
+  }
+  const end = points[points.length - 1]!;
+  const before = points[points.length - 2]!;
+  const endLength = Math.hypot(end.x - before.x, end.y - before.y);
+  const shortStub = endLength < 8 ? 800 : 0;
+  // A foreign box is never worth a shortcut. A long stacked run hides an
+  // association, so it costs more than a few separated crossings. Length keeps
+  // a short gap route ahead of a detour that only saves one crossing.
+  return hits * 8000 + stack * 8 + crossings * 70 + shortStub + (points.length - 2) * 8 + polylineLength(points) * 0.12;
+}
+
+function axisSegments(points: ElkPoint[]): AxisSeg[] {
+  const segs: AxisSeg[] = [];
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!;
+    const to = points[index]!;
+    if (Math.abs(from.x - to.x) < 0.5 && Math.abs(from.y - to.y) < 0.5) {
+      continue;
+    }
+    const horiz = Math.abs(from.y - to.y) < 0.5;
+    const vert = Math.abs(from.x - to.x) < 0.5;
+    if (!horiz && !vert) {
+      continue;
+    }
+    segs.push({
+      x1: Math.min(from.x, to.x),
+      y1: Math.min(from.y, to.y),
+      x2: Math.max(from.x, to.x),
+      y2: Math.max(from.y, to.y),
+      horiz,
+    });
+  }
+  return segs;
+}
+
+function axisHitsNode(seg: AxisSeg, node: LayoutNode, pad: number): boolean {
+  const left = node.x - pad;
+  const top = node.y - pad;
+  const right = node.x + node.width + pad;
+  const bottom = node.y + node.height + pad;
+  if (seg.horiz) {
+    const y = seg.y1;
+    if (y <= top || y >= bottom) {
+      return false;
+    }
+    return seg.x2 > left && seg.x1 < right;
+  }
+  const x = seg.x1;
+  if (x <= left || x >= right) {
+    return false;
+  }
+  return seg.y2 > top && seg.y1 < bottom;
+}
+
+function axisProperCrossing(a: AxisSeg, b: AxisSeg): boolean {
+  const horiz = a.horiz ? a : b;
+  const vert = a.horiz ? b : a;
+  if (horiz.horiz === vert.horiz) {
+    return false;
+  }
+  const x = vert.x1;
+  const y = horiz.y1;
+  return x > horiz.x1 + 0.5 && x < horiz.x2 - 0.5 && y > vert.y1 + 0.5 && y < vert.y2 - 0.5;
+}
+
+function intervalOverlap(a1: number, a2: number, b1: number, b2: number): number {
+  return Math.min(a2, b2) - Math.max(a1, b1);
+}
+
+function simplifyOrthogonal(points: ElkPoint[]): ElkPoint[] {
+  const deduped = dedupePoints(points.map((point) => ({ x: roundCoord(point.x), y: roundCoord(point.y) })));
+  const out: ElkPoint[] = [];
+  for (const point of deduped) {
+    const prev = out[out.length - 1];
+    const prev2 = out[out.length - 2];
+    if (prev && prev2 && orthogonalCollinear(prev2, prev, point)) {
+      out[out.length - 1] = point;
+      continue;
+    }
+    out.push(point);
+  }
+  return out.length >= 2 ? out : deduped;
+}
+
+function orthogonalCollinear(a: ElkPoint, b: ElkPoint, c: ElkPoint): boolean {
+  return (a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y);
 }
 
 function orthogonalBetween(
