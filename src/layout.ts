@@ -52,13 +52,11 @@ export const CONNECTOR_TIP_CLEARANCE = 3;
 export const CONNECTOR_TIP_GAP = CONNECTOR_SHAFT_GAP + CONNECTOR_TIP_CLEARANCE;
 
 /**
- * Arrowhead in marker user units.
+ * Arrowhead in marker user units (one unit is the 1.5px edge stroke).
  *
- * Orthogonal routes keep the last bend about 10px outside the target (ELK
- * edge–node spacing). After the tip gap and the overhang, the final segment
- * is only ~4.9px. The head has to sit on that segment. A longer triangle
- * crosses the bend, the previous span cuts through it, and the tip reads as
- * a flat wedge crushed into the stroke — the dense bottom fan-in failure.
+ * Length 10 and base 7 are the readable head: 15px long and 10.5px tall.
+ * The nearest fan-in slot is `EDGE_NODE_GAP`, so this triangle stays on the
+ * final segment.
  *
  * The viewport is padded past the triangle and starts at 0 so the point is
  * not on the clip edge. `refX` sits one unit behind the tip; that overhang
@@ -66,9 +64,10 @@ export const CONNECTOR_TIP_GAP = CONNECTOR_SHAFT_GAP + CONNECTOR_TIP_CLEARANCE;
  * `CONNECTOR_TIP_GAP`.
  */
 const MARKER_PAD = 1;
-/** Base-to-tip length. 3 stroke-widths × 1.5px = 4.5px, inside the ~4.9px stub. */
-const MARKER_LENGTH = 3;
-const MARKER_BASE_HEIGHT = 2;
+/** Base-to-tip length. 10 stroke-widths × 1.5px = 15px. */
+const MARKER_LENGTH = 10;
+/** Base height. 7 stroke-widths × 1.5px = 10.5px. */
+const MARKER_BASE_HEIGHT = 7;
 const MARKER_TIP_X = MARKER_PAD + MARKER_LENGTH;
 const MARKER_TIP_Y = MARKER_PAD + MARKER_BASE_HEIGHT / 2;
 const MARKER_REF_X = MARKER_TIP_X - 1;
@@ -77,6 +76,20 @@ const MARKER_WIDTH = MARKER_TIP_X + MARKER_PAD;
 const MARKER_HEIGHT = MARKER_BASE_HEIGHT + MARKER_PAD * 2;
 /** How far the tip extends past the path endpoint, in user px. Marker units are strokeWidth. */
 const MARKER_OVERHANG = (MARKER_TIP_X - MARKER_REF_X) * EDGE_STROKE_WIDTH;
+
+/**
+ * Nearest orthogonal bend outside a node border.
+ *
+ * ELK `elk.spacing.edgeNode` and `elk.layered.spacing.edgeNodeBetweenLayers`.
+ * On a dense fan-in the closest slot sits this far from the target. After the
+ * tip gap and the overhang, the drawn final segment still has to hold the
+ * 13.5px tail plus a short shaft, so the previous span stays behind the head.
+ * The tip stays on `CONNECTOR_TIP_GAP`. The extra length is the stub that
+ * holds the head.
+ *
+ * 3.625 tip + 1.5 overhang + 13.5 tail + ~5px shaft = 24.
+ */
+export const EDGE_NODE_GAP = 24;
 const EDGE_STROKE_ATTRS = `fill="none" stroke="#6e6e73" stroke-width="${EDGE_STROKE_WIDTH}" stroke-linejoin="round" pointer-events="none"`;
 
 /** Mac/web viewer engine: Eclipse Layout Kernel layered (elkjs). */
@@ -2077,6 +2090,7 @@ function buildElkGraph(
       "elk.padding": `[top=${PADDING},left=${PADDING},bottom=${PADDING},right=${PADDING}]`,
       "elk.spacing.nodeNode": String(LANE_GAP),
       "elk.layered.spacing.nodeNodeBetweenLayers": String(RANK_GAP),
+      ...edgeNodeSpacingOptions(),
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
       "elk.layered.crossingMinimization.forceNodeModelOrder": "true",
       "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
@@ -2111,6 +2125,7 @@ function buildElkSubtree(
     id,
     layoutOptions: {
       "elk.padding": `[top=${header},left=${NEST_PAD},bottom=${NEST_PAD},right=${NEST_PAD}]`,
+      ...edgeNodeSpacingOptions(),
     },
     children: childIds.map((childId) => buildElkSubtree(childId, nestForest, byId)),
   };
@@ -2322,6 +2337,14 @@ function borderPoint(node: LayoutNode, toward: ElkPoint): ElkPoint {
   };
 }
 
+function edgeNodeSpacingOptions(): Record<string, string> {
+  const gap = String(EDGE_NODE_GAP);
+  return {
+    "elk.spacing.edgeNode": gap,
+    "elk.layered.spacing.edgeNodeBetweenLayers": gap,
+  };
+}
+
 function orthogonalBetween(
   source: LayoutNode,
   target: LayoutNode,
@@ -2331,18 +2354,8 @@ function orthogonalBetween(
   const end = nodeCenter(target);
   const points: ElkPoint[] =
     direction === "tb" || direction === "bt"
-      ? [
-          start,
-          { x: start.x, y: roundCoord((start.y + end.y) / 2) },
-          { x: end.x, y: roundCoord((start.y + end.y) / 2) },
-          end,
-        ]
-      : [
-          start,
-          { x: roundCoord((start.x + end.x) / 2), y: start.y },
-          { x: roundCoord((start.x + end.x) / 2), y: end.y },
-          end,
-        ];
+      ? verticalOrthogonal(source, target, start, end)
+      : horizontalOrthogonal(source, target, start, end);
   return {
     x1: points[0]!.x,
     y1: points[0]!.y,
@@ -2350,6 +2363,60 @@ function orthogonalBetween(
     y2: points[points.length - 1]!.y,
     points,
   };
+}
+
+function verticalOrthogonal(source: LayoutNode, target: LayoutNode, start: ElkPoint, end: ElkPoint): ElkPoint[] {
+  const downward = end.y >= start.y;
+  const bus = connectorBus(
+    start.y,
+    end.y,
+    downward ? source.y + source.height : source.y,
+    downward ? target.y : target.y + target.height,
+  );
+  return [
+    start,
+    { x: start.x, y: bus },
+    { x: end.x, y: bus },
+    end,
+  ];
+}
+
+function horizontalOrthogonal(source: LayoutNode, target: LayoutNode, start: ElkPoint, end: ElkPoint): ElkPoint[] {
+  const rightward = end.x >= start.x;
+  const bus = connectorBus(
+    start.x,
+    end.x,
+    rightward ? source.x + source.width : source.x,
+    rightward ? target.x : target.x + target.width,
+  );
+  return [
+    start,
+    { x: bus, y: start.y },
+    { x: bus, y: end.y },
+    end,
+  ];
+}
+
+/**
+ * Jog along the final segment. Keep the midpoint when it already leaves
+ * `EDGE_NODE_GAP` outside the target. A shorter leg moves back to that gap
+ * (or to whatever room remains past the source border) so the head fits.
+ */
+function connectorBus(
+  sourceCenter: number,
+  targetCenter: number,
+  sourceBorder: number,
+  targetBorder: number,
+): number {
+  const toward = targetCenter >= sourceCenter ? 1 : -1;
+  const gap = (targetBorder - sourceBorder) * toward;
+  let bus = (sourceCenter + targetCenter) / 2;
+  const finalSpan = (targetBorder - bus) * toward;
+  if (finalSpan + 0.01 < EDGE_NODE_GAP && gap > CONNECTOR_SHAFT_GAP) {
+    const stub = Math.min(EDGE_NODE_GAP, Math.max(0, gap - CONNECTOR_SHAFT_GAP));
+    bus = targetBorder - toward * stub;
+  }
+  return roundCoord(bus);
 }
 
 /**

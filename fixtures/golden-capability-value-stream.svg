@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="216" height="180" viewBox="0 0 216 180" data-view="capability-and-value-stream" data-layout="lr" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="Capability vs value stream glyphs">
   <title>Capability vs value stream glyphs</title>
   <defs>
-    <marker id="arrow-capability-and-value-stream" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" refX="3" refY="2" orient="auto" viewBox="0 0 5 4" overflow="visible">
-      <polygon points="1 1, 4 2, 1 3" fill="#6e6e73" />
+    <marker id="arrow-capability-and-value-stream" markerUnits="strokeWidth" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto" viewBox="0 0 12 9" overflow="visible">
+      <polygon points="1 1, 11 4.5, 1 8" fill="#6e6e73" />
     </marker>
   </defs>
   <g class="nodes">

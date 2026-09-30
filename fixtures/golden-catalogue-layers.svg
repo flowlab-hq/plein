@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="832" height="208" viewBox="0 0 832 208" data-view="catalogue-layers" data-layout="tb" data-layout-mode="layered" data-layout-routing="orthogonal" data-layout-engine="elk-layered" data-nesting="beside" role="img" aria-label="ArchiMate layers sample">
   <title>ArchiMate layers sample</title>
   <defs>
-    <marker id="arrow-catalogue-layers" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" refX="3" refY="2" orient="auto" viewBox="0 0 5 4" overflow="visible">
-      <polygon points="1 1, 4 2, 1 3" fill="#6e6e73" />
+    <marker id="arrow-catalogue-layers" markerUnits="strokeWidth" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto" viewBox="0 0 12 9" overflow="visible">
+      <polygon points="1 1, 11 4.5, 1 8" fill="#6e6e73" />
     </marker>
   </defs>
   <g class="nodes">
@@ -59,8 +59,8 @@
       <line x1="332" y1="131.38" x2="332" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
     <g data-edge-id="rollout->planning:realizes">
-      <polyline points="528,131.38 528,86 164,86 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="none" />
-      <line x1="164" y1="86" x2="164" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
+      <polyline points="528,131.38 528,100 164,100 164,81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="none" />
+      <line x1="164" y1="100" x2="164" y2="81.13" fill="none" stroke="#6e6e73" stroke-width="1.5" stroke-linejoin="round" pointer-events="none" marker-start="none" marker-mid="none" marker-end="url(#arrow-catalogue-layers)" />
     </g>
   </g>
 </svg>
