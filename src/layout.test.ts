@@ -2603,6 +2603,110 @@ test("Gemba Layers orthogonal routes stay outside a dense vertical stack", async
   assert.ok(rectDistance(tip, research) < 2, "arrowhead docks on the research service line");
 });
 
+test("Gemba Layered orthogonal routes stay outside the Software and Product column", async () => {
+  const loaded = loadPleinSource(
+    readFixture("gemba-advantage-company.plein"),
+    "fixtures/gemba-advantage-company.plein",
+  );
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) {
+    return;
+  }
+
+  // v0.1.29 fail photo: Software and Product, Mode Layered, Routing Orthogonal,
+  // auto layout Off. No saved positions, so the eight elements sit in one
+  // declaration-order column. #75 cleared that column for Layers only; the
+  // Layered center elbows still ran through every box between the ends.
+  const stack = await layoutViewpoint(loaded.model, "softwareAndProduct", {
+    mode: "layered",
+    routing: "orthogonal",
+    autoLayout: "off",
+  });
+  assert.equal(stack.mode, "layered");
+  assert.equal(stack.routing, "orthogonal");
+  assert.equal(stack.auto, false);
+  assert.equal(stack.nesting, "nested");
+  assert.equal(diagonalSegments(stack), 0);
+  assert.deepEqual(
+    stack.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { id: "gembaAdvantage", x: 24, y: 24, width: 168, height: 52 },
+      { id: "martynSwift", x: 24, y: 104, width: 168, height: 52 },
+      { id: "productDesign", x: 24, y: 424, width: 168, height: 52 },
+      { id: "productEngineering", x: 24, y: 504, width: 168, height: 52 },
+      { id: "productManagement", x: 24, y: 344, width: 168, height: 52 },
+      { id: "roleLeadSoftwareProduct", x: 24, y: 184, width: 168, height: 52 },
+      { id: "softwareAndProductCapabilities", x: 24, y: 584, width: 184, height: 64 },
+      { id: "softwareAndProductServiceLine", x: 24, y: 264, width: 174, height: 52 },
+    ],
+  );
+  const svg = renderViewpointSvg(stack);
+  assertNoForeignInterior(stack, svg);
+  const drawn = stack.edges.filter((edge) => !edge.impliedByNest);
+  assert.equal(drawn.length, 7);
+  for (const edge of drawn) {
+    assertRenderedConnectorGap(svg, stack, edge);
+    const points = edge.points ?? [];
+    for (const point of points) {
+      assert.ok(point.x >= (stack.x ?? 0) - 0.01 && point.x <= (stack.x ?? 0) + stack.width + 0.01, edge.id);
+      assert.ok(point.y >= (stack.y ?? 0) - 0.01 && point.y <= (stack.y ?? 0) + stack.height + 0.01, edge.id);
+    }
+  }
+  const columnRight = 24 + 184;
+  const beside = (edgeId: string): void => {
+    const edge = drawn.find((candidate) => candidate.id === edgeId);
+    assert.ok(edge?.points, edgeId);
+    const outside = edge.points!.some((point) => point.x < 24 || point.x > columnRight);
+    assert.equal(outside, true, `${edgeId} stays beside the column`);
+  };
+  beside("gembaAdvantage->softwareAndProductServiceLine:associatedWith");
+  beside("martynSwift->softwareAndProductCapabilities:associatedWith");
+  beside("productDesign->softwareAndProductServiceLine:serves");
+  beside("productEngineering->softwareAndProductServiceLine:serves");
+  const design = drawn.find((edge) => edge.id === "productDesign->softwareAndProductServiceLine:serves");
+  const engineering = drawn.find((edge) => edge.id === "productEngineering->softwareAndProductServiceLine:serves");
+  const designLane = design?.points?.find((point) => point.x > columnRight)?.x;
+  const engineeringLane = engineering?.points?.find((point) => point.x > columnRight)?.x;
+  assert.ok(designLane !== undefined && engineeringLane !== undefined);
+  assert.ok(
+    Math.abs(designLane - engineeringLane) >= ORGANIC_EDGE_GAP - 0.5,
+    "serving trunks do not share one centreline",
+  );
+  const capabilities = stack.nodes.find((node) => node.id === "softwareAndProductCapabilities");
+  const martynEdge = drawn.find((edge) => edge.id === "martynSwift->softwareAndProductCapabilities:associatedWith");
+  assert.ok(capabilities && martynEdge?.points);
+  const martynTip = martynEdge.points![martynEdge.points!.length - 1]!;
+  assert.ok(rectDistance(martynTip, capabilities) < 2, "arrowhead docks on the capabilities grouping");
+
+  // Auto layout On keeps the ELK placement. Clear layered routes stay put.
+  const ranked = await layoutViewpoint(loaded.model, "softwareAndProduct", {
+    mode: "layered",
+    routing: "orthogonal",
+  });
+  assert.equal(ranked.auto, true);
+  assert.equal(ranked.width, 996);
+  assert.equal(ranked.height, 537);
+  assert.equal(diagonalSegments(ranked), 0);
+  assert.deepEqual(
+    ranked.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { id: "gembaAdvantage", x: 24, y: 132, width: 168, height: 52 },
+      { id: "martynSwift", x: 248, y: 24, width: 168, height: 52 },
+      { id: "productDesign", x: 600, y: 396, width: 168, height: 52 },
+      { id: "productEngineering", x: 788, y: 396, width: 168, height: 52 },
+      { id: "productManagement", x: 412, y: 396, width: 168, height: 52 },
+      { id: "roleLeadSoftwareProduct", x: 220, y: 132, width: 168, height: 52 },
+      { id: "softwareAndProductCapabilities", x: 396, y: 348, width: 576, height: 116 },
+      { id: "softwareAndProductServiceLine", x: 50, y: 240, width: 174, height: 52 },
+    ],
+  );
+  assertNoForeignInterior(ranked, renderViewpointSvg(ranked));
+});
+
 function assertNoForeignInterior(layout: ViewpointLayout, svg: string): void {
   for (const edge of layout.edges) {
     if (edge.impliedByNest) {
