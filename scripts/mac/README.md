@@ -17,6 +17,8 @@ Plein ships two Apple Silicon channels:
 
 The `.dmg` is produced by the **Tauri bundler** (`bundle.targets`: `app` + `dmg` in `app/src-tauri/tauri.conf.json`). `create-dmg` is not required.
 
+Dock, Finder, About, and the DMG volume icon are the same B2 monogram (`app/src-tauri/icons/icon.icns`). Tauri copies that file into `Plein.app` and passes it to the bundler as `--volicon`, so the installer window shows the app icon. Source artwork: `scripts/mac/assets/plein-logo-B2.jpg`. Regenerate with `python3 scripts/mac/generate-icons.py` (stdlib only; do not upscale a smaller PNG over the `.icns`).
+
 ## Download and install (GUI)
 
 Same steps as the [README](../../README.md#download-the-mac-app-apple-silicon-dmg):
