@@ -2425,7 +2425,7 @@ test("orthogonal connectors paint above element boxes they cross", () => {
   assert.equal(polylineCrossesBox(points, right), false);
 });
 
-test("layers orthogonal routes that cross boxes stay painted above them", async () => {
+test("layers orthogonal routes bend through open gaps instead of cutting foreign boxes", async () => {
   const loaded = loadPleinSource(
     `plein {
   model {
@@ -2470,12 +2470,14 @@ test("layers orthogonal routes that cross boxes stay painted above them", async 
     const edgesAt = svg.indexOf('<g class="edges">');
     assert.ok(nodesAt !== -1 && nodesAt < edgesAt, mode);
     let crossings = 0;
-    for (const edge of layout.edges) {
-      if (edge.impliedByNest) {
-        continue;
-      }
+    const drawn = layout.edges.filter((edge) => !edge.impliedByNest);
+    assert.ok(drawn.length >= 5, mode);
+    for (const edge of drawn) {
       const points = renderedPolyline(svg, edge.id);
       assert.ok(points.length >= 2, `${mode} ${edge.id} is drawn end to end`);
+      if (mode === "layers") {
+        assertRenderedConnectorGap(svg, layout, edge);
+      }
       const edgeAt = svg.indexOf(`data-edge-id="${edge.id}"`);
       for (const node of layout.nodes) {
         if (node.container || node.id === edge.source || node.id === edge.target) {
@@ -2493,7 +2495,19 @@ test("layers orthogonal routes that cross boxes stay painted above them", async 
       }
     }
     if (mode === "layers") {
-      assert.ok(crossings > 0, "a long layers association should cross a foreign box");
+      // v0.1.24 painted the midpoint elbow above the boxes. On a dense Layers
+      // view that stroke still ran through filled labels, so Arran could not
+      // trace the long association. The elbow now uses an open gap.
+      assert.equal(diagonalSegments(layout), 0);
+      assert.equal(crossings, 0, "a layers association still cuts a foreign box");
+      const catalogue = layout.edges.find((edge) => edge.id === "catalogue->gemba:associatedWith");
+      assert.ok(catalogue, "long catalogue → gemba association");
+      const cataloguePoints = renderedPolyline(svg, catalogue.id);
+      const gemba = layout.nodes.find((node) => node.id === "gemba");
+      const catalogueNode = layout.nodes.find((node) => node.id === "catalogue");
+      assert.ok(gemba && catalogueNode);
+      assert.ok(rectDistance(cataloguePoints[0]!, catalogueNode) < 2, "catalogue end attaches");
+      assert.ok(rectDistance(cataloguePoints[cataloguePoints.length - 1]!, gemba) < 8, "gemba end attaches");
     }
   }
 });
