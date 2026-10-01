@@ -3,7 +3,9 @@
 
 Dock, Finder, and About read `app/src-tauri/icons/icon.icns`. The DMG
 bundler copies that same file and passes it to `bundle_dmg` as `--volicon`,
-so the volume icon and the app inside the installer window match.
+so the volume icon and the app inside the installer window match. The in-app
+toolbar uses the same geometry as a vector at `app/ui/mark.svg`, so the
+18px chrome mark stays sharp on retina instead of downsampling a PNG.
 
 Geometry is the B2 monogram (off-white rounded tile, blue open P, coral
 node) traced from `scripts/mac/assets/plein-logo-B2.jpg`. The curves are
@@ -21,6 +23,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ICONS = ROOT / "app" / "src-tauri" / "icons"
+TOOLBAR_MARK = ROOT / "app" / "ui" / "mark.svg"
+# Plate side the corner radius and node were measured on.
+PLATE = 524
 
 # PNG IHDR color type 6 = RGBA.
 PNG_COLOR_TYPE_RGBA = 6
@@ -351,6 +356,34 @@ def assert_mark(rgba: bytes, size: int) -> None:
         raise SystemExit(f"{size}px tile is {tile}, expected off-white")
 
 
+def _svg_coord(unit: float) -> str:
+    text = f"{unit * PLATE:.3f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def toolbar_mark_svg() -> str:
+    """B2 monogram as SVG. Same fills and curves as the Dock raster."""
+    parts = [f"M {_svg_coord(P_START[0])} {_svg_coord(P_START[1])}"]
+    for seg in P_SEGS:
+        if seg[0] == "L":
+            parts.append(f"L {_svg_coord(seg[1][0])} {_svg_coord(seg[1][1])}")
+            parts.append(f"L {_svg_coord(seg[2][0])} {_svg_coord(seg[2][1])}")
+        else:
+            coords = " ".join(f"{_svg_coord(point[0])} {_svg_coord(point[1])}" for point in seg[1:])
+            parts.append(f"C {coords}")
+    plate = "#{:02x}{:02x}{:02x}".format(*PLATE_RGB)
+    blue = "#{:02x}{:02x}{:02x}".format(*BLUE_RGB)
+    coral = "#{:02x}{:02x}{:02x}".format(*CORAL_RGB)
+    cx, cy, radius = DOT
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 524 524">\n'
+        f'  <rect width="524" height="524" rx="{round(CORNER * PLATE)}" fill="{plate}"/>\n'
+        f'  <path fill="{blue}" d="{" ".join(parts)} Z"/>\n'
+        f'  <circle cx="{_svg_coord(cx)}" cy="{_svg_coord(cy)}" r="{_svg_coord(radius)}" fill="{coral}"/>\n'
+        "</svg>\n"
+    )
+
+
 def render_master() -> dict[int, bytes]:
     big = MASTER * SUPERSAMPLE
     plate = coverage(rasterize(tile_points(big), big), big, SUPERSAMPLE)
@@ -372,6 +405,11 @@ def render_master() -> dict[int, bytes]:
 
 def main() -> None:
     ICONS.mkdir(parents=True, exist_ok=True)
+    mark = toolbar_mark_svg()
+    for color in ("#fbf9fa", "#1170fe", "#fe6f65"):
+        if color not in mark:
+            raise SystemExit(f"toolbar mark SVG is missing {color}")
+    TOOLBAR_MARK.write_text(mark)
     sizes = render_master()
     encoded = {size: png(size, size, image) for size, image in sizes.items()}
     for size, blob in encoded.items():

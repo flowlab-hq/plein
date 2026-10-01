@@ -55,10 +55,10 @@ body {
 }
 
 .mark {
+  display: block;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #1d4ed8, #22c55e);
+  flex-shrink: 0;
 }
 
 button {
