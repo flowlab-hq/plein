@@ -1,10 +1,10 @@
 {
-  "note": "Pinned ELK Layered and layers coordinates. Organic density changes must leave these in place. Layers node coordinates stay on this pin. Inter-band orthogonal elbows that would cut a foreign box are pinned after they bend through an open gap.",
+  "note": "Pinned ELK Layered and layers coordinates. Organic density changes must leave these in place. Layers node coordinates stay on this pin. Orthogonal layers segments that would cut a foreign box, or finish on a stub too short for the arrowhead, are pinned after they route around that box.",
   "views": [
     {
       "file": "fixtures/valid-layer-bands.plein",
       "view": "layerBands",
-      "width": 412,
+      "width": 420,
       "height": 1076,
       "direction": "tb",
       "mode": "layers",
@@ -114,15 +114,15 @@
             },
             {
               "x": 304,
-              "y": 657
+              "y": 576
             },
             {
-              "x": 240,
-              "y": 657
+              "x": 251,
+              "y": 576
             },
             {
-              "x": 240,
-              "y": 652
+              "x": 251,
+              "y": 600
             }
           ]
         },
@@ -130,20 +130,20 @@
           "id": "orderApi->tms:realizes",
           "points": [
             {
-              "x": 108,
-              "y": 844
+              "x": 24,
+              "y": 870
             },
             {
-              "x": 108,
-              "y": 657
+              "x": 0,
+              "y": 870
             },
             {
-              "x": 172,
-              "y": 657
+              "x": 0,
+              "y": 636
             },
             {
-              "x": 172,
-              "y": 652
+              "x": 122,
+              "y": 636
             }
           ]
         },

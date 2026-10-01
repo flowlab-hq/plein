@@ -154,7 +154,7 @@ export const ORGANIC_PACK_GAP = 24;
  * The packed force layout still draws right-angle connectors itself (Force
  * does not route orthogonally). A shared midpoint elbow stacks those channels
  * on a dense service line. Layered keeps ELK's own routes. Layers reuses this
- * gap only when an inter-band elbow would cut through another box.
+ * gap when an orthogonal segment would cut through another box.
  */
 export const ORGANIC_EDGE_GAP = 10;
 
@@ -667,6 +667,18 @@ export async function layoutViewpoint(
         options?.manualPositions ?? [],
       );
 
+  // Layers keeps the band (or saved) coordinates and only redraws an
+  // orthogonal segment when it would pass through another box. A dense
+  // vertical stack has no inter-band elbow, so the clearance pass sees
+  // every segment. Manual placement has no ELK routes; seed the same
+  // center elbows first, then bend the ones that cut.
+  if (mode === "layers" && routing === "orthogonal") {
+    if (!auto) {
+      attachInterBandEdges(packed, list.elements, list.relationships, direction, routing, parentOf);
+    }
+    rerouteLayersOrthogonal(packed, direction);
+  }
+
   const nodes = packed.nodes.slice().sort((a, b) => {
     const left = byId.get(a.id)?.line ?? 0;
     const right = byId.get(b.id)?.line ?? 0;
@@ -735,8 +747,8 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
   // Paint order: container chrome, then element boxes, then connectors.
   // A route that still has to cross a box (layered ELK, or a layers elbow
   // with no open gap) stays readable because the stroke paints last.
-  // Layers inter-band elbows that would cut a foreign box are bent through
-  // a gap instead — a stroke through a filled label is not traceable on
+  // Layers orthogonal segments that would cut a foreign box are bent
+  // around it — a stroke through a filled label is not traceable on
   // Mac even when it paints above the rect. Connectors ignore pointer
   // events; the viewer places a hit target under the boxes so the box
   // stays selectable.
@@ -2062,10 +2074,7 @@ async function layoutLayerBands(
   }
 
   const stacked = stackBandLayouts(direction, bandLayouts);
-  const interBand = attachInterBandEdges(stacked, elements, relationships, direction, routing, parentOf);
-  if (routing === "orthogonal") {
-    rerouteLayersInterBandOrthogonal(stacked, interBand, direction);
-  }
+  attachInterBandEdges(stacked, elements, relationships, direction, routing, parentOf);
   return stacked;
 }
 
@@ -2335,38 +2344,31 @@ function attachInterBandEdges(
 }
 
 /**
- * Layers lays each ArchiMate band out on its own, then joins bands with a
- * midpoint elbow. That elbow is blind to boxes in the bands it crosses, so
- * a long association runs through their labels. Paint order cannot fix that
- * on the Mac viewer. Bend only the elbows that actually cut a foreign box;
- * a clear elbow and every intra-band ELK route stay put. Organic and grid
- * do not call this.
+ * Layers keeps node coordinates and redraws an orthogonal segment only when
+ * it would pass through another box. That covers inter-band elbows and a
+ * long association down a single column (no foreign band to trigger the
+ * old elbow bend). A clear segment, including every intra-band ELK route
+ * that already misses other boxes, stays put. Organic and grid do not call
+ * this. Layered stays on ELK's own router.
  */
-function rerouteLayersInterBandOrthogonal(
-  packed: PackedLayout,
-  edgeIds: string[],
-  direction: LayoutDirection,
-): void {
-  if (edgeIds.length === 0) {
+function rerouteLayersOrthogonal(packed: PackedLayout, direction: LayoutDirection): void {
+  if (packed.edges.size === 0) {
     return;
   }
   const nodeById = new Map(packed.nodes.map((node) => [node.id, node]));
   const obstacles = packed.nodes.filter((node) => !node.container);
-  const interBand = new Set(edgeIds);
   const specs: OrganicEdgeSpec[] = [];
   const committed: AxisSeg[] = [];
-  for (const [id, edge] of packed.edges) {
-    if (interBand.has(id)) {
-      continue;
-    }
-    committed.push(...axisSegments(edge.points ?? []));
-  }
+  const edgeIds = [...packed.edges.keys()].sort(compareText);
   for (const id of edgeIds) {
     const edge = packed.edges.get(id);
     const ends = edgeEnds(id);
     const source = nodeById.get(ends.source);
     const target = nodeById.get(ends.target);
     if (!edge?.points || !source || !target || source.id === target.id) {
+      if (edge?.points) {
+        committed.push(...axisSegments(edge.points));
+      }
       continue;
     }
     if (foreignBoxCuts(edge.points, source.id, target.id, obstacles) === 0) {
@@ -2388,7 +2390,12 @@ function rerouteLayersInterBandOrthogonal(
     return;
   }
   assignOrganicPorts(specs);
+  const sidePorts = new Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>();
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    sidePorts.set(side, portsAlongSide(specs, side));
+  }
   const replaced = new Set<string>();
+  const bypassed = new Set<string>();
   const ordered = specs.slice().sort((a, b) => {
     const span = organicCenterSpan(b) - organicCenterSpan(a);
     if (Math.abs(span) > 0.5) {
@@ -2402,18 +2409,43 @@ function rerouteLayersInterBandOrthogonal(
       continue;
     }
     const before = foreignBoxCuts(original.points, spec.source.id, spec.target.id, obstacles);
-    const simplified = simplifyOrthogonal(
+    const organic = simplifyOrthogonal(
       chooseOrganicRoute(spec, obstacles, committed, packed.width, packed.height, direction, EDGE_NODE_GAP),
     );
-    const after = foreignBoxCuts(simplified, spec.source.id, spec.target.id, obstacles);
-    if (after >= before || simplified.length < 2) {
+    let chosen = organic;
+    let chosenCuts = foreignBoxCuts(organic, spec.source.id, spec.target.id, obstacles);
+    let usedBypass = false;
+    // A zero-cut gap elbow whose last leg already holds the arrowhead is the
+    // #74 route and stays. A stack of boxes often leaves that leg shorter
+    // than the head, or still crossing a centre; the outside lane is for that.
+    const organicHoldsHead = chosenCuts === 0 && finalSegmentSpan(organic) + 0.01 >= EDGE_NODE_GAP;
+    if (!organicHoldsHead) {
+      const bypass = chooseLayersBypass(spec, obstacles, committed, sidePorts);
+      if (bypass) {
+        const bypassCuts = foreignBoxCuts(bypass, spec.source.id, spec.target.id, obstacles);
+        const bypassSpan = finalSegmentSpan(bypass);
+        const betterCuts = bypassCuts < chosenCuts;
+        const holdsHead = bypassCuts === 0 && bypassSpan + 0.01 >= EDGE_NODE_GAP && bypassSpan > finalSegmentSpan(chosen);
+        if (betterCuts || holdsHead) {
+          chosen = bypass;
+          chosenCuts = bypassCuts;
+          usedBypass = true;
+        }
+      }
+    }
+    if (chosenCuts >= before || chosen.length < 2) {
       committed.push(...axisSegments(original.points));
       continue;
     }
+    const simplified = simplifyOrthogonal(chosen);
     const start = simplified[0]!;
     const end = simplified[simplified.length - 1]!;
     packed.edges.set(spec.id, { x1: start.x, y1: start.y, x2: end.x, y2: end.y, points: simplified });
     replaced.add(spec.id);
+    if (usedBypass) {
+      bypassed.add(spec.id);
+      growPackedAroundPoints(packed, simplified);
+    }
     committed.push(...axisSegments(simplified));
   }
   if (replaced.size === 0) {
@@ -2423,6 +2455,173 @@ function rerouteLayersInterBandOrthogonal(
   // A source stub may already share a channel. That must not block sliding
   // the target trunk out to EDGE_NODE_GAP, or the arrowhead lands on the bend.
   lengthenOrganicFinalSegments(packed, obstacles, replaced, true);
+  for (const id of bypassed) {
+    const edge = packed.edges.get(id);
+    if (edge?.points) {
+      growPackedAroundPoints(packed, edge.points);
+    }
+  }
+}
+
+/** Spread attachment points along one side for every edge that may need a bypass. */
+function portsAlongSide(
+  specs: OrganicEdgeSpec[],
+  side: OrganicSide,
+): Map<string, { source: ElkPoint; target: ElkPoint }> {
+  const clones = specs.map((spec) => ({
+    ...spec,
+    sourceSide: side,
+    targetSide: side,
+    sourcePort: { x: 0, y: 0 },
+    targetPort: { x: 0, y: 0 },
+  }));
+  assignOrganicPorts(clones);
+  const ports = new Map<string, { source: ElkPoint; target: ElkPoint }>();
+  for (const clone of clones) {
+    ports.set(clone.id, { source: clone.sourcePort, target: clone.targetPort });
+  }
+  return ports;
+}
+
+/**
+ * When the gap elbow still cuts a box, walk around the outside of the
+ * stack. A vertical column docks on the left or right; a horizontal row
+ * docks on the top or bottom. The final segment is perpendicular to that
+ * side and at least `EDGE_NODE_GAP` long so the arrowhead stays on it.
+ */
+function chooseLayersBypass(
+  spec: OrganicEdgeSpec,
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  sidePorts: Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>,
+): ElkPoint[] | null {
+  let best: ElkPoint[] | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestKey = "";
+  for (const route of layersBypassCandidates(spec, obstacles, sidePorts)) {
+    if (foreignBoxCuts(route, spec.source.id, spec.target.id, obstacles) > 0) {
+      continue;
+    }
+    const end = route[route.length - 1]!;
+    const before = route[route.length - 2]!;
+    if (Math.hypot(end.x - before.x, end.y - before.y) + 0.01 < EDGE_NODE_GAP) {
+      continue;
+    }
+    const score = scoreOrganicRoute(route, obstacles, spec, committed, EDGE_NODE_GAP);
+    const key = route.map((point) => `${point.x},${point.y}`).join(" ");
+    if (score < bestScore - 1e-6 || (Math.abs(score - bestScore) <= 1e-6 && (bestKey === "" || key < bestKey))) {
+      best = route;
+      bestScore = score;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+function layersBypassCandidates(
+  spec: OrganicEdgeSpec,
+  obstacles: LayoutNode[],
+  sidePorts: Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>,
+): ElkPoint[][] {
+  const span = spanObstacles(spec, obstacles);
+  const boxes = [spec.source, spec.target, ...span];
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const node of boxes) {
+    minX = Math.min(minX, node.x);
+    maxX = Math.max(maxX, node.x + node.width);
+    minY = Math.min(minY, node.y);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+  const routes: ElkPoint[][] = [];
+  for (let step = 0; step < 6; step += 1) {
+    const pad = EDGE_NODE_GAP + step * ORGANIC_EDGE_GAP;
+    const lanes: Array<{ side: OrganicSide; lane: number; axis: "x" | "y" }> = [
+      { side: "left", lane: roundCoord(minX - pad), axis: "x" },
+      { side: "right", lane: roundCoord(maxX + pad), axis: "x" },
+      { side: "top", lane: roundCoord(minY - pad), axis: "y" },
+      { side: "bottom", lane: roundCoord(maxY + pad), axis: "y" },
+    ];
+    for (const lane of lanes) {
+      const ports = sidePorts.get(lane.side)?.get(spec.id);
+      if (!ports) {
+        continue;
+      }
+      const route =
+        lane.axis === "x"
+          ? [
+              ports.source,
+              { x: lane.lane, y: ports.source.y },
+              { x: lane.lane, y: ports.target.y },
+              ports.target,
+            ]
+          : [
+              ports.source,
+              { x: ports.source.x, y: lane.lane },
+              { x: ports.target.x, y: lane.lane },
+              ports.target,
+            ];
+      routes.push(simplifyOrthogonal(route));
+    }
+  }
+  return routes;
+}
+
+/** Foreign boxes whose rectangle meets the axis-aligned span of the two ends. */
+function spanObstacles(spec: OrganicEdgeSpec, obstacles: LayoutNode[]): LayoutNode[] {
+  const minX = Math.min(spec.source.x, spec.target.x);
+  const maxX = Math.max(spec.source.x + spec.source.width, spec.target.x + spec.target.width);
+  const minY = Math.min(spec.source.y, spec.target.y);
+  const maxY = Math.max(spec.source.y + spec.source.height, spec.target.y + spec.target.height);
+  return obstacles.filter((node) => {
+    if (node.id === spec.source.id || node.id === spec.target.id) {
+      return false;
+    }
+    return node.x < maxX && node.x + node.width > minX && node.y < maxY && node.y + node.height > minY;
+  });
+}
+
+/** Grow the content box when a bypass lane sits outside the node bounds. */
+function growPackedAroundPoints(packed: PackedLayout, points: ElkPoint[]): void {
+  const margin = 8;
+  let minX = packed.x ?? 0;
+  let minY = packed.y ?? 0;
+  let maxX = minX + packed.width;
+  let maxY = minY + packed.height;
+  for (const point of points) {
+    if (point.x < minX + 2) {
+      minX = Math.min(minX, point.x - margin);
+    }
+    if (point.y < minY + 2) {
+      minY = Math.min(minY, point.y - margin);
+    }
+    if (point.x > maxX - 2) {
+      maxX = Math.max(maxX, point.x + margin);
+    }
+    if (point.y > maxY - 2) {
+      maxY = Math.max(maxY, point.y + margin);
+    }
+  }
+  packed.x = minX;
+  packed.y = minY;
+  packed.width = maxX - minX;
+  packed.height = maxY - minY;
+}
+
+function finalSegmentSpan(points: ElkPoint[]): number {
+  if (points.length < 2) {
+    return 0;
+  }
+  const end = points[points.length - 1]!;
+  for (let index = points.length - 2; index >= 0; index -= 1) {
+    const from = points[index]!;
+    if (from.x !== end.x || from.y !== end.y) {
+      return Math.hypot(end.x - from.x, end.y - from.y);
+    }
+  }
+  return 0;
 }
 
 function foreignBoxCuts(
@@ -2513,9 +2712,8 @@ type AxisSeg = {
  * Replace organic midpoint elbows with right-angle routes that leave on
  * facing sides, spread parallel trunks by `ORGANIC_EDGE_GAP`, and prefer a
  * channel that does not cut through a foreign box. Node coordinates stay
- * the seeded pack. Grid keeps `orthogonalBetween`. Layers inter-band elbows
- * that cut a foreign box are rerouted on their own; this pass does not run
- * for them.
+ * the seeded pack. Grid keeps `orthogonalBetween`. Layers clears its own
+ * orthogonal segments and does not call this pass.
  */
 function rerouteOrganicOrthogonal(
   packed: PackedLayout,

@@ -376,7 +376,7 @@ The Mac diagram chrome keeps **Auto layout** (File / On / Off) and **Mode** (Fil
 
 ### Layer bands (`autoLayout layers`)
 
-Plain `autoLayout tb|bt|lr|rl` is ELK Layered ranked by edges. `autoLayout layers` still uses that engine, but **once per ArchiMate aspect band**: root elements are ranked into bands, each band is laid out with ELK Layered, then the bands are stacked. Empty bands are omitted. Cross-band serving/realization arrows are routed after the stack, so they cannot pull a technology node into the business band. An orthogonal cross-band elbow that would cut through another element box is bent through an open gap; the boxes themselves stay where ELK put them. Polyline cross-band arrows stay straight.
+Plain `autoLayout tb|bt|lr|rl` is ELK Layered ranked by edges. `autoLayout layers` still uses that engine, but **once per ArchiMate aspect band**: root elements are ranked into bands, each band is laid out with ELK Layered, then the bands are stacked. Empty bands are omitted. Cross-band serving/realization arrows are routed after the stack, so they cannot pull a technology node into the business band. An orthogonal segment that would cut through another element box — a cross-band elbow or a long run down a vertical stack — is bent through an open gap or around the stack. The boxes themselves stay where the layout put them. Polyline cross-band arrows stay straight.
 
 ```plein
 viewpoint bookingContext "Booking context" {
