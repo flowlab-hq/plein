@@ -191,6 +191,31 @@ test("Mac UI switches named views from the left sidebar only", () => {
   assert.match(ui, /buttonForView/);
 });
 
+test("toolbar brand mark is the locked B2 monogram", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+  const svg = readFileSync(join(repoRoot, "app/ui/mark.svg"), "utf8");
+  const brandStart = html.indexOf('<div class="brand">');
+  const brand = html.slice(brandStart, html.indexOf("</div>", brandStart));
+
+  assert.match(brand, /<img class="mark" src="\.\/mark\.svg"/);
+  assert.match(brand, /width="18"/);
+  assert.match(brand, /height="18"/);
+  assert.equal(html.includes('class="mark" aria-hidden="true"></span>'), false);
+
+  const mark = css.match(/\.mark\s*\{[^}]+\}/);
+  assert.ok(mark, "mark rule exists");
+  assert.match(mark[0]!, /width:\s*18px/);
+  assert.match(mark[0]!, /height:\s*18px/);
+  assert.equal(/linear-gradient/.test(mark[0]!), false, "old blue-green square is gone");
+
+  assert.match(svg, /viewBox="0 0 524 524"/);
+  assert.match(svg, /fill="#fbf9fa"/);
+  assert.match(svg, /fill="#1170fe"/);
+  assert.match(svg, /fill="#fe6f65"/);
+  assert.match(svg, /<circle\b/);
+});
+
 test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () => {
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
   const workspace = css.match(/\.workspace\s*\{[^}]+\}/);
