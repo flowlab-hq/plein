@@ -2512,6 +2512,122 @@ test("layers orthogonal routes bend through open gaps instead of cutting foreign
   }
 });
 
+test("Gemba Layers orthogonal routes stay outside a dense vertical stack", async () => {
+  const loaded = loadPleinSource(
+    readFixture("gemba-advantage-company.plein"),
+    "fixtures/gemba-advantage-company.plein",
+  );
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) {
+    return;
+  }
+
+  const bands = await layoutViewpoint(loaded.model, "gembaAdvantageServiceLines", {
+    mode: "layers",
+    routing: "orthogonal",
+  });
+  assert.equal(bands.mode, "layers");
+  assert.equal(bands.routing, "orthogonal");
+  assert.equal(bands.auto, true);
+  assert.equal(bands.width, 804);
+  assert.equal(bands.height, 364);
+  assert.equal(diagonalSegments(bands), 0);
+  // Band placement stays the three-row company layout. Routing must not reshuffle it.
+  assert.deepEqual(
+    bands.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { id: "dataAndAI", x: 108, y: 24, width: 168, height: 52 },
+      { id: "gareth", x: 612, y: 180, width: 168, height: 52 },
+      { id: "gembaAdvantage", x: 24, y: 180, width: 168, height: 52 },
+      { id: "kimReid", x: 220, y: 180, width: 168, height: 52 },
+      { id: "martynSwift", x: 416, y: 180, width: 168, height: 52 },
+      { id: "researchAndInnovation", x: 506, y: 24, width: 190, height: 52 },
+      { id: "roleLeadAiData", x: 220, y: 288, width: 168, height: 52 },
+      { id: "roleLeadResearchInnovation", x: 612, y: 288, width: 168, height: 52 },
+      { id: "roleLeadSoftwareProduct", x: 416, y: 288, width: 168, height: 52 },
+      { id: "softwareAndProductServiceLine", x: 304, y: 24, width: 174, height: 52 },
+    ],
+  );
+  assertNoForeignInterior(bands, renderViewpointSvg(bands));
+
+  // v0.1.28 fail photo: the same ten elements in one declaration-order column.
+  // No saved positions, so the column is the placement; the long association
+  // used to run through every centre with a head on each box it crossed.
+  const stack = await layoutViewpoint(loaded.model, "gembaAdvantageServiceLines", {
+    mode: "layers",
+    routing: "orthogonal",
+    autoLayout: "off",
+  });
+  assert.equal(stack.mode, "layers");
+  assert.equal(stack.routing, "orthogonal");
+  assert.equal(stack.auto, false);
+  assert.equal(diagonalSegments(stack), 0);
+  assert.deepEqual(
+    stack.nodes
+      .map((node) => ({ id: node.id, x: node.x, y: node.y, width: node.width, height: node.height }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    [
+      { id: "dataAndAI", x: 24, y: 584, width: 168, height: 52 },
+      { id: "gareth", x: 24, y: 264, width: 168, height: 52 },
+      { id: "gembaAdvantage", x: 24, y: 24, width: 168, height: 52 },
+      { id: "kimReid", x: 24, y: 104, width: 168, height: 52 },
+      { id: "martynSwift", x: 24, y: 184, width: 168, height: 52 },
+      { id: "researchAndInnovation", x: 24, y: 744, width: 190, height: 52 },
+      { id: "roleLeadAiData", x: 24, y: 344, width: 168, height: 52 },
+      { id: "roleLeadResearchInnovation", x: 24, y: 504, width: 168, height: 52 },
+      { id: "roleLeadSoftwareProduct", x: 24, y: 424, width: 168, height: 52 },
+      { id: "softwareAndProductServiceLine", x: 24, y: 664, width: 174, height: 52 },
+    ],
+  );
+  const svg = renderViewpointSvg(stack);
+  assertNoForeignInterior(stack, svg);
+  const drawn = stack.edges.filter((edge) => !edge.impliedByNest);
+  assert.equal(drawn.length, 9);
+  for (const edge of drawn) {
+    assertRenderedConnectorGap(svg, stack, edge);
+    const points = edge.points ?? [];
+    for (const point of points) {
+      assert.ok(point.x >= (stack.x ?? 0) - 0.01 && point.x <= (stack.x ?? 0) + stack.width + 0.01, edge.id);
+      assert.ok(point.y >= (stack.y ?? 0) - 0.01 && point.y <= (stack.y ?? 0) + stack.height + 0.01, edge.id);
+    }
+  }
+  const long = drawn.find((edge) => edge.id === "gembaAdvantage->researchAndInnovation:associatedWith");
+  assert.ok(long?.points);
+  const outside = long.points!.some((point) => point.x < 24 || point.x > 214);
+  assert.equal(outside, true, "the long association stays beside the column");
+  const research = stack.nodes.find((node) => node.id === "researchAndInnovation");
+  assert.ok(research);
+  const tip = long.points![long.points!.length - 1]!;
+  assert.ok(rectDistance(tip, research) < 2, "arrowhead docks on the research service line");
+});
+
+function assertNoForeignInterior(layout: ViewpointLayout, svg: string): void {
+  for (const edge of layout.edges) {
+    if (edge.impliedByNest) {
+      continue;
+    }
+    const layoutPoints = edge.points ?? [];
+    const rendered = renderedPolyline(svg, edge.id);
+    for (const node of layout.nodes) {
+      if (node.container || node.id === edge.source || node.id === edge.target) {
+        continue;
+      }
+      assert.equal(
+        polylineCrossesBox(layoutPoints, node),
+        false,
+        `${layout.mode} ${edge.id} cuts ${node.id}`,
+      );
+      assert.equal(
+        polylineCrossesBox(rendered, node),
+        false,
+        `${layout.mode} rendered ${edge.id} cuts ${node.id}`,
+      );
+    }
+  }
+}
+
 test("connector gap holds for nested containers and auto-layout modes", async () => {
   const dense = loadPleinSource(
     `model {

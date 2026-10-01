@@ -1,0 +1,329 @@
+// Actica (Actica Consulting + Gemba Advantage + ntegra) — Gemba service lines:
+// Kim Reid (AI & Data) + Martyn Swift (Software and Product)
+// + Gareth (Research and Innovation, Sept 2026 structure PDF)
+//
+// ArchiMate mapping (Kim’s legend / R&I tables → Plein):
+//   Service line root  → value-stream
+//   Blue / named Service → business-service  (maturity noted in comments)
+//   Green / named Capability → capability
+//   Yellow / Competency → capability (finer grain; parent aggregates child)
+//   (BORROWED)         → same capability id shared; label marks Borrowed
+//
+// Relationships (ArchiMate matrix / plein check):
+//   capability → value-stream : serving
+//   capability → business-service : association
+//   business-service → value-stream : association
+//   parent capability aggregates competency capabilities.
+// R&I capabilities associate to all four R&I services (doc: Advanced
+// Prototyping can embrace all capabilities; others use the same pool).
+// Note: serving is not allowed business-service→value-stream or
+// capability→business-service in the M4 matrix shipped with v0.1.16+.
+plein {
+  model {
+    // ========== Actica group ==========
+    business-actor "Actica" as actica
+    business-actor "Actica Consulting" as acticaConsulting
+    business-actor "Gemba Advantage" as gembaAdvantage
+    business-actor "ntegra" as ntegra
+
+    actica -> acticaConsulting: aggregation
+    actica -> gembaAdvantage: aggregation
+    actica -> ntegra: aggregation
+
+    // ========== Service line leads ==========
+    business-actor "Kim Reid" as kimReid
+    business-actor "Martyn Swift" as martynSwift
+    business-actor "Gareth" as gareth
+
+    business-role "Service Line Lead" as roleLeadAiData
+    business-role "Service Line Lead" as roleLeadSoftwareProduct
+    business-role "Service Line Lead" as roleLeadResearchInnovation
+
+    kimReid -> roleLeadAiData: assignment
+    martynSwift -> roleLeadSoftwareProduct: assignment
+    gareth -> roleLeadResearchInnovation: assignment
+
+    // ========== AI & Data (Kim Reid) ==========
+    value-stream "AI & Data Service Line" as dataAndAI
+
+    // --- L1 Services (blue) ---
+    // Maturity: Established
+    business-service "Legacy Data Modernization" as svcLegacyModernization
+    // Maturity: Established
+    business-service "Core Data Foundations" as svcCoreFoundations
+    // Maturity: Transitional
+    business-service "Data Products & Insights" as svcDataProductsInsights
+    // Maturity: Developing
+    business-service "AI Driven Solutions & Automation" as svcAIDrivenSolutions
+
+    svcLegacyModernization -> dataAndAI: association
+    svcCoreFoundations -> dataAndAI: association
+    svcDataProductsInsights -> dataAndAI: association
+    svcAIDrivenSolutions -> dataAndAI: association
+
+    // --- L2 Capabilities (green) — owned ---
+    capability "Data Platforms" as capDataPlatforms
+    capability "Data Engineering" as capDataEngineering
+    capability "Data Migration & Transition" as capDataMigrationTransition
+    capability "Data Enablement & Products" as capDataEnablementProducts
+    capability "Data Analytics & Visualization" as capDataAnalyticsViz
+    capability "Artificial Intelligence" as capArtificialIntelligence
+
+    // --- L2 Capabilities (green) — BORROWED (shared once) ---
+    capability "Cyber Capability (BORROWED)" as capCyberBorrowed
+    capability "Platform Capability (BORROWED)" as capPlatformBorrowed
+    capability "Design & Product (BORROWED)" as capDesignProductBorrowed
+    capability "Software & Product (BORROWED)" as capSoftwareProductBorrowed
+    capability "Platform (BORROWED)" as capPlatformAiBorrowed
+
+    // Legacy Data Modernization ← capabilities
+    capDataPlatforms -> svcLegacyModernization: association
+    capCyberBorrowed -> svcLegacyModernization: association
+    capPlatformBorrowed -> svcLegacyModernization: association
+    capDataEngineering -> svcLegacyModernization: association
+    capDataMigrationTransition -> svcLegacyModernization: association
+
+    // Core Data Foundations ← capabilities (shared platforms/engineering/cyber)
+    capDataPlatforms -> svcCoreFoundations: association
+    capCyberBorrowed -> svcCoreFoundations: association
+    capPlatformBorrowed -> svcCoreFoundations: association
+    capDataEngineering -> svcCoreFoundations: association
+
+    // Data Products & Insights ← capabilities
+    capDesignProductBorrowed -> svcDataProductsInsights: association
+    capDataEnablementProducts -> svcDataProductsInsights: association
+    capDataAnalyticsViz -> svcDataProductsInsights: association
+
+    // AI Driven Solutions & Automation ← capabilities
+    capCyberBorrowed -> svcAIDrivenSolutions: association
+    capArtificialIntelligence -> svcAIDrivenSolutions: association
+    capSoftwareProductBorrowed -> svcAIDrivenSolutions: association
+    capPlatformAiBorrowed -> svcAIDrivenSolutions: association
+
+    // --- L3 Competencies (yellow) under Data Platforms ---
+    capability "Data Infrastructure" as cmpDataInfrastructure
+    capability "Databases & Storage" as cmpDatabasesStorage
+    capability "Data Observability" as cmpDataObservability
+    capability "Data Governance" as cmpDataGovernance
+
+    capDataPlatforms -> cmpDataInfrastructure: aggregation
+    capDataPlatforms -> cmpDatabasesStorage: aggregation
+    capDataPlatforms -> cmpDataObservability: aggregation
+    capDataPlatforms -> cmpDataGovernance: aggregation
+
+    // --- L3 under Data Engineering ---
+    capability "Data Pipelines" as cmpDataPipelines
+    capability "Data Architecture" as cmpDataArchitecture
+
+    capDataEngineering -> cmpDataPipelines: aggregation
+    capDataEngineering -> cmpDataArchitecture: aggregation
+
+    // --- L3 under Data Migration & Transition ---
+    capability "Legacy Extraction" as cmpLegacyExtraction
+    capability "Schema Refactoring" as cmpSchemaRefactoring
+    capability "Data Fidelity & Validation" as cmpDataFidelityValidation
+
+    capDataMigrationTransition -> cmpLegacyExtraction: aggregation
+    capDataMigrationTransition -> cmpSchemaRefactoring: aggregation
+    capDataMigrationTransition -> cmpDataFidelityValidation: aggregation
+
+    // --- L3 under Data Enablement & Products ---
+    capability "Data Cataloging & Metadata" as cmpDataCataloging
+    capability "Data Contracts & Quality" as cmpDataContractsQuality
+    capability "Data Provisioning & Sharing" as cmpDataProvisioning
+
+    capDataEnablementProducts -> cmpDataCataloging: aggregation
+    capDataEnablementProducts -> cmpDataContractsQuality: aggregation
+    capDataEnablementProducts -> cmpDataProvisioning: aggregation
+
+    // --- L3 under Data Analytics & Visualization ---
+    capability "Data Analytics" as cmpDataAnalytics
+    capability "Data Visualization" as cmpDataVisualization
+
+    capDataAnalyticsViz -> cmpDataAnalytics: aggregation
+    capDataAnalyticsViz -> cmpDataVisualization: aggregation
+
+    // --- L3 under Artificial Intelligence ---
+    // Annotation on diagram: Applied AI → AI Fundamentals
+    capability "Applied AI" as cmpAppliedAI
+    capability "AI Fundamentals" as cmpAIFundamentals
+    // MLOps note (diagram): inference servers (e.g. MLServer), SageMaker,
+    // model registries, drift, GPU/FinOps for AI models
+    capability "MLOps" as cmpMLOps
+    capability "Agentic AI" as cmpAgenticAI
+
+    capArtificialIntelligence -> cmpAppliedAI: aggregation
+    capArtificialIntelligence -> cmpMLOps: aggregation
+    capArtificialIntelligence -> cmpAgenticAI: aggregation
+    cmpAppliedAI -> cmpAIFundamentals: specialization
+
+    gembaAdvantage -> dataAndAI: association
+    roleLeadAiData -> dataAndAI: association
+
+    // ========== Software and Product (Martyn Swift) ==========
+    // Maturity: Product Management = Incubating;
+    // Product Design + Product Engineering = Developing.
+    value-stream "Software and Product Service Line" as softwareAndProductServiceLine
+
+    capability "Product Management" as productManagement
+    capability "Product Design" as productDesign
+    capability "Product Engineering" as productEngineering
+    grouping "Software & Product Capabilities" as softwareAndProductCapabilities
+
+    softwareAndProductCapabilities -> productManagement: aggregation
+    softwareAndProductCapabilities -> productDesign: aggregation
+    softwareAndProductCapabilities -> productEngineering: aggregation
+
+    productManagement -> softwareAndProductServiceLine: serving
+    productDesign -> softwareAndProductServiceLine: serving
+    productEngineering -> softwareAndProductServiceLine: serving
+
+    gembaAdvantage -> softwareAndProductServiceLine: association
+    roleLeadSoftwareProduct -> softwareAndProductServiceLine: association
+    martynSwift -> softwareAndProductCapabilities: association
+
+    // ========== Research and Innovation (Sept 2026) ==========
+    // Supporting service line for the other Gemba lines; revenue-generating
+    // + value-add (bench) work. Source: r_and_i_structure_20260925.pdf
+    value-stream "Research and Innovation Service Line" as researchAndInnovation
+
+    // --- Services ---
+    business-service "Discovery & Feasibility" as svcDiscoveryFeasibility
+    business-service "Advanced Prototyping" as svcAdvancedPrototyping
+    business-service "Test & Validate" as svcTestValidate
+    business-service "Technical Development" as svcTechnicalDevelopment
+
+    svcDiscoveryFeasibility -> researchAndInnovation: association
+    svcAdvancedPrototyping -> researchAndInnovation: association
+    svcTestValidate -> researchAndInnovation: association
+    svcTechnicalDevelopment -> researchAndInnovation: association
+
+    // --- Capabilities ---
+    capability "Hardware" as capRiHardware
+    capability "AI" as capRiAi
+    capability "Software" as capRiSoftware
+
+    // Capabilities serve each R&I service (shared pool)
+    capRiHardware -> svcDiscoveryFeasibility: association
+    capRiAi -> svcDiscoveryFeasibility: association
+    capRiSoftware -> svcDiscoveryFeasibility: association
+    capRiHardware -> svcAdvancedPrototyping: association
+    capRiAi -> svcAdvancedPrototyping: association
+    capRiSoftware -> svcAdvancedPrototyping: association
+    capRiHardware -> svcTestValidate: association
+    capRiAi -> svcTestValidate: association
+    capRiSoftware -> svcTestValidate: association
+    capRiHardware -> svcTechnicalDevelopment: association
+    capRiAi -> svcTechnicalDevelopment: association
+    capRiSoftware -> svcTechnicalDevelopment: association
+
+    // --- Competencies under Hardware (maturity in comments) ---
+    // Maturity: Low
+    capability "Firmware" as cmpFirmware
+    // Maturity: Low
+    capability "Drones" as cmpDrones
+    // Maturity: Medium
+    capability "Edge / IoT" as cmpEdgeIot
+    // Maturity: Medium
+    capability "Robotics" as cmpRobotics
+
+    capRiHardware -> cmpFirmware: aggregation
+    capRiHardware -> cmpDrones: aggregation
+    capRiHardware -> cmpEdgeIot: aggregation
+    capRiHardware -> cmpRobotics: aggregation
+
+    // --- Competencies under AI ---
+    // Maturity: High
+    capability "ML Ops" as cmpRiMlOps
+    // Maturity: High
+    capability "Data Gen." as cmpDataGen
+
+    capRiAi -> cmpRiMlOps: aggregation
+    capRiAi -> cmpDataGen: aggregation
+
+    // --- Competencies under Software ---
+    // Maturity: Medium
+    capability "Synth Data" as cmpSynthData
+    // Maturity: High
+    capability "UX" as cmpUx
+    // Maturity: High
+    capability "Cloud" as cmpRiCloud
+    // Maturity: Zero (horizon)
+    capability "Quantum" as cmpQuantum
+
+    capRiSoftware -> cmpSynthData: aggregation
+    capRiSoftware -> cmpUx: aggregation
+    capRiSoftware -> cmpRiCloud: aggregation
+    capRiSoftware -> cmpQuantum: aggregation
+
+    gembaAdvantage -> researchAndInnovation: association
+    roleLeadResearchInnovation -> researchAndInnovation: association
+  }
+
+  views {
+    // Services + owned/borrowed capabilities (Kim overview)
+    viewpoint dataAndAIServices "AI & Data" {
+      title "AI & Data"
+      include dataAndAI, svcLegacyModernization, svcCoreFoundations, svcDataProductsInsights, svcAIDrivenSolutions
+      include capDataPlatforms, capDataEngineering, capDataMigrationTransition, capDataEnablementProducts, capDataAnalyticsViz, capArtificialIntelligence
+      include capCyberBorrowed, capPlatformBorrowed, capDesignProductBorrowed, capSoftwareProductBorrowed, capPlatformAiBorrowed
+      include kimReid, roleLeadAiData, gembaAdvantage
+      autoLayout tb
+      nesting nested
+    }
+
+    // Competency depth (yellow layer)
+    viewpoint dataAndAICompetencies "AI & Data — competencies" {
+      title "AI & Data — competencies"
+      include capDataPlatforms, cmpDataInfrastructure, cmpDatabasesStorage, cmpDataObservability, cmpDataGovernance
+      include capDataEngineering, cmpDataPipelines, cmpDataArchitecture
+      include capDataMigrationTransition, cmpLegacyExtraction, cmpSchemaRefactoring, cmpDataFidelityValidation
+      include capDataEnablementProducts, cmpDataCataloging, cmpDataContractsQuality, cmpDataProvisioning
+      include capDataAnalyticsViz, cmpDataAnalytics, cmpDataVisualization
+      include capArtificialIntelligence, cmpAppliedAI, cmpAIFundamentals, cmpMLOps, cmpAgenticAI
+      autoLayout tb
+      nesting nested
+    }
+
+    viewpoint softwareAndProduct "Software and Product" {
+      title "Software and Product"
+      include softwareAndProductServiceLine, productManagement, productDesign, productEngineering, softwareAndProductCapabilities, gembaAdvantage, martynSwift, roleLeadSoftwareProduct
+      autoLayout tb
+      nesting nested
+    }
+
+    viewpoint researchAndInnovationServices "Research and Innovation" {
+      title "Research and Innovation"
+      include researchAndInnovation, svcDiscoveryFeasibility, svcAdvancedPrototyping, svcTestValidate, svcTechnicalDevelopment
+      include capRiHardware, capRiAi, capRiSoftware
+      include gembaAdvantage, gareth, roleLeadResearchInnovation
+      autoLayout tb
+      nesting nested
+    }
+
+
+    viewpoint actica "Actica" {
+      title "Actica"
+      include actica, acticaConsulting, gembaAdvantage, ntegra
+      autoLayout tb
+      nesting nested
+    }
+
+    viewpoint gembaAdvantageServiceLines "Gemba Advantage" {
+      title "Gemba Advantage"
+      include gembaAdvantage, dataAndAI, softwareAndProductServiceLine, researchAndInnovation
+      include roleLeadAiData, roleLeadSoftwareProduct, roleLeadResearchInnovation
+      include kimReid, martynSwift, gareth
+      autoLayout tb
+      nesting nested
+    }
+    viewpoint researchAndInnovationCompetencies "Research and Innovation — competencies" {
+      title "Research and Innovation — competencies"
+      include capRiHardware, cmpFirmware, cmpDrones, cmpEdgeIot, cmpRobotics
+      include capRiAi, cmpRiMlOps, cmpDataGen
+      include capRiSoftware, cmpSynthData, cmpUx, cmpRiCloud, cmpQuantum
+      autoLayout tb
+      nesting nested
+    }
+  }
+}

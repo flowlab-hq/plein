@@ -34,6 +34,7 @@ GOLDEN=(
   fixtures/valid-views.plein
   fixtures/valid-catalogue-layers.plein
   fixtures/valid-layer-bands.plein
+  fixtures/gemba-advantage-company.plein
   fixtures/valid-organic-grid.plein
   fixtures/valid-manual-layout.plein
   fixtures/valid-capability-value-stream.plein
