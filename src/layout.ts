@@ -153,8 +153,8 @@ export const ORGANIC_PACK_GAP = 24;
  * Minimum separation between parallel organic orthogonal channels.
  * The packed force layout still draws right-angle connectors itself (Force
  * does not route orthogonally). A shared midpoint elbow stacks those channels
- * on a dense service line. Layered keeps ELK's own routes. Layers reuses this
- * gap when an orthogonal segment would cut through another box.
+ * on a dense service line. Layered and layers reuse this gap when an
+ * orthogonal segment would cut through another box.
  */
 export const ORGANIC_EDGE_GAP = 10;
 
@@ -667,16 +667,17 @@ export async function layoutViewpoint(
         options?.manualPositions ?? [],
       );
 
-  // Layers keeps the band (or saved) coordinates and only redraws an
-  // orthogonal segment when it would pass through another box. A dense
-  // vertical stack has no inter-band elbow, so the clearance pass sees
-  // every segment. Manual placement has no ELK routes; seed the same
-  // center elbows first, then bend the ones that cut.
-  if (mode === "layers" && routing === "orthogonal") {
+  // Layered and layers keep node coordinates and only redraw an orthogonal
+  // segment when it would pass through another box. Layers needs that for
+  // inter-band elbows and a dense column. Layered ELK usually misses other
+  // boxes; a frozen column (auto layout off, no saved positions) has no ELK
+  // route and the center elbow runs through every box in between. Seed those
+  // center elbows first, then bend the ones that cut. A clear segment stays.
+  if ((mode === "layered" || mode === "layers") && routing === "orthogonal") {
     if (!auto) {
       attachInterBandEdges(packed, list.elements, list.relationships, direction, routing, parentOf);
     }
-    rerouteLayersOrthogonal(packed, direction);
+    rerouteOrthogonalAroundBoxes(packed, direction);
   }
 
   const nodes = packed.nodes.slice().sort((a, b) => {
@@ -745,11 +746,11 @@ export function renderViewpointSvg(layout: ViewpointLayout): string {
   const title = layout.title ?? layout.viewName;
   const markerId = `arrow-${xmlId(layout.viewName)}`;
   // Paint order: container chrome, then element boxes, then connectors.
-  // A route that still has to cross a box (layered ELK, or a layers elbow
-  // with no open gap) stays readable because the stroke paints last.
-  // Layers orthogonal segments that would cut a foreign box are bent
-  // around it — a stroke through a filled label is not traceable on
-  // Mac even when it paints above the rect. Connectors ignore pointer
+  // A route that still has to cross a box (no open gap) stays readable
+  // because the stroke paints last. Layered and layers orthogonal segments
+  // that would cut a foreign box are bent around it — a stroke through a
+  // filled label is not traceable on Mac even when it paints above the
+  // rect. Connectors ignore pointer
   // events; the viewer places a hit target under the boxes so the box
   // stays selectable.
   // The parent is one group (chrome + title + type icon) — not a header
@@ -2344,14 +2345,13 @@ function attachInterBandEdges(
 }
 
 /**
- * Layers keeps node coordinates and redraws an orthogonal segment only when
- * it would pass through another box. That covers inter-band elbows and a
- * long association down a single column (no foreign band to trigger the
- * old elbow bend). A clear segment, including every intra-band ELK route
- * that already misses other boxes, stays put. Organic and grid do not call
- * this. Layered stays on ELK's own router.
+ * Layered and layers keep node coordinates and redraw an orthogonal segment
+ * only when it would pass through another box. That covers ELK routes, a
+ * layers inter-band elbow, and a long association down a frozen column
+ * (auto layout off). A clear segment, including every ELK route that
+ * already misses other boxes, stays put. Organic and grid do not call this.
  */
-function rerouteLayersOrthogonal(packed: PackedLayout, direction: LayoutDirection): void {
+function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDirection): void {
   if (packed.edges.size === 0) {
     return;
   }
@@ -2712,8 +2712,8 @@ type AxisSeg = {
  * Replace organic midpoint elbows with right-angle routes that leave on
  * facing sides, spread parallel trunks by `ORGANIC_EDGE_GAP`, and prefer a
  * channel that does not cut through a foreign box. Node coordinates stay
- * the seeded pack. Grid keeps `orthogonalBetween`. Layers clears its own
- * orthogonal segments and does not call this pass.
+ * the seeded pack. Grid keeps `orthogonalBetween`. Layered and layers clear
+ * their own orthogonal segments and do not call this pass.
  */
 function rerouteOrganicOrthogonal(
   packed: PackedLayout,
