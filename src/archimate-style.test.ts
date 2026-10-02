@@ -201,6 +201,69 @@ test("each icon id has its own markup", () => {
   assert.equal(new Set(markups).size, ICON_IDS.length);
 });
 
+test("business-role glyph is the ArchiMate cylinder and stays distinct from actor", () => {
+  assert.equal(elementStyle("businessRole").icon, "role");
+  assert.equal(elementStyle("business-role").icon, "role");
+  assert.equal(elementStyle("role").icon, "role");
+  assert.equal(elementStyle("businessActor").icon, "stick-figure");
+  assert.equal(elementStyle("business-actor").icon, "stick-figure");
+  assert.equal(elementStyle("stakeholder").icon, "stick-figure");
+
+  const role = iconMarkup("role");
+  const actor = iconMarkup("stick-figure");
+  assert.notEqual(role, actor);
+  assert.notEqual(role, iconMarkup("generic"));
+
+  // Horizontal cylinder: left half-ellipse, straight top and bottom, right end ellipse.
+  assert.match(role, /M4\.6 4\.2 A2\.6 3\.8 0 0 0 4\.6 11\.8 H12\.4/);
+  assert.match(role, /<ellipse cx="12\.4" cy="8" rx="2\.6" ry="3\.8"\/>/);
+  assert.doesNotMatch(role, /M4 14\.5 Q4 3\.5|circle |<rect/);
+  assert.match(actor, /<circle cx="8" cy="3\.2"/);
+  assert.doesNotMatch(actor, /<ellipse/);
+
+  const roleNode: LayoutNode = {
+    id: "clerk",
+    label: "Booking clerk",
+    keyword: "businessRole",
+    x: 24,
+    y: 24,
+    width: 168,
+    height: 52,
+  };
+  const actorNode: LayoutNode = {
+    id: "shipper",
+    label: "Shipper",
+    keyword: "businessActor",
+    x: 24,
+    y: 100,
+    width: 168,
+    height: 52,
+  };
+  const svg = renderViewpointSvg({
+    viewName: "role-and-actor",
+    direction: "tb",
+    mode: "layered",
+    routing: "orthogonal",
+    nesting: "beside",
+    width: 216,
+    height: 176,
+    nodes: [roleNode, actorNode],
+    edges: [],
+  });
+  const styles = svgNodeStyles(svg);
+  assert.equal(styles.find((node) => node.id === "clerk")?.icon, "role");
+  assert.equal(styles.find((node) => node.id === "shipper")?.icon, "stick-figure");
+  assert.match(
+    svg,
+    /data-node-id="clerk"[\s\S]*?data-icon="role"[\s\S]*?M4\.6 4\.2 A2\.6 3\.8 0 0 0 4\.6 11\.8 H12\.4[\s\S]*?<ellipse cx="12\.4" cy="8" rx="2\.6" ry="3\.8"\/>/,
+  );
+  assert.match(svg, /data-node-id="shipper"[\s\S]*?data-icon="stick-figure"[\s\S]*?<circle cx="8" cy="3\.2"/);
+  const clerkIcon = svg.match(/data-node-id="clerk"[\s\S]*?<\/g>/);
+  assert.ok(clerkIcon);
+  assert.match(clerkIcon[0], /<ellipse cx="12\.4" cy="8"/);
+  assert.doesNotMatch(clerkIcon[0], /<circle /);
+});
+
 test("capability and value-stream glyphs differ and match ArchiMate conventions", () => {
   assert.equal(elementStyle("capability").icon, "capability");
   assert.equal(elementStyle("value-stream").icon, "value-stream");

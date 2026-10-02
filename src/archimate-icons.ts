@@ -51,7 +51,9 @@ export type IconId = (typeof ICON_IDS)[number];
 const ICONS: Record<IconId, string> = {
   "stick-figure":
     '<circle cx="8" cy="3.2" r="2.1"/><path d="M8 5.4 V10.4 M4.8 7.8 H11.2 M8 10.4 L5.2 14.6 M8 10.4 L10.8 14.6"/>',
-  role: '<path d="M4 14.5 Q4 3.5 8 3.5 Q12 3.5 12 14.5"/>',
+  // ArchiMate 3.x/4 role: horizontal cylinder (left half-ellipse, straight
+  // top and bottom, ellipse on the right). Not the actor stick figure.
+  role: '<path d="M4.6 4.2 A2.6 3.8 0 0 0 4.6 11.8 H12.4"/><path d="M4.6 4.2 H12.4"/><ellipse cx="12.4" cy="8" rx="2.6" ry="3.8"/>',
   collaboration:
     '<circle cx="5.6" cy="8" r="3.8"/><circle cx="10.4" cy="8" r="3.8"/>',
   interface: '<circle cx="11.2" cy="8" r="2.6"/><path d="M2.2 8 H8.4"/>',

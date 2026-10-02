@@ -26,12 +26,12 @@ Physical shares Technology green on purpose (Archi does the same). Distinguish t
 
 ## Type glyphs
 
-Every parser keyword gets a simplified 16×16 decorator in the top-right of the box. Shapes follow ArchiMate’s usual icon families (stick figure for actor/stakeholder, UML component for application-component, staircase of blocks for capability, notched chevron for value-stream, …). They are **not** full-size ArchiMate figures (no 3D node-as-the-box, no actor-as-the-whole-shape).
+Every parser keyword gets a simplified 16×16 decorator in the top-right of the box. Shapes follow ArchiMate’s usual icon families (stick figure for actor/stakeholder, horizontal cylinder for business-role, UML component for application-component, staircase of blocks for capability, notched chevron for value-stream, …). They are **not** full-size ArchiMate figures (no 3D node-as-the-box, no actor-as-the-whole-shape).
 
 | Glyph id | Used by |
 | --- | --- |
 | `stick-figure` | `business-actor`, `stakeholder` |
-| `role` | `business-role` |
+| `role` | `business-role` (DSL alias `role`) — horizontal cylinder, not the actor stick figure |
 | `collaboration` | `business-collaboration`, `application-collaboration`, `technology-collaboration` |
 | `interface` | `business-interface`, `application-interface`, `technology-interface` |
 | `component` | `application-component` |
