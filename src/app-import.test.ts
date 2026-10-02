@@ -17,12 +17,15 @@ test("Mac File menu imports Open Exchange XML through the CLI importer", () => {
   const readme = readFileSync(join(repoRoot, "app/README.md"), "utf8");
   const guide = readFileSync(join(repoRoot, "docs/open-exchange-import.md"), "utf8");
 
-  const open = html.indexOf('id="open-button"');
-  const toolbar = html.indexOf('id="import-button"');
-  const fileLabel = html.indexOf('id="file-label"');
-  assert.notEqual(open, -1, "toolbar Open… is present");
-  assert.notEqual(toolbar, -1, "toolbar Import… is present");
-  assert.ok(open < toolbar && toolbar < fileLabel, "Import… sits with Open");
+  const menuStart = html.indexOf('<details id="file-menu"');
+  const fileMenu = html.slice(menuStart, html.indexOf("</details>", menuStart));
+  const open = fileMenu.indexOf('id="open-button"');
+  const importItem = fileMenu.indexOf('id="import-button"');
+  assert.notEqual(open, -1, "File menu Open… is present");
+  assert.notEqual(importItem, -1, "File menu Import is present");
+  assert.ok(open < importItem, "Import sits with Open in the File menu");
+  const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
+  assert.equal(toolbar.replace(fileMenu, "").includes('id="import-button"'), false);
   assert.match(html, /id="import-input"/);
   assert.match(html, /accept="\.xml,text\/xml,application\/xml"/);
   assert.match(html, /id="import-notice"/);

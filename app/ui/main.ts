@@ -130,6 +130,7 @@ type OpenedFile = {
   contents: string;
 };
 
+const fileMenu = document.querySelector("#file-menu") as HTMLDetailsElement;
 const openButton = document.querySelector("#open-button") as HTMLButtonElement;
 const importButton = document.querySelector("#import-button") as HTMLButtonElement;
 const reloadButton = document.querySelector("#reload-button") as HTMLButtonElement;
@@ -362,6 +363,17 @@ const EXPORT_FORMAT_NOTES: Record<MacExportFormat, string> = {
 
 function tauri(): TauriBridge | undefined {
   return (window as Window & { __TAURI__?: TauriBridge }).__TAURI__;
+}
+
+/** Mac uses the native File menu. Browser preview has no menu bar, so the same actions open from the window. */
+function useInAppFileMenu(): void {
+  if (!tauri()) {
+    fileMenu.hidden = false;
+  }
+}
+
+function closeFileMenu(): void {
+  fileMenu.open = false;
 }
 
 function isFilesystemPath(file: string): boolean {
@@ -953,6 +965,7 @@ function pleinDownloadName(file: string): string {
 
 /** Write manual top-lefts into the open .plein. On does not write. */
 async function savePositions(): Promise<void> {
+  closeFileMenu();
   await persistInspectorNotes();
   if (saveInFlight || !exportDialog.hidden || !saveEnabled() || !loaded?.ok || lastSource === null) {
     return;
@@ -1854,6 +1867,7 @@ function applyReload(source: string, file: string): void {
 }
 
 async function openFromTauriDialog(): Promise<void> {
+  closeFileMenu();
   const api = tauri();
   if (!api) {
     fileInput.click();
@@ -1872,6 +1886,7 @@ async function openFromTauriDialog(): Promise<void> {
 }
 
 async function importFromTauriDialog(): Promise<void> {
+  closeFileMenu();
   closeExportDialog(false);
   const api = tauri();
   if (!api) {
@@ -2052,6 +2067,12 @@ layoutOptionsButton.addEventListener("click", () => {
 });
 
 document.addEventListener("pointerdown", (event) => {
+  if (fileMenu.open) {
+    const target = event.target;
+    if (!(target instanceof Node) || !fileMenu.contains(target)) {
+      closeFileMenu();
+    }
+  }
   if (!layoutOptionsOpen()) {
     return;
   }
@@ -2067,6 +2088,11 @@ window.addEventListener("keydown", (event) => {
     if (!exportDialog.hidden) {
       event.preventDefault();
       closeExportDialog();
+      return;
+    }
+    if (fileMenu.open) {
+      event.preventDefault();
+      closeFileMenu();
       return;
     }
     if (layoutOptionsOpen()) {
@@ -3315,7 +3341,11 @@ function closeExportDialog(restoreFocus = true): void {
   exportDialog.hidden = true;
   delete exportDialog.dataset.viewName;
   if (restoreFocus) {
-    exportButton.focus();
+    if (fileMenu.hidden) {
+      reloadButton.focus();
+    } else {
+      fileMenu.querySelector("summary")?.focus();
+    }
   }
 }
 
@@ -3345,6 +3375,7 @@ function exportBlockReason(): string | null {
 }
 
 function beginExport(): void {
+  closeFileMenu();
   if (!exportDialog.hidden) {
     return;
   }
@@ -3582,6 +3613,7 @@ async function commitOpenExchangeExport(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
+  useInAppFileMenu();
   const api = tauri();
   if (api) {
     const startup = await api.core.invoke<string | null>("take_startup_path");

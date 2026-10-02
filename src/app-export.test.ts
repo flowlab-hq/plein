@@ -16,10 +16,14 @@ test("Mac File menu exports the current view through the shared writer", () => {
   const rust = readFileSync(join(repoRoot, "app/src-tauri/src/lib.rs"), "utf8");
   const readme = readFileSync(join(repoRoot, "app/README.md"), "utf8");
 
-  const toolbar = html.indexOf('id="export-button"');
-  const fileLabel = html.indexOf('id="file-label"');
-  assert.notEqual(toolbar, -1, "toolbar Export… is present");
-  assert.ok(toolbar < fileLabel, "Export… sits with Open and Reload");
+  const menuStart = html.indexOf('<details id="file-menu"');
+  const fileMenu = html.slice(menuStart, html.indexOf("</details>", menuStart));
+  const exportItem = fileMenu.indexOf('id="export-button"');
+  const openItem = fileMenu.indexOf('id="open-button"');
+  assert.notEqual(exportItem, -1, "File menu Export… is present");
+  assert.ok(openItem !== -1 && openItem < exportItem, "Export… sits with Open in the File menu");
+  const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
+  assert.equal(toolbar.replace(fileMenu, "").includes('id="export-button"'), false);
   assert.match(html, /id="export-dialog"/);
   assert.match(html, /name="export-format" value="html"/);
   assert.match(html, /name="export-format" value="svg"/);

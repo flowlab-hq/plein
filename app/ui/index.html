@@ -13,23 +13,45 @@
           <img class="mark" src="./mark.svg" alt="" width="18" height="18" />
           <h1>Plein</h1>
         </div>
-        <button type="button" id="open-button">Open…</button>
-        <button type="button" id="import-button" title="Import an Open Exchange XML model (⇧⌘I)">
-          Import…
-        </button>
+        <details id="file-menu" class="file-menu" hidden>
+          <summary>File</summary>
+          <div class="file-menu-list" role="menu" aria-label="File">
+            <button type="button" id="open-button" role="menuitem">
+              Open…
+              <kbd>⌘O</kbd>
+            </button>
+            <button
+              type="button"
+              id="save-button"
+              role="menuitem"
+              disabled
+              title="Turn Auto layout Off to save positions. On recomputes and does not write the file."
+            >
+              Save
+              <kbd>⌘S</kbd>
+            </button>
+            <button
+              type="button"
+              id="import-button"
+              role="menuitem"
+              title="Import an Open Exchange XML model (⇧⌘I)"
+            >
+              Import Open Exchange XML…
+              <kbd>⇧⌘I</kbd>
+            </button>
+            <button
+              type="button"
+              id="export-button"
+              role="menuitem"
+              title="Export the current view as HTML or SVG, or the open model as Open Exchange XML (⇧⌘E)"
+            >
+              Export…
+              <kbd>⇧⌘E</kbd>
+            </button>
+          </div>
+        </details>
         <button type="button" id="reload-button" disabled title="Re-read the open .plein and redraw the diagram (⌘R)">
           Reload
-        </button>
-        <button
-          type="button"
-          id="save-button"
-          disabled
-          title="Turn Auto layout Off to save positions. On recomputes and does not write the file."
-        >
-          Save
-        </button>
-        <button type="button" id="export-button" title="Export the current view as HTML or SVG, or the open model as Open Exchange XML (⇧⌘E)">
-          Export…
         </button>
         <input
           id="file-input"
@@ -249,9 +271,10 @@
       </main>
 
       <p id="empty-hint" class="hint">
-        Open a <code>.plein</code> file, or import an Open Exchange XML model,
-        to browse named viewpoints from the views block. Each view is a diagram
-        of the same loaded model.
+        Choose <strong>File → Open…</strong> for a <code>.plein</code> file, or
+        <strong>File → Import Open Exchange XML…</strong>, to browse named
+        viewpoints from the views block. Each view is a diagram of the same
+        loaded model.
       </p>
     </div>
     <script type="module" src="./bundle.js"></script>
