@@ -429,6 +429,14 @@ button:disabled {
   cursor: grabbing;
 }
 
+.diagram .align-guide {
+  stroke: #d1246a;
+  stroke-width: 2px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
 .diagram [data-node-id],
 .diagram [data-edge-id],
 .diagram [data-edge-hit-id],

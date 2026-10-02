@@ -48,6 +48,15 @@ import {
 } from "../../src/canvas-zoom.ts";
 import { fitCanvasScroll, manualDragShift } from "../../src/manual-drag.ts";
 import {
+  ALIGN_SNAP_RELEASE_SCREEN_PX,
+  ALIGN_SNAP_SCREEN_PX,
+  alignDraggedBox,
+  userSnapDistance,
+  type AlignGuide,
+  type AlignLock,
+  type GridSnapFn,
+} from "../../src/align-snap.ts";
+import {
   ExportError,
   exportSavePaths,
   exportViewpoint,
@@ -145,7 +154,7 @@ let renderSeq = 0;
 /** Drop a slow Off-snapshot if the user picks File or On first. */
 let autoSelectSeq = 0;
 /** Pointer drag of a node while auto-layout is off. */
-let nodeDrag: {
+type NodeDrag = {
   id: string;
   pointerId: number;
   startClientX: number;
@@ -160,7 +169,10 @@ let nodeDrag: {
   baseOriginY: number;
   baseScrollLeft: number;
   baseScrollTop: number;
-} | null = null;
+  /** Centre/edge lock from the previous move, so nearby guides do not alternate. */
+  alignLock: AlignLock;
+};
+let nodeDrag: NodeDrag | null = null;
 /** Last laid-out user size, so a zoomed canvas grows when a drag expands the content box. */
 let contentUserWidth = 0;
 let contentUserHeight = 0;
@@ -1385,6 +1397,105 @@ function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }):
   holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
 }
 
+/**
+ * Visible snap grid, when that toggle is on.
+ * Neighbour alignment calls this helper first: grid snap runs first, then a
+ * centre or edge match applies only if it is still within the align threshold.
+ * Undefined leaves the grid off.
+ */
+function gridSnapForDrag(): GridSnapFn | undefined {
+  return undefined;
+}
+
+/** Pointer shift after grid snap (when on) and neighbour centre/edge snap. */
+function dragPlacement(drag: NodeDrag, clientX: number, clientY: number): {
+  shift: { x: number; y: number };
+  guides: AlignGuide[];
+  lock: AlignLock;
+} {
+  const raw = manualDragShift(
+    clientX - drag.startClientX,
+    clientY - drag.startClientY,
+    drag.pixelsPerUserX,
+    drag.pixelsPerUserY,
+  );
+  const root = drag.origins.get(drag.id);
+  if (!root || !lastLayout) {
+    return { shift: raw, guides: [], lock: { x: null, y: null } };
+  }
+  const others = lastLayout.nodes
+    .filter((node) => !drag.origins.has(node.id))
+    .map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+    }));
+  const snapped = alignDraggedBox({
+    moving: {
+      id: drag.id,
+      x: root.x + raw.x,
+      y: root.y + raw.y,
+      width: root.width,
+      height: root.height,
+    },
+    others,
+    threshold: userSnapDistance(ALIGN_SNAP_SCREEN_PX, drag.pixelsPerUserX),
+    thresholdX: userSnapDistance(ALIGN_SNAP_SCREEN_PX, drag.pixelsPerUserX),
+    thresholdY: userSnapDistance(ALIGN_SNAP_SCREEN_PX, drag.pixelsPerUserY),
+    releaseX: userSnapDistance(ALIGN_SNAP_RELEASE_SCREEN_PX, drag.pixelsPerUserX),
+    releaseY: userSnapDistance(ALIGN_SNAP_RELEASE_SCREEN_PX, drag.pixelsPerUserY),
+    lock: drag.alignLock,
+    gridSnap: gridSnapForDrag(),
+  });
+  return {
+    shift: { x: snapped.x - root.x, y: snapped.y - root.y },
+    guides: snapped.guides,
+    lock: snapped.lock,
+  };
+}
+
+function paintAlignGuides(svg: SVGSVGElement, guides: readonly AlignGuide[]): void {
+  const existing = svg.querySelector(":scope > [data-align-guides]");
+  if (guides.length === 0) {
+    existing?.remove();
+    return;
+  }
+  const layer =
+    existing instanceof SVGGElement ? existing : document.createElementNS("http://www.w3.org/2000/svg", "g");
+  if (!(existing instanceof SVGGElement)) {
+    layer.setAttribute("data-align-guides", "true");
+    layer.setAttribute("pointer-events", "none");
+    layer.setAttribute("aria-hidden", "true");
+    svg.append(layer);
+  }
+  layer.replaceChildren();
+  for (const guide of guides) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", "align-guide");
+    if (guide.axis === "x") {
+      line.setAttribute("x1", String(guide.position));
+      line.setAttribute("x2", String(guide.position));
+      line.setAttribute("y1", String(guide.from));
+      line.setAttribute("y2", String(guide.to));
+    } else {
+      line.setAttribute("y1", String(guide.position));
+      line.setAttribute("y2", String(guide.position));
+      line.setAttribute("x1", String(guide.from));
+      line.setAttribute("x2", String(guide.to));
+    }
+    layer.append(line);
+  }
+}
+
+function clearAlignGuides(svg: Element | null): void {
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  svg.querySelector(":scope > [data-align-guides]")?.remove();
+}
+
 diagram.addEventListener("pointerdown", (event) => {
   if (lastLayout?.auto !== false || event.button !== 0) {
     return;
@@ -1429,6 +1540,7 @@ diagram.addEventListener("pointerdown", (event) => {
     baseOriginY: svg.viewBox.baseVal.y,
     baseScrollLeft: diagram.scrollLeft,
     baseScrollTop: diagram.scrollTop,
+    alignLock: { x: null, y: null },
   };
   try {
     diagram.setPointerCapture(event.pointerId);
@@ -1452,20 +1564,17 @@ diagram.addEventListener("pointermove", (event) => {
   if (!(svg instanceof SVGSVGElement)) {
     return;
   }
-  const shift = manualDragShift(
-    event.clientX - nodeDrag.startClientX,
-    event.clientY - nodeDrag.startClientY,
-    nodeDrag.pixelsPerUserX,
-    nodeDrag.pixelsPerUserY,
-  );
+  const placement = dragPlacement(nodeDrag, event.clientX, event.clientY);
+  nodeDrag.alignLock = placement.lock;
   for (const [movedId, origin] of nodeDrag.origins) {
     const group = findByAttr(svg, "data-node-id", movedId);
     group?.setAttribute(
       "transform",
-      `translate(${Math.round(origin.x + shift.x)} ${Math.round(origin.y + shift.y)})`,
+      `translate(${Math.round(origin.x + placement.shift.x)} ${Math.round(origin.y + placement.shift.y)})`,
     );
   }
-  growCanvasForDrag(svg, shift);
+  growCanvasForDrag(svg, placement.shift);
+  paintAlignGuides(svg, placement.guides);
 });
 
 diagram.addEventListener("pointerup", (event) => {
@@ -1475,6 +1584,7 @@ diagram.addEventListener("pointerup", (event) => {
   const drag = nodeDrag;
   nodeDrag = null;
   diagram.classList.remove("is-dragging");
+  clearAlignGuides(diagram.querySelector("svg"));
   try {
     if (diagram.hasPointerCapture(event.pointerId)) {
       diagram.releasePointerCapture(event.pointerId);
@@ -1491,12 +1601,7 @@ diagram.addEventListener("pointerup", (event) => {
   if (!viewName || !(svg instanceof SVGSVGElement) || !lastLayout) {
     return;
   }
-  const shift = manualDragShift(
-    event.clientX - drag.startClientX,
-    event.clientY - drag.startClientY,
-    drag.pixelsPerUserX,
-    drag.pixelsPerUserY,
-  );
+  const shift = dragPlacement(drag, event.clientX, event.clientY).shift;
   const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
   for (const [movedId, origin] of drag.origins) {
     const existing = session.get(movedId);
@@ -1518,6 +1623,7 @@ diagram.addEventListener("pointercancel", (event) => {
   }
   nodeDrag = null;
   diagram.classList.remove("is-dragging");
+  clearAlignGuides(diagram.querySelector("svg"));
 });
 
 /**
