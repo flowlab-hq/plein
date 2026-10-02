@@ -16,11 +16,16 @@ export type InspectRelationship = {
   line: number;
 };
 
-/** One `position` clause. Present even when this view’s auto-layout is on. */
+/**
+ * One `position` clause. Present even when this view’s auto-layout is on.
+ * `width` and `height` are omitted when the clause has no saved size.
+ */
 export type InspectPosition = {
   id: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
   line: number;
 };
 
@@ -53,6 +58,9 @@ function inspectPosition(position: PositionDecl): InspectPosition {
     id: position.id,
     x: position.x,
     y: position.y,
+    ...(position.width !== undefined && position.height !== undefined
+      ? { width: position.width, height: position.height }
+      : {}),
     line: position.line,
   };
 }

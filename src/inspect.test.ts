@@ -87,6 +87,28 @@ test("plein inspect exits 0 and matches the valid-basic golden", () => {
   assertDumpShape(dump);
 });
 
+test("plein inspect includes width and height only when a position stores them", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+}
+views {
+  view story {
+    include shipper booking
+    autoLayout off
+    position shipper 40 80 240 96
+    position booking 280 40
+  }
+}
+`;
+  const dump = inspectModel(checkPlein(source, "sized-position.plein"), "sized-position.plein");
+  const positions = dump.views[0]!.positions;
+  assert.deepEqual(Object.keys(positions[0]!), ["id", "x", "y", "width", "height", "line"]);
+  assert.deepEqual(positions[0], { id: "shipper", x: 40, y: 80, width: 240, height: 96, line: 9 });
+  assert.deepEqual(Object.keys(positions[1]!), ["id", "x", "y", "line"]);
+  assert.equal(positions[1]!.width, undefined);
+});
+
 test("plein inspect keeps positions when auto-layout is off and when it is on", () => {
   const result = runInspect(["fixtures/valid-manual-layout.plein"]);
   assert.equal(result.status, 0, result.stderr);

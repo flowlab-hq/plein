@@ -255,3 +255,19 @@ test("Mac UI saves manual positions from the toolbar and the File menu", () => {
   assert.match(rust, /CmdOrCtrl\+S/);
   assert.match(rust, /save-positions/);
 });
+
+test("Mac UI resizes one element from its edges while placement is manual", () => {
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+
+  assert.match(ui, /boxAfterEdgeDrag/);
+  assert.match(ui, /enhanceResizeHandles/);
+  assert.match(ui, /data-resize-edge/);
+  assert.match(ui, /userSize: true/);
+  assert.match(ui, /parseResizeEdge/);
+  assert.match(css, /data-resize-edge="left"/);
+  assert.match(css, /data-resize-edge="top"/);
+  assert.match(css, /cursor:\s*ew-resize/);
+  assert.match(css, /cursor:\s*ns-resize/);
+  assert.match(css, /rect:not\(\[data-resize-edge\]\)/);
+});

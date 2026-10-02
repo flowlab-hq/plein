@@ -109,11 +109,19 @@ export type RelationshipDecl = {
   leadingComments?: string[];
 };
 
-/** Top-left of one element when auto-layout is off. Ignored while auto-layout is on. */
+/**
+ * Top-left of one element when auto-layout is off. Ignored while auto-layout is on.
+ * Optional width and height are the box size from an edge drag. Omit them to keep
+ * the label-sized box.
+ */
 export type PositionDecl = {
   id: string;
   x: number;
   y: number;
+  /** View-space width. Present only together with `height`. */
+  width?: number;
+  /** View-space height. Present only together with `width`. */
+  height?: number;
   line: number;
   /** `//` comments immediately above this `position` clause, text after `//`. */
   leadingComments?: string[];
@@ -1132,6 +1140,21 @@ class Parser {
         const id = this.expect("ident", "expected element id after position");
         const x = this.expectCoordinate("expected x coordinate after position");
         const y = this.expectCoordinate("expected y coordinate after position");
+        let width: number | undefined;
+        let height: number | undefined;
+        if (this.check("number")) {
+          const widthToken = this.peek();
+          width = this.expectCoordinate("expected width after position");
+          height = this.expectCoordinate("expected height after position width");
+          if (!(width > 0) || !(height > 0)) {
+            throw new ParseError(
+              `position size for '${id.value}' must be positive`,
+              this.file,
+              widthToken.line,
+              widthToken.column,
+            );
+          }
+        }
         if (positions.some((position) => position.id === id.value)) {
           throw new ParseError(
             `duplicate position for '${id.value}'`,
@@ -1144,6 +1167,7 @@ class Parser {
           id: id.value,
           x,
           y,
+          ...(width !== undefined && height !== undefined ? { width, height } : {}),
           line: start.line,
           ...(comments.length > 0 ? { leadingComments: comments } : {}),
         });

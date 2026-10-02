@@ -245,3 +245,69 @@ test("writeManualPositions rejects a view or id the file cannot store", () => {
     /duplicate position/,
   );
 });
+
+test("writeManualPositions stores an edge-drag size and treats it as dirty", () => {
+  const source = readFileSync(join(repoRoot, "fixtures/valid-manual-layout.plein"), "utf8");
+  const file = [
+    { id: "shipper", x: 40, y: 240 },
+    { id: "booking", x: 280, y: 40 },
+  ];
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      file,
+      new Map([["shipper", { x: 40, y: 240, width: 240, height: 96, userSize: true }]]),
+    ),
+    true,
+    "a resized box is unsaved when the file has no size",
+  );
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      file,
+      new Map([["shipper", { x: 40, y: 240, width: 240, height: 96 }]]),
+    ),
+    false,
+    "a snapshot size is not a user resize",
+  );
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      [{ id: "shipper", x: 40, y: 240, width: 240, height: 96 }],
+      new Map([["shipper", { x: 40, y: 240, width: 240, height: 96, userSize: true }]]),
+    ),
+    false,
+    "a saved size matches the session",
+  );
+
+  const saved = writeManualPositions(source, [
+    {
+      view: "story",
+      positions: [
+        { id: "shipper", x: 40, y: 240, width: 240, height: 96 },
+        { id: "booking", x: 280, y: 40 },
+        { id: "order", x: 40, y: 40 },
+        { id: "rates", x: 280, y: 240 },
+      ],
+    },
+  ]);
+  assert.match(saved, /position shipper 40 240 240 96/);
+  assert.match(saved, /position booking 280 40\n/);
+  const model = checkPlein(saved, "valid-manual-layout.plein");
+  const shipper = model.views.find((view) => view.name === "story")!.positions?.find((position) => position.id === "shipper");
+  assert.equal(shipper?.width, 240);
+  assert.equal(shipper?.height, 96);
+  const again = writeManualPositions(saved, [
+    {
+      view: "story",
+      positions: [
+        { id: "shipper", x: 64, y: 240, width: 192, height: 72 },
+        { id: "booking", x: 280, y: 40 },
+        { id: "order", x: 40, y: 40 },
+        { id: "rates", x: 280, y: 240 },
+      ],
+    },
+  ]);
+  assert.match(again, /position shipper 64 240 192 72/);
+  assert.equal(again.includes("240 96"), false);
+});

@@ -339,8 +339,12 @@ function writeView(lines: string[], view: ViewDecl, specNames: ReadonlySet<strin
   }
   for (const position of view.positions ?? []) {
     pushComments(lines, position.leadingComments, "      ");
+    const size =
+      position.width !== undefined && position.height !== undefined
+        ? ` ${formatNumber(position.width)} ${formatNumber(position.height)}`
+        : "";
     lines.push(
-      `      position ${position.id} ${formatNumber(position.x)} ${formatNumber(position.y)}`,
+      `      position ${position.id} ${formatNumber(position.x)} ${formatNumber(position.y)}${size}`,
     );
   }
   pushComments(lines, view.trailingComments, "      ");

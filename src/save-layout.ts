@@ -11,11 +11,17 @@ export class SaveLayoutError extends Error {
   }
 }
 
-/** One element top-left in view space. The same coordinates as a `position` clause. */
+/**
+ * One element in view space. The same coordinates as a `position` clause.
+ * Width and height are written only when an edge drag, or a clause that
+ * already had them, set a size. A move alone leaves the pair off.
+ */
 export type SavedPosition = {
   id: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
 };
 
 const VIEW_CLAUSES = new Set([
@@ -63,8 +69,11 @@ export function sameCoordinate(a: number, b: number): boolean {
  */
 export function manualPositionsAreDirty(
   autoLayout: string | undefined,
-  filePositions: readonly { id: string; x: number; y: number }[],
-  session: ReadonlyMap<string, { x: number; y: number }> | null | undefined,
+  filePositions: readonly { id: string; x: number; y: number; width?: number; height?: number }[],
+  session: ReadonlyMap<
+    string,
+    { x: number; y: number; width?: number; height?: number; userSize?: boolean }
+  > | null | undefined,
 ): boolean {
   if (!session || session.size === 0) {
     return false;
@@ -78,8 +87,25 @@ export function manualPositionsAreDirty(
     if (!file || !sameCoordinate(file.x, point.x) || !sameCoordinate(file.y, point.y)) {
       return true;
     }
+    if (sizeIsDirty(file, point)) {
+      return true;
+    }
   }
   return false;
+}
+
+/** An edge-drag size that the file would not restore. A snapshot size is not dirty. */
+function sizeIsDirty(
+  file: { width?: number; height?: number },
+  point: { width?: number; height?: number; userSize?: boolean },
+): boolean {
+  if (!point.userSize || point.width === undefined || point.height === undefined) {
+    return false;
+  }
+  if (file.width === undefined || file.height === undefined) {
+    return true;
+  }
+  return !sameCoordinate(file.width, point.width) || !sameCoordinate(file.height, point.height);
 }
 
 /**
@@ -130,6 +156,16 @@ function validatePositions(positions: readonly SavedPosition[]): void {
     ids.add(position.id);
     formatCoordinate(position.x);
     formatCoordinate(position.y);
+    if (position.width !== undefined || position.height !== undefined) {
+      if (!(position.width !== undefined && position.height !== undefined)) {
+        throw new SaveLayoutError(`position '${position.id}' needs both width and height`);
+      }
+      if (!(position.width > 0) || !(position.height > 0)) {
+        throw new SaveLayoutError(`position size for '${position.id}' must be positive`);
+      }
+      formatCoordinate(position.width);
+      formatCoordinate(position.height);
+    }
   }
 }
 
@@ -234,15 +270,25 @@ function layoutCuts(tokens: PleinToken[], open: number, close: number): LayoutCu
       if (!idTok || idTok.kind !== "ident" || !xTok || xTok.kind !== "number" || !yTok || yTok.kind !== "number") {
         throw new SaveLayoutError("could not read a position clause");
       }
+      let endToken = yTok;
+      let next = i + 4;
+      if (tokens[next]?.kind === "number") {
+        const heightTok = tokens[next + 1];
+        if (!heightTok || heightTok.kind !== "number") {
+          throw new SaveLayoutError("could not read a position clause");
+        }
+        endToken = heightTok;
+        next += 2;
+      }
       cuts.push({
         kind: "position",
         start: pending ? pending.start : token.offset,
-        end: tokenEnd(yTok),
+        end: tokenEnd(endToken),
         id: idTok.value,
         ...(pending && pending.texts.length > 0 ? { comments: pending.texts } : {}),
       });
       pending = null;
-      i += 4;
+      i = next;
       continue;
     }
     pending = null;
@@ -293,8 +339,12 @@ function renderLines(
     for (const comment of comments.get(position.id) ?? []) {
       lines.push(comment.length > 0 ? `${indent}// ${comment}` : `${indent}//`);
     }
+    const size =
+      position.width !== undefined && position.height !== undefined
+        ? ` ${formatCoordinate(position.width)} ${formatCoordinate(position.height)}`
+        : "";
     lines.push(
-      `${indent}position ${position.id} ${formatCoordinate(position.x)} ${formatCoordinate(position.y)}`,
+      `${indent}position ${position.id} ${formatCoordinate(position.x)} ${formatCoordinate(position.y)}${size}`,
     );
   }
   return lines;

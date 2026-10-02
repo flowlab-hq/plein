@@ -53,6 +53,14 @@ import {
 } from "../../src/canvas-zoom.ts";
 import { fitCanvasScroll, groupDragIds, manualDragShift } from "../../src/manual-drag.ts";
 import {
+  boxAfterEdgeDrag,
+  parseResizeEdge,
+  resizeHandleRects,
+  type ResizeBox,
+  type ResizeEdge,
+} from "../../src/edge-resize.ts";
+import { TYPE_ICON_INSET_X } from "../../src/label-fit.ts";
+import {
   ALIGN_SNAP_RELEASE_SCREEN_PX,
   ALIGN_SNAP_SCREEN_PX,
   alignDraggedBox,
@@ -70,6 +78,7 @@ import {
   modelSpaceFrame,
   seatLayoutOnGrid,
   snapProposedOrigin,
+  spanOnLattice,
 } from "../../src/canvas-grid.ts";
 import {
   ExportError,
@@ -183,10 +192,19 @@ let canvasGridSize: number = DEFAULT_CANVAS_GRID_SIZE;
 const alignHold = new Set<string>();
 /**
  * Frozen top-lefts per view, from turning auto-layout off or from dragging.
+ * `userSize` is set by an edge drag so width and height are saved and kept
+ * below the label fit. A snapshot from turning auto-layout off has no `userSize`.
  * Survives Reload so a disabled view does not jump. Cleared when auto-layout
  * is turned back on for that view, or when a different file is opened.
  */
-const manualPositions = new Map<string, Map<string, { x: number; y: number; width?: number; height?: number }>>();
+type SessionPoint = {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  userSize?: boolean;
+};
+const manualPositions = new Map<string, Map<string, SessionPoint>>();
 /** Last diagram laid out, so a drag can move from the coordinates on screen. */
 let lastLayout: ViewpointLayout | null = null;
 /** Drop stale ELK results when the user switches views mid-layout. */
@@ -217,6 +235,28 @@ type NodeDrag = {
   alignLock: AlignLock;
 };
 let nodeDrag: NodeDrag | null = null;
+/**
+ * Pointer drag of one edge while auto-layout is off.
+ * One element only: a multi-selection does not resize together.
+ */
+type NodeResize = {
+  id: string;
+  edge: ResizeEdge;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  moved: boolean;
+  origin: ResizeBox;
+  /** Box painted for the current pointer, after grid snap. */
+  live: ResizeBox;
+  pixelsPerUserX: number;
+  pixelsPerUserY: number;
+  baseOriginX: number;
+  baseOriginY: number;
+  baseScrollLeft: number;
+  baseScrollTop: number;
+};
+let nodeResize: NodeResize | null = null;
 /**
  * Empty-canvas drag that selects every element box it meets.
  * Shift-marquee unions with the selection captured at pointer-down.
@@ -411,6 +451,39 @@ function edgeHitExists(hits: ParentNode, id: string): boolean {
   return false;
 }
 
+/**
+ * Transparent strips on each edge while placement is manual.
+ * A hit starts an edge resize. The interior of the box still moves.
+ * Corners are left to the box so they do not resize both axes.
+ */
+function enhanceResizeHandles(svg: SVGElement): void {
+  for (const group of svg.querySelectorAll("[data-node-id]")) {
+    if (!(group instanceof SVGGElement) || group.querySelector(":scope > [data-resize-edge]")) {
+      continue;
+    }
+    const rect = group.querySelector(":scope > rect");
+    if (!(rect instanceof SVGRectElement)) {
+      continue;
+    }
+    const width = Number(rect.getAttribute("width"));
+    const height = Number(rect.getAttribute("height"));
+    if (!(width > 0) || !(height > 0)) {
+      continue;
+    }
+    for (const handle of resizeHandleRects({ width, height })) {
+      const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      hit.setAttribute("data-resize-edge", handle.edge);
+      hit.setAttribute("x", String(handle.x));
+      hit.setAttribute("y", String(handle.y));
+      hit.setAttribute("width", String(handle.width));
+      hit.setAttribute("height", String(handle.height));
+      hit.setAttribute("fill", "transparent");
+      hit.setAttribute("stroke", "none");
+      group.append(hit);
+    }
+  }
+}
+
 function paintListSelection(
   list: HTMLElement,
   attr: string,
@@ -502,10 +575,11 @@ function selectionBoundsRect(shift: { x: number; y: number }): {
       continue;
     }
     const origin = nodeDrag?.origins.get(node.id);
-    const x = origin ? origin.x + shift.x : node.x;
-    const y = origin ? origin.y + shift.y : node.y;
-    const width = origin ? origin.width : node.width;
-    const height = origin ? origin.height : node.height;
+    const resized = nodeResize?.id === node.id ? nodeResize.live : null;
+    const x = resized ? resized.x : origin ? origin.x + shift.x : node.x;
+    const y = resized ? resized.y : origin ? origin.y + shift.y : node.y;
+    const width = resized ? resized.width : origin ? origin.width : node.width;
+    const height = resized ? resized.height : origin ? origin.height : node.height;
     minX = Math.min(minX, x);
     minY = Math.min(minY, y);
     maxX = Math.max(maxX, x + width);
@@ -639,6 +713,7 @@ function previewLayoutOptions(force?: "auto" | "off"): LayoutOptions | undefined
           y: point.y,
           ...(point.width !== undefined ? { width: point.width } : {}),
           ...(point.height !== undefined ? { height: point.height } : {}),
+          ...(point.userSize ? { userSize: true } : {}),
         });
       }
       options.manualPositions = positions;
@@ -673,7 +748,7 @@ async function selectAutoLayout(next: "file" | "auto" | "off"): Promise<void> {
       if (seq !== autoSelectSeq) {
         return;
       }
-      const map = new Map<string, { x: number; y: number; width?: number; height?: number }>();
+      const map = new Map<string, SessionPoint>();
       for (const node of browsed.layout.nodes) {
         map.set(node.id, { x: node.x, y: node.y, width: node.width, height: node.height });
       }
@@ -755,6 +830,24 @@ function syncSaveChrome(): void {
   }
 }
 
+/**
+ * Size to store on a `position` clause.
+ * An edge drag wins. Otherwise a size already in the file is kept.
+ * A move, or the snapshot from turning auto-layout off, does not add a size.
+ */
+function sizeToWrite(
+  fromSession: SessionPoint | undefined,
+  fromFile: { width?: number; height?: number } | undefined,
+): { width: number; height: number } | undefined {
+  if (fromSession?.userSize && fromSession.width !== undefined && fromSession.height !== undefined) {
+    return { width: fromSession.width, height: fromSession.height };
+  }
+  if (fromFile?.width !== undefined && fromFile.height !== undefined) {
+    return { width: fromFile.width, height: fromFile.height };
+  }
+  return undefined;
+}
+
 function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
   if (!loaded?.ok) {
     return [];
@@ -784,7 +877,8 @@ function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
     if (!point) {
       continue;
     }
-    positions.push({ id: element.id, x: point.x, y: point.y });
+    const size = sizeToWrite(fromSession, fromFile);
+    positions.push({ id: element.id, x: point.x, y: point.y, ...size });
   }
   return positions;
 }
@@ -1333,6 +1427,9 @@ async function renderDiagram(seq: number): Promise<void> {
     const svg = diagram.querySelector("svg");
     if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
+    if (diagram.dataset.manualLayout === "true") {
+      enhanceResizeHandles(svg);
+    }
       rememberModelContent(svg, {
         x: layout.x ?? 0,
         y: layout.y ?? 0,
@@ -1942,6 +2039,107 @@ function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }):
   holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
 }
 
+function resizeClass(edge: ResizeEdge): "is-resizing-x" | "is-resizing-y" {
+  return edge === "left" || edge === "right" ? "is-resizing-x" : "is-resizing-y";
+}
+
+function clearResizeClass(): void {
+  diagram.classList.remove("is-resizing-x", "is-resizing-y");
+}
+
+/**
+ * Live box for an edge drag. The moving edge snaps; the other axis stays.
+ * `spanOnLattice` matches the seat applied on the next render, so the edge
+ * does not jump when the pointer goes up.
+ */
+function resizePlacement(resize: NodeResize, clientX: number, clientY: number): ResizeBox {
+  const delta = manualDragShift(
+    clientX - resize.startClientX,
+    clientY - resize.startClientY,
+    resize.pixelsPerUserX,
+    resize.pixelsPerUserY,
+  );
+  const box = boxAfterEdgeDrag(resize.origin, resize.edge, delta, canvasGridSize);
+  return {
+    x: box.x,
+    y: box.y,
+    width: spanOnLattice(box.x, box.width, canvasGridSize),
+    height: spanOnLattice(box.y, box.height, canvasGridSize),
+  };
+}
+
+function paintResizedNode(svg: SVGSVGElement, id: string, box: ResizeBox): void {
+  const group = findByAttr(svg, "data-node-id", id);
+  if (!(group instanceof SVGGElement)) {
+    return;
+  }
+  group.setAttribute("transform", `translate(${box.x} ${box.y})`);
+  const rect = group.querySelector(":scope > rect:not([data-resize-edge])");
+  rect?.setAttribute("width", String(box.width));
+  rect?.setAttribute("height", String(box.height));
+  const icon = group.querySelector(":scope > .type-icon");
+  icon?.setAttribute("transform", `translate(${box.width - TYPE_ICON_INSET_X} 4)`);
+  for (const handle of resizeHandleRects(box)) {
+    const hit = group.querySelector(`:scope > [data-resize-edge="${handle.edge}"]`);
+    if (!(hit instanceof SVGElement)) {
+      continue;
+    }
+    hit.setAttribute("x", String(handle.x));
+    hit.setAttribute("y", String(handle.y));
+    hit.setAttribute("width", String(handle.width));
+    hit.setAttribute("height", String(handle.height));
+  }
+}
+
+/**
+ * Grow the SVG around the resized box. The other nodes stay put.
+ * Scroll follows a new left or top origin the same way a move does.
+ */
+function growCanvasForResize(svg: SVGSVGElement, box: ResizeBox): void {
+  if (!nodeResize || !lastLayout) {
+    return;
+  }
+  const boxes = lastLayout.nodes.map((node) => {
+    if (node.id !== nodeResize?.id) {
+      return { x: node.x, y: node.y, width: node.width, height: node.height };
+    }
+    return box;
+  });
+  const bounds = contentBounds(boxes, PADDING, PADDING * 2 + NODE_WIDTH, PADDING * 2 + NODE_HEIGHT);
+  const scaleX = nodeResize.pixelsPerUserX;
+  const scaleY = nodeResize.pixelsPerUserY;
+  rememberModelContent(svg, bounds);
+  paintCanvasGrid(svg);
+  const scrollLeft = Math.max(0, nodeResize.baseScrollLeft + (nodeResize.baseOriginX - bounds.x) * scaleX);
+  const scrollTop = Math.max(0, nodeResize.baseScrollTop + (nodeResize.baseOriginY - bounds.y) * scaleY);
+  holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
+}
+
+function finishEdgeResize(resize: NodeResize, clientX: number, clientY: number): void {
+  const viewName = namedViewForDiagram();
+  if (!viewName || !lastLayout) {
+    return;
+  }
+  const box = resizePlacement(resize, clientX, clientY);
+  const lattice = snapProposedOrigin({ x: box.x, y: box.y }, canvasGridSize);
+  const offLattice = Math.abs(box.x - lattice.x) > 0.5 || Math.abs(box.y - lattice.y) > 0.5;
+  if (offLattice) {
+    alignHold.add(resize.id);
+  } else {
+    alignHold.delete(resize.id);
+  }
+  const session = manualPositions.get(viewName) ?? new Map<string, SessionPoint>();
+  session.set(resize.id, {
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height,
+    userSize: true,
+  });
+  manualPositions.set(viewName, session);
+  void render();
+}
+
 /**
  * Canvas cell snap for `alignDraggedBox`.
  * grid snap runs first, then a centre or edge match applies only if it is
@@ -2128,7 +2326,7 @@ function cancelMarquee(pointerId: number): void {
 }
 
 diagram.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || nodeDrag || marqueeDrag) {
+  if (event.button !== 0 || nodeDrag || nodeResize || marqueeDrag) {
     return;
   }
   const target = event.target;
@@ -2144,6 +2342,38 @@ diagram.addEventListener("pointerdown", (event) => {
     }
     const svg = nodeEl.closest("svg");
     if (!(svg instanceof SVGSVGElement)) {
+      return;
+    }
+    const edge = parseResizeEdge(target.closest("[data-resize-edge]")?.getAttribute("data-resize-edge"));
+    if (edge) {
+      const node = lastLayout.nodes.find((candidate) => candidate.id === id);
+      if (!node) {
+        return;
+      }
+      const origin = { x: node.x, y: node.y, width: node.width, height: node.height };
+      const scale = userPixelsPerUnit(svg);
+      nodeResize = {
+        id,
+        edge,
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        moved: false,
+        origin,
+        live: origin,
+        pixelsPerUserX: scale.x,
+        pixelsPerUserY: scale.y,
+        baseOriginX: svg.viewBox.baseVal.x,
+        baseOriginY: svg.viewBox.baseVal.y,
+        baseScrollLeft: diagram.scrollLeft,
+        baseScrollTop: diagram.scrollTop,
+      };
+      try {
+        diagram.setPointerCapture(event.pointerId);
+      } catch {
+        // Capture is best-effort; move and up still reach the diagram.
+      }
+      event.preventDefault();
       return;
     }
     const origins = new Map<string, { x: number; y: number; width: number; height: number }>();
@@ -2216,6 +2446,25 @@ diagram.addEventListener("pointermove", (event) => {
     updateMarquee(event);
     return;
   }
+  if (nodeResize && event.pointerId === nodeResize.pointerId && lastLayout) {
+    const travel = Math.hypot(event.clientX - nodeResize.startClientX, event.clientY - nodeResize.startClientY);
+    if (!nodeResize.moved && travel < 4) {
+      return;
+    }
+    nodeResize.moved = true;
+    clearResizeClass();
+    diagram.classList.add(resizeClass(nodeResize.edge));
+    const svg = diagram.querySelector("svg");
+    if (!(svg instanceof SVGSVGElement)) {
+      return;
+    }
+    const box = resizePlacement(nodeResize, event.clientX, event.clientY);
+    nodeResize.live = box;
+    paintResizedNode(svg, nodeResize.id, box);
+    growCanvasForResize(svg, box);
+    paintSelectionBounds(svg, { x: 0, y: 0 });
+    return;
+  }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId || !lastLayout) {
     return;
   }
@@ -2246,6 +2495,22 @@ diagram.addEventListener("pointermove", (event) => {
 diagram.addEventListener("pointerup", (event) => {
   if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
     finishMarquee(event);
+    return;
+  }
+  if (nodeResize && event.pointerId === nodeResize.pointerId) {
+    const resize = nodeResize;
+    nodeResize = null;
+    clearResizeClass();
+    releaseDiagramPointer(event.pointerId);
+    if (!resize.moved) {
+      suppressDiagramClick = true;
+      setSelections(
+        nextSelectionFromClick(selectedItems, { kind: "element", id: resize.id }, event.shiftKey),
+      );
+      return;
+    }
+    suppressDiagramClick = true;
+    finishEdgeResize(resize, event.clientX, event.clientY);
     return;
   }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
@@ -2301,7 +2566,7 @@ diagram.addEventListener("pointerup", (event) => {
       }
     }
   }
-  const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
+  const session = manualPositions.get(viewName) ?? new Map<string, SessionPoint>();
   for (const [movedId, origin] of drag.origins) {
     const existing = session.get(movedId);
     const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
@@ -2310,6 +2575,7 @@ diagram.addEventListener("pointerup", (event) => {
       y: Math.round(origin.y + shift.y),
       ...(existing?.width !== undefined ? { width: existing.width } : node ? { width: node.width } : {}),
       ...(existing?.height !== undefined ? { height: existing.height } : node ? { height: node.height } : {}),
+      ...(existing?.userSize ? { userSize: true } : {}),
     });
   }
   manualPositions.set(viewName, session);
@@ -2319,6 +2585,12 @@ diagram.addEventListener("pointerup", (event) => {
 diagram.addEventListener("pointercancel", (event) => {
   if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
     cancelMarquee(event.pointerId);
+    return;
+  }
+  if (nodeResize && event.pointerId === nodeResize.pointerId) {
+    nodeResize = null;
+    clearResizeClass();
+    releaseDiagramPointer(event.pointerId);
     return;
   }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
@@ -2343,7 +2615,7 @@ function zoomDiagramFromWheel(event: WheelEvent): void {
     return;
   }
   event.preventDefault();
-  if (nodeDrag || marqueeDrag) {
+  if (nodeDrag || nodeResize || marqueeDrag) {
     return;
   }
   const previous = clampCanvasZoom(canvasZoom);

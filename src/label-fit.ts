@@ -14,6 +14,14 @@ export const NODE_WIDTH = 168;
 export const NODE_HEIGHT = 52;
 
 /**
+ * Smallest width and height an edge drag or a saved size may use.
+ * Below the label-fit box, so a resize is not stuck to the text.
+ * Both are multiples of the default snap cell (24).
+ */
+export const MIN_RESIZE_WIDTH = 48;
+export const MIN_RESIZE_HEIGHT = 24;
+
+/**
  * Widest box a label may claim while trying to stay on two lines.
  * Past this, extra words add lines and the box grows in height instead.
  */

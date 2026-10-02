@@ -262,12 +262,12 @@ What each mode draws: [Views and membership](plein-dsl-archimate-4.md#views-and-
 ### `position` and `nesting`
 
 ```
-position-clause = "position" ident number number
+position-clause = "position" ident number number [ number number ]
 nesting-clause  = "nesting" [ nesting-mode ]
 nesting-mode    = "nested" | "inside" | "beside" | "sideBySide" | "side-by-side" | "side_by_side"
 ```
 
-Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`. The Mac app **Save** control writes this shape: `autoLayout off` plus one `position` clause per element top-left, for the view on screen. It does not invent a second coordinate format. **Save** is available only while that view is in manual placement.
+Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`. The optional pair is width and height, in the same view-space pixels, and both are required together. A non-positive size is `position size for '<id>' must be positive`. Omit the pair to keep the label-sized box. The Mac app **Save** control writes this shape: `autoLayout off` plus one `position` clause per element top-left, and width and height when an edge drag set them or the clause already had them. It does not invent a second coordinate format. **Save** is available only while that view is in manual placement.
 
 `nesting` consumes a mode token only when the next identifier is not a view-clause keyword. Bare `nesting` stores `nested`. The parser stores the mode spelling it saw (`inside`, `side-by-side`, and the rest). Format writes `nesting nested` for `nested` and `inside`, and omits beside and its aliases.
 

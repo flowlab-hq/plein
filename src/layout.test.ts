@@ -1741,6 +1741,50 @@ views {
   assert.equal(booking.y, 24);
 });
 
+test("a position size is kept, including below the label box", async () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+}
+views {
+  view story {
+    include shipper booking
+    autoLayout off
+    position shipper 40 80 240 96
+    position booking 280 40
+  }
+}
+`;
+  const result = loadPleinSource(source, "sized-position.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const layout = await layoutViewpoint(result.model, "story");
+  const shipper = layout.nodes.find((node) => node.id === "shipper");
+  const booking = layout.nodes.find((node) => node.id === "booking");
+  assert.ok(shipper && booking);
+  assert.equal(shipper.width, 240);
+  assert.equal(shipper.height, 96);
+  assert.equal(booking.width, NODE_WIDTH);
+  assert.equal(booking.height, NODE_HEIGHT);
+
+  const shrunk = await layoutViewpoint(result.model, "story", {
+    autoLayout: "off",
+    manualPositions: [{ id: "booking", x: 280, y: 40, width: 96, height: 48, userSize: true }],
+  });
+  const bookingShrunk = shrunk.nodes.find((node) => node.id === "booking");
+  assert.equal(bookingShrunk?.width, 96);
+  assert.equal(bookingShrunk?.height, 48);
+  assert.equal(shrunk.nodes.find((node) => node.id === "shipper")?.width, 240);
+
+  const snapshot = await layoutViewpoint(result.model, "story", {
+    autoLayout: "off",
+    manualPositions: [{ id: "booking", x: 280, y: 40, width: 96, height: 48 }],
+  });
+  assert.equal(snapshot.nodes.find((node) => node.id === "booking")?.width, NODE_WIDTH);
+});
+
 test("nested manual positions stay put and the parent still covers the child", async () => {
   const source = `model {
   business-actor "Parent" as parent

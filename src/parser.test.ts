@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { languageReferenceElementKeywords, resolveElementKeyword } from "./keywords.js";
+import { formatPleinSource } from "./format.js";
 import { checkPlein, ParseError, parsePlein } from "./parser.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -333,6 +334,67 @@ views {
   );
   assert.equal(model.views[1]!.autoLayout, "manual");
   assert.equal(model.views[1]!.positions?.[0]?.x, 12);
+});
+
+test("position may store a positive width and height", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view story {
+    include shipper
+    autoLayout off
+    position shipper 40 80 240 96
+  }
+}
+`;
+  const model = checkPlein(source, "sized-position.plein");
+  assert.deepEqual(model.views[0]!.positions?.[0], {
+    id: "shipper",
+    x: 40,
+    y: 80,
+    width: 240,
+    height: 96,
+    line: 8,
+  });
+  const formatted = formatPleinSource(source, "sized-position.plein");
+  assert.match(formatted, /position shipper 40 80 240 96/);
+  assert.equal(formatPleinSource(formatted, "sized-position.plein"), formatted);
+
+  assert.throws(
+    () =>
+      checkPlein(
+        `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view story {
+    include shipper
+    position shipper 40 80 240
+  }
+}
+`,
+        "missing-height.plein",
+      ),
+    /expected height after position width/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view story {
+    include shipper
+    position shipper 40 80 0 96
+  }
+}
+`,
+        "zero-width.plein",
+      ),
+    /position size for 'shipper' must be positive/,
+  );
 });
 
 test("autoLayout off cannot be combined, and positions must be known", () => {

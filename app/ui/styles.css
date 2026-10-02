@@ -464,8 +464,36 @@ button:disabled {
   touch-action: none;
 }
 
+.diagram[data-manual-layout="true"] [data-resize-edge] {
+  fill: transparent;
+  stroke: none;
+  touch-action: none;
+}
+
+.diagram[data-manual-layout="true"] [data-resize-edge="left"],
+.diagram[data-manual-layout="true"] [data-resize-edge="right"] {
+  cursor: ew-resize;
+}
+
+.diagram[data-manual-layout="true"] [data-resize-edge="top"],
+.diagram[data-manual-layout="true"] [data-resize-edge="bottom"] {
+  cursor: ns-resize;
+}
+
 .diagram.is-dragging [data-node-id] {
   cursor: grabbing;
+}
+
+.diagram.is-resizing-x,
+.diagram.is-resizing-x [data-node-id],
+.diagram.is-resizing-x [data-resize-edge] {
+  cursor: ew-resize;
+}
+
+.diagram.is-resizing-y,
+.diagram.is-resizing-y [data-node-id],
+.diagram.is-resizing-y [data-resize-edge] {
+  cursor: ns-resize;
 }
 
 .diagram .align-guide {
@@ -483,8 +511,8 @@ button:disabled {
   cursor: pointer;
 }
 
-.diagram [data-node-id][data-selected="true"] > rect,
-.diagram [data-container-id][data-selected="true"] > rect {
+.diagram [data-node-id][data-selected="true"] > rect:not([data-resize-edge]),
+.diagram [data-container-id][data-selected="true"] > rect:not([data-resize-edge]) {
   stroke: #0b57d0;
   stroke-width: 2.5;
 }

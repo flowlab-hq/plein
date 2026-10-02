@@ -106,7 +106,7 @@ auto-layout-direction = "tb" | "bt" | "lr" | "rl"
                       | "top-bottom" | "topBottom" | "top_bottom" | "vertical"
                       | "bottom-top" | "bottomTop" | "bottom_top" ;
 
-position-clause = "position" ident number number ;
+position-clause = "position" ident number number [ number number ] ;
 
 (* A nesting mode is consumed only when the next ident is not a view-clause
    keyword. With no mode token, the clause means nested. *)

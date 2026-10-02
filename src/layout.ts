@@ -4,6 +4,8 @@ import { elementStyle, layerOf, renderTypeIcon } from "./archimate-style.js";
 import { toKebabCaseKeyword, type ElementKeyword, type RelationshipKeyword } from "./keywords.js";
 import {
   LABEL_PAD_X,
+  MIN_RESIZE_HEIGHT,
+  MIN_RESIZE_WIDTH,
   NODE_HEIGHT,
   NODE_WIDTH,
   TYPE_ICON_INSET_X,
@@ -207,7 +209,9 @@ export type AutoLayoutSetting = "auto" | "off";
  * A frozen top-left (and optional box size) for one element.
  * Session snapshots from the Mac toolbar may include width and height so a
  * nested container does not resize when auto-layout is turned off.
- * File `position` clauses only set x and y.
+ * `userSize` is an edge drag, or a `position` clause that stored width and
+ * height. That size is kept even when it is smaller than the label. A snapshot
+ * without `userSize` still refuses to shrink below the label.
  */
 export type ManualPosition = {
   id: string;
@@ -215,6 +219,7 @@ export type ManualPosition = {
   y: number;
   width?: number;
   height?: number;
+  userSize?: boolean;
 };
 
 /** Tool override for local preview. When set, wins over the view’s clause. */
@@ -850,13 +855,14 @@ function renderNode(node: LayoutNode): string {
 
 function linesForNode(node: LayoutNode): string[] {
   const fitted = fitLeafBox(node.label);
-  if (node.width <= fitted.width) {
+  const wrapped = wrapLabel(node.label, labelContentWidth(node.width));
+  // A wider box can hold the same name on fewer lines. Do not add lines when
+  // the box is already at least the label fit: the header was sized for that wrap.
+  // A narrower edge-drag wraps into the width the user set.
+  if (node.width + 0.5 >= fitted.width && wrapped.length > fitted.lines.length) {
     return fitted.lines;
   }
-  // A wider container can hold the same name on fewer lines. Never add lines:
-  // the header and box were sized for the narrower wrap.
-  const wider = wrapLabel(node.label, labelContentWidth(node.width));
-  return wider.length <= fitted.lines.length ? wider : fitted.lines;
+  return wrapped;
 }
 
 function renderLabelText(node: LayoutNode, ink: string): string {
@@ -1884,7 +1890,7 @@ function layoutManual(
   elements: ElementDecl[],
   nesting: NestingMode,
   nestForest: Map<string, string[]>,
-  filePositions: Array<{ id: string; x: number; y: number }>,
+  filePositions: Array<{ id: string; x: number; y: number; width?: number; height?: number }>,
   sessionPositions: ManualPosition[],
 ): PackedLayout {
   if (elements.length === 0) {
@@ -1898,19 +1904,25 @@ function layoutManual(
 
   const coords = new Map<string, ManualPosition>();
   for (const position of filePositions) {
+    const sized =
+      position.width !== undefined && position.height !== undefined && position.width > 0 && position.height > 0;
     coords.set(position.id, {
       id: position.id,
       x: position.x,
       y: position.y,
+      ...(sized ? { width: position.width, height: position.height, userSize: true } : {}),
     });
   }
   for (const position of sessionPositions) {
+    const userSize =
+      position.userSize === true && position.width !== undefined && position.height !== undefined;
     coords.set(position.id, {
       id: position.id,
       x: position.x,
       y: position.y,
       ...(position.width !== undefined ? { width: position.width } : {}),
       ...(position.height !== undefined ? { height: position.height } : {}),
+      ...(userSize ? { userSize: true } : {}),
     });
   }
 
@@ -1922,14 +1934,20 @@ function layoutManual(
     const box = fitLeafBox(element.label);
     const minHeight =
       childIds.length > 0 ? containerHeaderHeight(element.label) : box.height;
+    const userWidth = known?.userSize ? known.width : undefined;
+    const userHeight = known?.userSize ? known.height : undefined;
     return {
       id: element.id,
       label: element.label,
       keyword: element.keyword,
       x: known?.x ?? 0,
       y: known?.y ?? 0,
-      width: Math.max(known?.width ?? box.width, box.width),
-      height: Math.max(known?.height ?? minHeight, minHeight),
+      width:
+        userWidth !== undefined ? Math.max(userWidth, MIN_RESIZE_WIDTH) : Math.max(known?.width ?? box.width, box.width),
+      height:
+        userHeight !== undefined
+          ? Math.max(userHeight, MIN_RESIZE_HEIGHT)
+          : Math.max(known?.height ?? minHeight, minHeight),
       ...(parentId ? { parentId } : {}),
       ...(childIds.length > 0 ? { container: true } : {}),
     };
