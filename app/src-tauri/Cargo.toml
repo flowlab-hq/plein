@@ -1,6 +1,6 @@
 [package]
 name = "plein-app"
-version = "0.1.43"
+version = "0.1.44"
 description = "Plein Mac app — open a .plein and render one viewpoint"
 authors = ["Flowlab HQ"]
 edition = "2021"
