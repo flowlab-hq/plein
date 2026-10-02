@@ -50,6 +50,7 @@ import {
 } from "../../src/selection.ts";
 import {
   clampCanvasZoom,
+  horizontalPanFromVerticalWheel,
   nextCanvasZoom,
   placeZoomAnchor,
   wheelGestureIsZoom,
@@ -2961,10 +2962,26 @@ diagram.addEventListener("pointercancel", (event) => {
 /**
  * Plain wheel keeps panning the overflow pane. ⌘/Ctrl+wheel (and trackpad pinch,
  * which the webview reports as Ctrl+wheel) zooms toward the pointer.
+ * A vertical wheel on a canvas that is only wider than the pane pans sideways,
+ * so a clipped element stays reachable at the default zoom.
  * Clicks and node drags are untouched — this listener never handles pointer buttons.
  */
 function zoomDiagramFromWheel(event: WheelEvent): void {
   if (!wheelGestureIsZoom(event)) {
+    const pan = horizontalPanFromVerticalWheel({
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      shiftKey: event.shiftKey,
+      clientWidth: diagram.clientWidth,
+      clientHeight: diagram.clientHeight,
+      scrollWidth: diagram.scrollWidth,
+      scrollHeight: diagram.scrollHeight,
+    });
+    if (pan !== null) {
+      event.preventDefault();
+      diagram.scrollLeft += pan;
+    }
     return;
   }
   const svg = diagram.querySelector("svg");

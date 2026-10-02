@@ -8,6 +8,7 @@ import {
   MAX_CANVAS_ZOOM,
   MIN_CANVAS_ZOOM,
   clampCanvasZoom,
+  horizontalPanFromVerticalWheel,
   nextCanvasZoom,
   placeZoomAnchor,
   scrollToKeepPoint,
@@ -89,6 +90,35 @@ test("zoom-out at the top-left uses margin so the pointer can stay put", () => {
   assert.equal(zoomIn.scrollTop + 80, 80 * 2);
 });
 
+test("a vertical wheel pans sideways when the canvas is only wider than the pane", () => {
+  const wide = {
+    deltaX: 0,
+    deltaY: 120,
+    deltaMode: 0,
+    shiftKey: false,
+    clientWidth: 486,
+    clientHeight: 395,
+    scrollWidth: 840,
+    scrollHeight: 395,
+  };
+  assert.equal(horizontalPanFromVerticalWheel(wide), 120);
+  assert.equal(horizontalPanFromVerticalWheel({ ...wide, deltaMode: 1, deltaY: 3 }), 120);
+  assert.equal(horizontalPanFromVerticalWheel({ ...wide, deltaX: 4, deltaY: 80 }), 80);
+  assert.equal(horizontalPanFromVerticalWheel({ ...wide, deltaX: 90, deltaY: 10 }), null);
+  assert.equal(horizontalPanFromVerticalWheel({ ...wide, shiftKey: true }), null);
+  assert.equal(horizontalPanFromVerticalWheel({ ...wide, deltaY: 0 }), null);
+  assert.equal(
+    horizontalPanFromVerticalWheel({ ...wide, scrollHeight: 700 }),
+    null,
+    "a pane that also overflows vertically keeps native vertical pan",
+  );
+  assert.equal(
+    horizontalPanFromVerticalWheel({ ...wide, scrollWidth: 486 }),
+    null,
+    "a canvas that already fits does not steal the wheel",
+  );
+});
+
 test("plain scroll is not a zoom gesture; command or ctrl scroll is", () => {
   assert.equal(wheelGestureIsZoom({ metaKey: false, ctrlKey: false, altKey: false }), false);
   assert.equal(wheelGestureIsZoom({ metaKey: true, ctrlKey: false, altKey: false }), true);
@@ -115,6 +145,7 @@ test("Mac canvas wires modifier-zoom without taking over pan, selection, or drag
   assert.match(css, /\.diagram\[data-zoom\] svg/);
 
   assert.match(ui, /wheelGestureIsZoom/);
+  assert.match(ui, /horizontalPanFromVerticalWheel/);
   assert.match(ui, /nextCanvasZoom/);
   assert.match(ui, /placeZoomAnchor/);
   assert.match(ui, /addEventListener\("wheel"/);

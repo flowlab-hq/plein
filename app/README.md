@@ -106,7 +106,7 @@ Assert without opening the app: `./scripts/assert-selection-sync.sh` (or `npm te
 
 The diagram is one SVG in a scrollable pane (`#diagram`). Gestures over that pane:
 
-- **Scroll** (mouse wheel or trackpad) **pans**. The **View** name stays in the chrome above the canvas.
+- **Scroll** (mouse wheel or trackpad) **pans**. When the canvas is only wider than the pane, the wheel pans sideways so an element clipped at the default zoom stays reachable. The **View** name stays in the chrome above the canvas.
 - **⌘/Ctrl + scroll zooms** toward the pointer, so the diagram point under the cursor stays put. Trackpad pinch is delivered as Ctrl+scroll and zooms the same way. Zoom is limited to **25%–400%**.
 - Zoom scales the whole viewpoint, including nested containers, in auto-layout and in manual placement (`autoLayout off` / toolbar **Off**). It does not take pointer clicks: selection and node drag are unchanged.
 - Opening a file or switching named views returns the canvas to **100%** (the laid-out size; fit-to-view on open is unchanged). Reload of the same view keeps the current zoom.

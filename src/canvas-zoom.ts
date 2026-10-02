@@ -50,6 +50,48 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
 }
 
 /**
+ * Sideways pan for a vertical wheel when the canvas is wider than the pane
+ * and not taller. Native overflow scrolling ignores that wheel, so a clipped
+ * element on a short wide diagram (the catalogue at default zoom) cannot be
+ * reached. A mostly-horizontal gesture, Shift+wheel, and a pane that also
+ * overflows vertically keep the browser's own pan.
+ * Returns CSS pixels to add to `scrollLeft`, or null to leave the wheel alone.
+ */
+export function horizontalPanFromVerticalWheel(input: {
+  deltaX: number;
+  deltaY: number;
+  deltaMode: number;
+  shiftKey: boolean;
+  clientWidth: number;
+  clientHeight: number;
+  scrollWidth: number;
+  scrollHeight: number;
+}): number | null {
+  if (input.shiftKey) {
+    return null;
+  }
+  const deltaX = Number.isFinite(input.deltaX) ? input.deltaX : 0;
+  const deltaY = Number.isFinite(input.deltaY) ? input.deltaY : 0;
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    return null;
+  }
+  const clientWidth = Number.isFinite(input.clientWidth) ? input.clientWidth : 0;
+  const clientHeight = Number.isFinite(input.clientHeight) ? input.clientHeight : 0;
+  const scrollWidth = Number.isFinite(input.scrollWidth) ? input.scrollWidth : 0;
+  const scrollHeight = Number.isFinite(input.scrollHeight) ? input.scrollHeight : 0;
+  const overflowX = scrollWidth - clientWidth > 1;
+  const overflowY = scrollHeight - clientHeight > 1;
+  if (!overflowX || overflowY) {
+    return null;
+  }
+  const pixels = normalizeWheelDelta(deltaY, input.deltaMode);
+  if (pixels === 0) {
+    return null;
+  }
+  return pixels;
+}
+
+/**
  * Next zoom after one wheel event.
  * Positive `deltaY` (scroll down / wheel away) zooms out; negative zooms in.
  * When `deltaY` is 0, `deltaX` is used so a shifted horizontal wheel still zooms.
