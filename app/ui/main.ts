@@ -57,6 +57,12 @@ import {
   type GridSnapFn,
 } from "../../src/align-snap.ts";
 import {
+  CANVAS_GRID_SIZES,
+  DEFAULT_CANVAS_GRID_SIZE,
+  canvasGridPatternSpec,
+  snapProposedOrigin,
+} from "../../src/canvas-grid.ts";
+import {
   ExportError,
   exportSavePaths,
   exportViewpoint,
@@ -121,6 +127,8 @@ const layoutOverflow = document.querySelector(".layout-overflow") as HTMLElement
 const layoutOptionsButton = document.querySelector("#layout-options") as HTMLButtonElement;
 const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HTMLElement;
 const layoutOptionsSummary = document.querySelector("#layout-options-summary") as HTMLElement;
+const canvasGridToggle = document.querySelector("#canvas-grid-toggle") as HTMLButtonElement;
+const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
@@ -141,6 +149,14 @@ let routingOverride: "file" | EdgeRouting = "file";
  * Not written back to the file. Survives Reload; cleared when another file is opened.
  */
 let autoLayoutOverride: "file" | "auto" | "off" = "file";
+/**
+ * Canvas snap grid. Visibility only draws the lines. Snap stays on either
+ * way: `gridSnapForDrag` is always passed to `alignDraggedBox`, which runs
+ * grid snap first and then neighbour-align only within threshold.
+ * Size is the Options control (default 24). Neither is written to the file.
+ */
+let canvasGridVisible = true;
+let canvasGridSize: number = DEFAULT_CANVAS_GRID_SIZE;
 /**
  * Frozen top-lefts per view, from turning auto-layout off or from dragging.
  * Survives Reload so a disabled view does not jump. Cleared when auto-layout
@@ -626,7 +642,7 @@ function renderNestingSwitcher(): void {
   );
 }
 
-/** Direction, routing, and nesting stay in Options. Show a non-file preview on the button. */
+/** Direction, routing, nesting, and a non-default grid size stay in Options. */
 function secondaryLayoutSummary(): string {
   const parts: string[] = [];
   if (directionOverride !== "file") {
@@ -637,6 +653,9 @@ function secondaryLayoutSummary(): string {
   }
   if (nestingOverride !== "file") {
     parts.push(nestingOverride === "nested" ? "Nested" : "Beside");
+  }
+  if (canvasGridSize !== DEFAULT_CANVAS_GRID_SIZE) {
+    parts.push(`Grid ${canvasGridSize}`);
   }
   return parts.join(" · ");
 }
@@ -657,13 +676,115 @@ function syncLayoutOptionsButton(): void {
   layoutOptionsButton.classList.toggle("is-active", summary.length > 0);
   const detail =
     summary.length > 0
-      ? `Options. Direction, routing, and nesting. Current preview: ${summary}.`
-      : "Options. Direction, routing, and nesting. File follows the open view.";
+      ? `Options. Direction, routing, nesting, and grid size. Current preview: ${summary}.`
+      : "Options. Direction, routing, nesting, and grid size. File follows the open view.";
   layoutOptionsButton.setAttribute("aria-label", detail);
   layoutOptionsButton.title =
     summary.length > 0
-      ? `Direction, routing, and nesting (${summary}). Local preview only.`
-      : "Direction, routing, and nesting. Local preview only — not written back to the file.";
+      ? `Direction, routing, nesting, and grid size (${summary}). Local preview only.`
+      : "Direction, routing, nesting, and grid size. Local preview only — not written back to the file.";
+}
+
+function syncCanvasGridToggle(): void {
+  canvasGridToggle.setAttribute("aria-pressed", canvasGridVisible ? "true" : "false");
+  canvasGridToggle.setAttribute("aria-label", canvasGridVisible ? "Hide canvas grid" : "Show canvas grid");
+  canvasGridToggle.title = canvasGridVisible
+    ? "Hide the snap grid. Hiding the lines does not turn snap off."
+    : "Show the snap grid. Snap stays on while the lines are hidden.";
+}
+
+function renderCanvasGridSizeSwitcher(): void {
+  canvasGridSizeSwitcher.replaceChildren(
+    ...CANVAS_GRID_SIZES.map((size) =>
+      radioButton(
+        size === canvasGridSize,
+        String(size),
+        size === DEFAULT_CANVAS_GRID_SIZE
+          ? `${size}px cells (default). Dragged boxes snap to this size even when the grid is hidden.`
+          : `${size}px cells. Dragged boxes snap to this size even when the grid is hidden.`,
+        () => {
+          canvasGridSize = size;
+          renderCanvasGridSizeSwitcher();
+          syncLayoutOptionsButton();
+          const svg = diagram.querySelector("svg");
+          if (svg instanceof SVGSVGElement) {
+            paintCanvasGrid(svg);
+          }
+        },
+      ),
+    ),
+  );
+}
+
+const CANVAS_GRID_PATTERN_ID = "plein-canvas-grid";
+
+/**
+ * Draw or remove the snap-grid overlay. The pattern origin is user-space
+ * (0, 0), and the rect covers the current viewBox, including a negative
+ * origin after a drag past the old top or left edge.
+ */
+function paintCanvasGrid(svg: SVGSVGElement): void {
+  svg.querySelector(":scope > g.canvas-grid")?.remove();
+  svg.querySelector(`#${CANVAS_GRID_PATTERN_ID}`)?.remove();
+  if (!canvasGridVisible) {
+    delete svg.dataset.canvasGrid;
+    return;
+  }
+  const spec = canvasGridPatternSpec(canvasGridSize);
+  const box = svg.viewBox.baseVal;
+  const width = box.width > 0 ? box.width : Number(svg.getAttribute("width"));
+  const height = box.height > 0 ? box.height : Number(svg.getAttribute("height"));
+  if (!(width > 0) || !(height > 0)) {
+    return;
+  }
+  const x = box.width > 0 ? box.x : 0;
+  const y = box.height > 0 ? box.y : 0;
+  let defs = svg.querySelector(":scope > defs");
+  if (!defs) {
+    defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+    svg.insertBefore(defs, svg.firstChild);
+  }
+  const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+  pattern.id = CANVAS_GRID_PATTERN_ID;
+  pattern.setAttribute("width", String(spec.tile));
+  pattern.setAttribute("height", String(spec.tile));
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  pattern.setAttribute("x", String(spec.originX));
+  pattern.setAttribute("y", String(spec.originY));
+  const minor = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  minor.setAttribute("d", spec.minorPath);
+  minor.setAttribute("fill", "none");
+  minor.setAttribute("stroke", "#d2d2d7");
+  minor.setAttribute("stroke-width", "1");
+  minor.setAttribute("vector-effect", "non-scaling-stroke");
+  const major = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  major.setAttribute("d", spec.majorPath);
+  major.setAttribute("fill", "none");
+  major.setAttribute("stroke", "#b0b0b6");
+  major.setAttribute("stroke-width", "1");
+  major.setAttribute("vector-effect", "non-scaling-stroke");
+  pattern.append(minor, major);
+  defs.append(pattern);
+
+  const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  group.setAttribute("class", "canvas-grid");
+  group.setAttribute("pointer-events", "none");
+  group.setAttribute("aria-hidden", "true");
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rect.setAttribute("x", String(x));
+  rect.setAttribute("y", String(y));
+  rect.setAttribute("width", String(width));
+  rect.setAttribute("height", String(height));
+  rect.setAttribute("fill", `url(#${CANVAS_GRID_PATTERN_ID})`);
+  rect.setAttribute("pointer-events", "none");
+  group.append(rect);
+  const anchor = svg.querySelector(":scope > g.containers, :scope > g.nodes, :scope > g.edges");
+  if (anchor) {
+    svg.insertBefore(group, anchor);
+  } else {
+    svg.append(group);
+  }
+  svg.dataset.canvasGrid = String(spec.size);
 }
 
 function forgetCanvasZoom(): void {
@@ -750,6 +871,8 @@ async function renderDiagram(seq: number): Promise<void> {
   renderDirectionSwitcher();
   renderRoutingSwitcher();
   renderNestingSwitcher();
+  renderCanvasGridSizeSwitcher();
+  syncCanvasGridToggle();
   syncLayoutOptionsButton();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);
@@ -797,6 +920,7 @@ async function renderDiagram(seq: number): Promise<void> {
     const svg = diagram.querySelector("svg");
     if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
+      paintCanvasGrid(svg);
       followContentSize(browsed.layout.width, browsed.layout.height);
       if (!applyCanvasZoom(svg)) {
         canvasZoom = 1;
@@ -1208,6 +1332,15 @@ importInput.addEventListener("change", async () => {
   }
 });
 
+canvasGridToggle.addEventListener("click", () => {
+  canvasGridVisible = !canvasGridVisible;
+  syncCanvasGridToggle();
+  const svg = diagram.querySelector("svg");
+  if (svg instanceof SVGSVGElement) {
+    paintCanvasGrid(svg);
+  }
+});
+
 layoutOptionsButton.addEventListener("click", () => {
   const next = !layoutOptionsOpen();
   setLayoutOptionsOpen(next);
@@ -1395,19 +1528,21 @@ function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }):
   const scrollLeft = Math.max(0, nodeDrag.baseScrollLeft + (nodeDrag.baseOriginX - bounds.x) * scaleX);
   const scrollTop = Math.max(0, nodeDrag.baseScrollTop + (nodeDrag.baseOriginY - bounds.y) * scaleY);
   holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
+  paintCanvasGrid(svg);
 }
 
 /**
- * Visible snap grid, when that toggle is on.
- * Neighbour alignment calls this helper first: grid snap runs first, then a
- * centre or edge match applies only if it is still within the align threshold.
- * Undefined leaves the grid off.
+ * Canvas cell snap for `alignDraggedBox`.
+ * grid snap runs first, then a centre or edge match applies only if it is
+ * still within the align threshold. Hiding the lines does not turn this off.
+ * Visibility only paints the overlay.
  */
 function gridSnapForDrag(): GridSnapFn | undefined {
-  return undefined;
+  const size = canvasGridSize;
+  return (box) => snapProposedOrigin(box, size);
 }
 
-/** Pointer shift after grid snap (when on) and neighbour centre/edge snap. */
+/** Pointer shift after grid snap, then neighbour centre/edge snap within threshold. */
 function dragPlacement(drag: NodeDrag, clientX: number, clientY: number): {
   shift: { x: number; y: number };
   guides: AlignGuide[];
