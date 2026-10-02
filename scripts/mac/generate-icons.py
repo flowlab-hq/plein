@@ -6,6 +6,9 @@ bundler copies that same file and passes it to `bundle_dmg` as `--volicon`,
 so the volume icon and the app inside the installer window match. The in-app
 toolbar uses the same geometry as a vector at `app/ui/mark.svg`, so the
 18px chrome mark stays sharp on retina instead of downsampling a PNG.
+Browser and shared preview (`npm run app:preview`, served from `app/ui`)
+get the same raster as `app/ui/favicon.ico`, so the tab icon is the B2
+mark and `/favicon.ico` is not a 404.
 
 Geometry is the B2 monogram (off-white rounded tile, blue open P, coral
 node) traced from `scripts/mac/assets/plein-logo-B2.jpg`. The curves are
@@ -24,6 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ICONS = ROOT / "app" / "src-tauri" / "icons"
 TOOLBAR_MARK = ROOT / "app" / "ui" / "mark.svg"
+PREVIEW_FAVICON = ROOT / "app" / "ui" / "favicon.ico"
 # Plate side the corner radius and node were measured on.
 PLATE = 524
 
@@ -421,7 +425,12 @@ def main() -> None:
     (ICONS / "128x128.png").write_bytes(encoded[128])
     (ICONS / "128x128@2x.png").write_bytes(encoded[256])
     (ICONS / "icon.png").write_bytes(encoded[1024])
-    (ICONS / "icon.ico").write_bytes(ico([(size, encoded[size]) for size in (256, 128, 64, 32, 16)]))
+    ico_bytes = ico([(size, encoded[size]) for size in (256, 128, 64, 32, 16)])
+    (ICONS / "icon.ico").write_bytes(ico_bytes)
+    # Same bytes the Mac app icon uses. Preview is a static server rooted at
+    # app/ui, and browsers request /favicon.ico when the document does not
+    # name another icon — or even when they do, as a fallback.
+    PREVIEW_FAVICON.write_bytes(ico_bytes)
     (ICONS / "icon.icns").write_bytes(icns({tag: encoded[size] for tag, size in ICNS_ENTRIES}))
 
     icns_bytes = (ICONS / "icon.icns").read_bytes()
