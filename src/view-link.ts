@@ -36,11 +36,32 @@ export class ViewLinkError extends Error {
 
 const VIEW_IDENT = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
+/** Two presses on the same element within this gap open its linked view. */
+export const VIEW_LINK_DOUBLE_CLICK_MS = 500;
+
+/**
+ * True when `next` is a second press on the same element, soon enough to open
+ * its linked view. A different element, a backwards timestamp, or a longer gap
+ * is a new first press. Callers still ask `doubleClickViewTarget` before jumping:
+ * an unlinked element stays on the current view.
+ */
+export function isViewLinkDoubleClick(
+  previous: { readonly id: string; readonly at: number } | null,
+  next: { readonly id: string; readonly at: number },
+): boolean {
+  if (!previous || previous.id !== next.id) {
+    return false;
+  }
+  const gap = next.at - previous.at;
+  return gap >= 0 && gap <= VIEW_LINK_DOUBLE_CLICK_MS;
+}
+
 /**
  * Menu for a right-click on one element.
- * The first entry is **Link to view…** (one item per named view). **Clear link**
- * follows when a link is already stored. `extras` are appended after a separator
- * so a later action does not replace the link entries.
+ * When the element stores a link, the first entry is **Open <view>** — the same
+ * jump as a double-click. **Link to view…** follows (one item per named view).
+ * **Clear link** follows when a link is already stored. `extras` are appended
+ * after a separator so a later action does not replace the link entries.
  * An unknown element id returns only `extras`.
  */
 export function elementContextMenu(
@@ -52,21 +73,31 @@ export function elementContextMenu(
   if (!element) {
     return [...extras];
   }
-  const items: CanvasMenuItem[] = [
-    {
-      kind: "submenu",
-      id: "link-to-view",
-      label: "Link to view…",
-      enabled: model.views.length > 0,
-      items: model.views.map((view) => ({
-        kind: "action" as const,
-        id: `link-to-view:${view.name}`,
-        label: viewSwitcherLabel(view),
-        enabled: true,
-        checked: element.linksView === view.name,
-      })),
-    },
-  ];
+  const linked = element.linksView
+    ? model.views.find((view) => view.name === element.linksView)
+    : undefined;
+  const items: CanvasMenuItem[] = [];
+  if (linked) {
+    items.push({
+      kind: "action",
+      id: "open-view-link",
+      label: `Open ${viewSwitcherLabel(linked)}`,
+      enabled: true,
+    });
+  }
+  items.push({
+    kind: "submenu",
+    id: "link-to-view",
+    label: "Link to view…",
+    enabled: model.views.length > 0,
+    items: model.views.map((view) => ({
+      kind: "action" as const,
+      id: `link-to-view:${view.name}`,
+      label: viewSwitcherLabel(view),
+      enabled: true,
+      checked: element.linksView === view.name,
+    })),
+  });
   if (element.linksView) {
     items.push({
       kind: "action",

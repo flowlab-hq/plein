@@ -106,6 +106,7 @@ import {
   applyElementViewLink,
   doubleClickViewTarget,
   elementContextMenu,
+  isViewLinkDoubleClick,
   ViewLinkError,
   type CanvasMenuItem,
 } from "../../src/view-link.ts";
@@ -168,7 +169,7 @@ const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HT
 
 let loaded: LoadResult | null = null;
 /**
- * Extra canvas context-menu items, appended after Link to view… and Clear link.
+ * Extra canvas context-menu items, appended after Open, Link to view…, and Clear link.
  * Future actions belong here. An id that is not a built-in link action
  * dispatches `plein-canvas-menu` with `{ id, elementId }` and does not write the file.
  */
@@ -1981,6 +1982,47 @@ window.addEventListener("keydown", (event) => {
 
 let suppressDiagramClick = false;
 let suppressNextDblClick = false;
+/** First press of a possible view-link double-click. Cleared after the second press or a drag. */
+let lastElementClickAt: { id: string; at: number } | null = null;
+
+/**
+ * Switch the canvas to the view stored on `elementId`.
+ * Same path as a Views row: `openNamedView` sets the active view and redraws.
+ * Returns false when the element is missing or has no link — the current view stays.
+ */
+function openLinkedCanvasView(elementId: string | null): boolean {
+  if (!loaded?.ok) {
+    return false;
+  }
+  const viewName = doubleClickViewTarget(loaded.model, elementId);
+  if (!viewName) {
+    return false;
+  }
+  if (selectedView === viewName) {
+    closeCanvasMenu();
+    return true;
+  }
+  openNamedView(viewName);
+  return true;
+}
+
+/**
+ * Count presses that never produce a `dblclick`.
+ * Manual layout calls preventDefault on pointerdown, which swallows click and
+ * dblclick. The Mac web view also drops dblclick on SVG. A second press on the
+ * same element still opens the linked view through `openLinkedCanvasView`.
+ */
+function noteElementClickForViewLink(elementId: string, at: number): void {
+  const next = { id: elementId, at };
+  if (isViewLinkDoubleClick(lastElementClickAt, next)) {
+    lastElementClickAt = null;
+    if (openLinkedCanvasView(elementId)) {
+      suppressNextDblClick = true;
+    }
+    return;
+  }
+  lastElementClickAt = next;
+}
 
 function clientFromUser(svg: SVGSVGElement, x: number, y: number): { x: number; y: number } | null {
   const point = svg.createSVGPoint();
@@ -2321,10 +2363,12 @@ function finishMarquee(event: PointerEvent): void {
     // preventDefault on pointerdown swallows the click. A background press
     // that does not move is still a click: plain click clears, shift-click does not.
     suppressDiagramClick = true;
+    lastElementClickAt = null;
     setSelections(nextSelectionFromClick(selectedItems, null, event.shiftKey));
     return;
   }
   suppressDiagramClick = true;
+  lastElementClickAt = null;
   const svg = diagram.querySelector("svg");
   if (!(svg instanceof SVGSVGElement) || !lastLayout) {
     setSelections(drag.baseSelection, { scroll: false });
@@ -2411,10 +2455,16 @@ function finishResize(event: PointerEvent): void {
     setSelections(
       nextSelectionFromClick(selectedItems, { kind: "element", id: drag.id }, event.shiftKey),
     );
+    if (!event.shiftKey) {
+      noteElementClickForViewLink(drag.id, event.timeStamp);
+    } else {
+      lastElementClickAt = null;
+    }
     return;
   }
   suppressDiagramClick = true;
   suppressNextDblClick = true;
+  lastElementClickAt = null;
   const viewName = namedViewForDiagram();
   if (!viewName) {
     return;
@@ -2613,15 +2663,21 @@ diagram.addEventListener("pointerup", (event) => {
   if (!drag.moved) {
     // pointerdown calls preventDefault so the gesture cannot start a native
     // drag. That also swallows the click, so a press that does not move still
-    // has to select here.
+    // has to select here — and a second press still has to open a view link.
     suppressDiagramClick = true;
     setSelections(
       nextSelectionFromClick(selectedItems, { kind: "element", id: drag.id }, event.shiftKey),
     );
+    if (!event.shiftKey) {
+      noteElementClickForViewLink(drag.id, event.timeStamp);
+    } else {
+      lastElementClickAt = null;
+    }
     return;
   }
   suppressDiagramClick = true;
   suppressNextDblClick = true;
+  lastElementClickAt = null;
   const viewName = namedViewForDiagram();
   const svg = diagram.querySelector("svg");
   if (!viewName || !(svg instanceof SVGSVGElement) || !lastLayout) {
@@ -2818,6 +2874,10 @@ function activateCanvasMenuItem(elementId: string, item: Extract<CanvasMenuItem,
     void persistElementViewLink(elementId, null);
     return;
   }
+  if (item.id === "open-view-link") {
+    openLinkedCanvasView(elementId);
+    return;
+  }
   document.dispatchEvent(new CustomEvent("plein-canvas-menu", { detail: { id: item.id, elementId } }));
 }
 
@@ -2968,11 +3028,13 @@ diagram.addEventListener("dblclick", (event) => {
   if (!loaded?.ok) {
     return;
   }
-  const viewName = doubleClickViewTarget(loaded.model, diagramElementId(event.target));
+  const elementId = diagramElementId(event.target);
+  const viewName = doubleClickViewTarget(loaded.model, elementId);
   if (!viewName) {
     return;
   }
   event.preventDefault();
+  lastElementClickAt = null;
   openNamedView(viewName);
 });
 
@@ -3010,19 +3072,19 @@ diagram.addEventListener("click", (event) => {
     }
     return;
   }
-  setSelections(
-    nextSelectionFromClick(
-      selectedItems,
-      selectionFromDiagramHit({
-        nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
-        edgeId:
-          target.closest("[data-edge-id]")?.getAttribute("data-edge-id") ??
-          target.closest("[data-edge-hit-id]")?.getAttribute("data-edge-hit-id"),
-        containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
-      }),
-      event.shiftKey,
-    ),
-  );
+  const hit = selectionFromDiagramHit({
+    nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
+    edgeId:
+      target.closest("[data-edge-id]")?.getAttribute("data-edge-id") ??
+      target.closest("[data-edge-hit-id]")?.getAttribute("data-edge-hit-id"),
+    containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
+  });
+  setSelections(nextSelectionFromClick(selectedItems, hit, event.shiftKey));
+  if (hit?.kind === "element" && !event.shiftKey) {
+    noteElementClickForViewLink(hit.id, event.timeStamp);
+    return;
+  }
+  lastElementClickAt = null;
 });
 
 window.addEventListener("dragover", (event) => {

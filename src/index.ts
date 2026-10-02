@@ -27,10 +27,12 @@ export {
   type SavedPosition,
 } from "./save-layout.js";
 export {
+  VIEW_LINK_DOUBLE_CLICK_MS,
   ViewLinkError,
   applyElementViewLink,
   doubleClickViewTarget,
   elementContextMenu,
+  isViewLinkDoubleClick,
   type CanvasMenuItem,
 } from "./view-link.js";
 export {
