@@ -54,6 +54,12 @@ export type ElementDecl = {
    * One destination. Absent when the element is not linked.
    */
   linksView?: string;
+  /**
+   * One documentation string, written `notes "<text>"` after `hook` and
+   * `links view` when those are present. Absent when the clause is omitted
+   * or the string is empty. Not a property list.
+   */
+  notes?: string;
   /** Source order among model statements. Used by `plein format`. */
   order?: number;
   /** `//` comments immediately above this declaration, text after `//`. */
@@ -292,6 +298,7 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "organization",
   "hook",
   "links",
+  "notes",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -808,6 +815,7 @@ class Parser {
       }
       const hookName = this.takeProfileHook();
       const linksView = this.takeViewLink();
+      const notesText = this.takeElementNotes();
       if (options.valueStreamBody && this.check("{")) {
         throw new ParseError(
           "valueStreamStage cannot nest a body",
@@ -828,6 +836,7 @@ class Parser {
         ...(comments.length > 0 ? { leadingComments: comments } : {}),
         ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
         ...(linksView ? { linksView: linksView.value } : {}),
+        ...(notesText ? { notes: notesText } : {}),
       };
       if (hookName && specialization) {
         throw new ParseError(
@@ -964,6 +973,47 @@ class Parser {
     this.advance();
     this.advance();
     return this.expect("ident", "expected view name after 'links view'");
+  }
+
+  /**
+   * `notes "<text>"` after the element id, optional hook, and optional view link.
+   * `notes` starts the clause only when the next token is a string, so a
+   * relationship whose source identifier is `notes` is left alone.
+   * An empty string is the same as omitting the clause.
+   */
+  private takeElementNotes(): string | undefined {
+    if (!this.checkIdent("notes")) {
+      return undefined;
+    }
+    const next = this.tokens[this.index + 1];
+    if (next?.kind === "->" || (next?.kind === "ident" && isRelationshipKeyword(next.value))) {
+      return undefined;
+    }
+    if (!next || next.kind !== "string") {
+      const token = this.peek();
+      throw new ParseError("expected a string after 'notes'", this.file, token.line, token.column);
+    }
+    this.advance();
+    const text = this.advance().value;
+    if (this.checkIdent("notes")) {
+      const again = this.tokens[this.index + 1];
+      if (again?.kind === "string") {
+        const token = this.peek();
+        throw new ParseError("duplicate notes clause", this.file, token.line, token.column);
+      }
+    }
+    if (this.checkIdent("hook")) {
+      const token = this.peek();
+      throw new ParseError("'hook' must come before 'notes'", this.file, token.line, token.column);
+    }
+    if (this.checkIdent("links")) {
+      const after = this.tokens[this.index + 1];
+      if (after?.kind === "ident" && after.value === "view") {
+        const token = this.peek();
+        throw new ParseError("'links view' must come before 'notes'", this.file, token.line, token.column);
+      }
+    }
+    return text.length > 0 ? text : undefined;
   }
 
   /** `hook <name>` after an element id. The name token is the hook. */

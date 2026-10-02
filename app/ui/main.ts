@@ -110,6 +110,11 @@ import {
   ViewLinkError,
   type CanvasMenuItem,
 } from "../../src/view-link.ts";
+import {
+  inspectorDetail,
+  toggleInspectorCollapsed,
+} from "../../src/inspector.ts";
+import { SaveNotesError, writeElementNotes } from "../../src/save-notes.ts";
 
 type TauriBridge = {
   core: {
@@ -166,6 +171,17 @@ const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HT
 const layoutOptionsSummary = document.querySelector("#layout-options-summary") as HTMLElement;
 const canvasGridToggle = document.querySelector("#canvas-grid-toggle") as HTMLButtonElement;
 const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HTMLElement;
+const inspector = document.querySelector("#inspector") as HTMLElement;
+const inspectorToggle = document.querySelector("#inspector-toggle") as HTMLButtonElement;
+const inspectorToggleLabel = document.querySelector("#inspector-toggle-label") as HTMLElement;
+const inspectorBody = document.querySelector("#inspector-body") as HTMLElement;
+const inspectorEmpty = document.querySelector("#inspector-empty") as HTMLElement;
+const inspectorDetailBox = document.querySelector("#inspector-detail") as HTMLElement;
+const inspectorName = document.querySelector("#inspector-name") as HTMLElement;
+const inspectorId = document.querySelector("#inspector-id") as HTMLElement;
+const inspectorNotes = document.querySelector("#inspector-notes") as HTMLTextAreaElement;
+const inspectorNotesEmpty = document.querySelector("#inspector-notes-empty") as HTMLElement;
+const inspectorStatus = document.querySelector("#inspector-status") as HTMLElement;
 
 let loaded: LoadResult | null = null;
 /**
@@ -183,6 +199,10 @@ let lastSource: string | null = null;
  * element moves every selected element together.
  */
 let selectedItems: DiagramSelection[] = [];
+/** Right inspector rail. Collapse hides the body and keeps `selectedItems`. */
+let inspectorCollapsed = false;
+/** Element id the status line belongs to. A different selection clears it. */
+let inspectorStatusFor: string | null = null;
 /** `file` follows the `.plein` nesting clause; nested/beside is local preview only. */
 let nestingOverride: "file" | NestingMode = "file";
 /** `file` follows the view’s `autoLayout`; tb/bt/lr/rl is local preview only. */
@@ -319,6 +339,7 @@ const IMPORT_ERROR_LEAD = "Could not import this Open Exchange file";
 const EXPORT_ERROR_LEAD = "Could not export this view";
 const OPEN_EXCHANGE_ERROR_LEAD = "Could not export Open Exchange";
 const SAVE_ERROR_LEAD = "Could not save positions";
+const NOTES_ERROR_LEAD = "Could not save notes";
 const LINK_ERROR_LEAD = "Could not save the view link";
 /** Lead used the next time a load failure is shown. */
 let bannerLead = LOAD_ERROR_LEAD;
@@ -487,6 +508,7 @@ function paintListSelection(
 }
 
 function paintSelection(options?: { scroll?: boolean }): void {
+  syncInspector();
   const scroll = options?.scroll !== false;
   const elementIds = new Set(selectedElementIds(selectedItems));
   const relationshipIds = new Set(
@@ -931,6 +953,7 @@ function pleinDownloadName(file: string): string {
 
 /** Write manual top-lefts into the open .plein. On does not write. */
 async function savePositions(): Promise<void> {
+  await persistInspectorNotes();
   if (saveInFlight || !exportDialog.hidden || !saveEnabled() || !loaded?.ok || lastSource === null) {
     return;
   }
@@ -968,6 +991,114 @@ async function savePositions(): Promise<void> {
     applyReload(next, loaded.file);
   } finally {
     saveInFlight = false;
+  }
+}
+
+/**
+ * Write the notes field into the open `.plein` when it changed.
+ * Same path as a view link: the Mac app writes the open file, browser preview
+ * downloads the `.plein` and keeps that text for Reload, and an Open Exchange
+ * import keeps the clause for the session only.
+ */
+async function persistInspectorNotes(): Promise<void> {
+  if (!loaded?.ok || lastSource === null) {
+    return;
+  }
+  const id = inspectorNotes.dataset.elementId ?? "";
+  if (!id) {
+    return;
+  }
+  const typed = inspectorNotes.value;
+  const current = loaded.model.elements.find((element) => element.id === id)?.notes ?? "";
+  if (typed === current || saveInFlight) {
+    return;
+  }
+  const file = loaded.file;
+  saveInFlight = true;
+  try {
+    let next: string;
+    try {
+      next = writeElementNotes(lastSource, id, typed, file);
+    } catch (error) {
+      const message = error instanceof SaveNotesError ? error.message : errorMessage(error);
+      showError(message, NOTES_ERROR_LEAD);
+      return;
+    }
+    if (openExchangeFile) {
+      applyReload(next, file);
+      setInspectorStatus(id, "Kept notes for this session. Reload re-imports the XML.");
+      return;
+    }
+    const api = tauri();
+    const writesInPlace = Boolean(api) && isFilesystemPath(file);
+    if (writesInPlace && api) {
+      try {
+        await api.core.invoke("write_export_file", { path: file, contents: next });
+      } catch (error) {
+        showError(errorMessage(error), NOTES_ERROR_LEAD);
+        return;
+      }
+    } else {
+      try {
+        downloadText(pleinDownloadName(file), "text/plain", next);
+      } catch (error) {
+        showError(errorMessage(error), NOTES_ERROR_LEAD);
+        return;
+      }
+    }
+    applyReload(next, file);
+    setInspectorStatus(
+      id,
+      writesInPlace ? "Saved notes to the file." : "Downloaded the .plein. Reload uses this text.",
+    );
+  } finally {
+    saveInFlight = false;
+  }
+}
+
+function setInspectorStatus(elementId: string, message: string): void {
+  inspectorStatusFor = elementId;
+  inspectorStatus.textContent = message;
+}
+
+/** Fill the inspector from the current selection. Collapse does not clear it. */
+function syncInspector(): void {
+  inspector.classList.toggle("is-collapsed", inspectorCollapsed);
+  workspace.classList.toggle("inspector-collapsed", inspectorCollapsed);
+  inspectorToggle.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
+  inspectorToggle.title = inspectorCollapsed ? "Expand the inspector" : "Collapse the inspector";
+  inspectorToggleLabel.textContent = inspectorCollapsed ? "Show" : "Hide";
+  inspectorBody.hidden = inspectorCollapsed;
+
+  const elements = loaded?.ok ? loaded.model.elements : [];
+  const detail = inspectorDetail(selectedItems, elements);
+  if (detail.kind === "empty") {
+    inspectorEmpty.hidden = false;
+    inspectorEmpty.textContent = detail.message;
+    inspectorDetailBox.hidden = true;
+    inspectorNotes.dataset.elementId = "";
+    if (inspectorStatusFor !== null) {
+      inspectorStatus.textContent = "";
+      inspectorStatusFor = null;
+    }
+    return;
+  }
+  inspectorEmpty.hidden = true;
+  inspectorDetailBox.hidden = false;
+  inspectorName.textContent = detail.name;
+  inspectorId.textContent = detail.id;
+  const sameElement = inspectorNotes.dataset.elementId === detail.id;
+  const editing = document.activeElement === inspectorNotes && sameElement;
+  if (!editing) {
+    inspectorNotes.value = detail.notes;
+  }
+  inspectorNotes.dataset.elementId = detail.id;
+  const shown = editing ? inspectorNotes.value : detail.notes;
+  inspectorNotesEmpty.hidden = shown.length > 0;
+  inspectorNotesEmpty.textContent = detail.emptyMessage;
+  if (inspectorStatusFor !== detail.id) {
+    inspectorStatus.textContent = "";
+    inspectorStatusFor = detail.id;
   }
 }
 
@@ -1490,6 +1621,7 @@ async function render(): Promise<void> {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
+    syncInspector();
     await renderDiagram(seq);
     diagram.classList.remove("is-focus");
     return;
@@ -1504,6 +1636,7 @@ async function render(): Promise<void> {
     viewList.replaceChildren();
     elementList.replaceChildren();
     relationshipList.replaceChildren();
+    syncInspector();
     await renderDiagram(seq);
     diagram.classList.remove("is-focus");
     return;
@@ -1827,6 +1960,19 @@ saveButton.addEventListener("click", () => {
   void savePositions();
 });
 
+inspectorToggle.addEventListener("click", () => {
+  inspectorCollapsed = toggleInspectorCollapsed(inspectorCollapsed);
+  syncInspector();
+});
+
+inspectorNotes.addEventListener("input", () => {
+  inspectorNotesEmpty.hidden = inspectorNotes.value.length > 0;
+});
+
+inspectorNotes.addEventListener("blur", () => {
+  void persistInspectorNotes();
+});
+
 exportButton.addEventListener("click", () => {
   beginExport();
 });
@@ -1932,6 +2078,9 @@ window.addEventListener("keydown", (event) => {
     if (!canvasMenu.hidden) {
       event.preventDefault();
       closeCanvasMenu();
+      return;
+    }
+    if (event.target instanceof HTMLElement && event.target.id === "inspector-notes") {
       return;
     }
     if (selectedItems.length > 0) {
@@ -2963,6 +3112,7 @@ function openCanvasMenu(x: number, y: number, elementId: string): void {
  * Browser preview downloads the `.plein` (the page cannot write the original path).
  */
 async function persistElementViewLink(elementId: string, viewName: string | null): Promise<void> {
+  await persistInspectorNotes();
   if (saveInFlight || !loaded?.ok || lastSource === null) {
     return;
   }

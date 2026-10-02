@@ -234,7 +234,11 @@ test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () =
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
   const workspace = css.match(/\.workspace\s*\{[^}]+\}/);
   assert.ok(workspace, "workspace rule exists");
-  assert.match(workspace[0]!, /grid-template-columns:\s*minmax\(240px,\s*280px\)\s+minmax\(0,\s*1fr\)/);
+  assert.match(
+    workspace[0]!,
+    /grid-template-columns:\s*minmax\(240px,\s*280px\)\s+minmax\(0,\s*1fr\)\s+minmax\(240px,\s*300px\)/,
+  );
+  assert.match(css, /\.workspace\.inspector-collapsed\s*\{[^}]*44px/);
   assert.match(workspace[0]!, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
   assert.equal(/grid-template-rows:\s*minmax\(240px/.test(css), false);
   assert.equal(/\.lists\s*\{/.test(css), false);
@@ -264,4 +268,39 @@ test("Mac UI saves manual positions from the toolbar and the File menu", () => {
   assert.match(rust, /"save", "Save"/);
   assert.match(rust, /CmdOrCtrl\+S/);
   assert.match(rust, /save-positions/);
+});
+
+test("Mac UI has a collapsible right inspector for element name and notes", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+
+  const diagramPane = html.indexOf('<section class="diagram-pane">');
+  const diagramEnd = html.indexOf("</section>", diagramPane);
+  const inspectorStart = html.indexOf('<aside id="inspector"');
+  const inspectorEnd = html.indexOf("</aside>", inspectorStart);
+  assert.notEqual(inspectorStart, -1, "right inspector is present");
+  assert.ok(inspectorStart > diagramEnd, "inspector follows the canvas");
+  const panel = html.slice(inspectorStart, inspectorEnd);
+  assert.match(panel, /id="inspector-toggle"/);
+  assert.match(panel, /aria-controls="inspector-body"/);
+  assert.match(panel, /id="inspector-name"/);
+  assert.match(panel, /id="inspector-notes"/);
+  assert.match(panel, /id="inspector-notes-empty"/);
+  assert.match(panel, /No notes yet/);
+  assert.match(panel, /Select an element to see its name and notes/);
+
+  const toggle = ui.slice(
+    ui.indexOf("inspectorToggle.addEventListener"),
+    ui.indexOf("inspectorNotes.addEventListener"),
+  );
+  assert.match(toggle, /toggleInspectorCollapsed/);
+  assert.equal(toggle.includes("setSelection"), false, "collapse does not change the selection");
+  assert.equal(toggle.includes("selectedItems"), false, "collapse does not rewrite the selection");
+  assert.match(ui, /writeElementNotes/);
+  assert.match(ui, /persistInspectorNotes/);
+  assert.match(ui, /inspectorDetail/);
+  assert.match(ui, /syncInspector/);
+  assert.match(css, /\.inspector\.is-collapsed/);
+  assert.match(css, /\.inspector-body\[hidden\]\s*\{[^}]*display:\s*none/);
 });

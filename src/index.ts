@@ -36,6 +36,19 @@ export {
   type CanvasMenuItem,
 } from "./view-link.js";
 export {
+  SaveNotesError,
+  writeElementNotes,
+} from "./save-notes.js";
+export {
+  INSPECTOR_EMPTY_NOTES,
+  INSPECTOR_SELECT_PROMPT,
+  elementIdForInspector,
+  inspectorDetail,
+  toggleInspectorCollapsed,
+  type InspectorDetail,
+  type InspectorElement,
+} from "./inspector.js";
+export {
   formatInspect,
   inspectModel,
   type InspectDump,

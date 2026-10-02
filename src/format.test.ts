@@ -54,6 +54,7 @@ function project(model: PleinModel) {
       viaHook: element.viaHook ?? false,
       container: element.container ?? null,
       linksView: element.linksView ?? null,
+      notes: element.notes ?? null,
     })),
     relationships: model.relationships
       .map((relationship) => ({

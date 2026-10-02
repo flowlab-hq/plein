@@ -1,0 +1,17 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper notes "Owns the outbound booking"
+    business-service "Booking service" as booking
+    business-object "Freight order" as order notes "The cargo record"
+
+    shipper -> booking: serving
+    booking -> order: access
+  }
+
+  views {
+    view booking-context {
+      title "Booking context"
+      include shipper, booking, order
+    }
+  }
+}
