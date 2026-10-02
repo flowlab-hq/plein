@@ -320,22 +320,24 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   const toggle = html.indexOf('id="canvas-grid-toggle"');
   const options = html.indexOf('id="layout-options"');
   const nesting = html.indexOf('id="nesting-switcher"');
-  const viewing = html.indexOf('class="chrome-cluster" role="group" aria-label="Viewing"');
+  const view = html.indexOf('class="chrome-cluster" role="group" aria-label="View"');
   const focus = html.indexOf('id="focus-switcher"');
+  const grid = html.indexOf('class="chrome-cluster" role="group" aria-label="Grid"');
   const size = html.indexOf('id="canvas-grid-size"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(toggle, -1, "grid visibility toggle is present");
-  assert.notEqual(viewing, -1, "viewing grouping is present");
-  assert.ok(options < toggle, "grid toggle stays on the chrome, in Viewing after Layout");
+  assert.notEqual(grid, -1, "grid grouping is present");
+  assert.ok(options < toggle, "grid toggle stays on the chrome, in Grid after Layout");
   assert.ok(
-    viewing < focus && focus < toggle && toggle < size && size < canvas,
-    "focus, grid, and snap spacing sit together under Viewing above the canvas",
+    view < focus && focus < grid && grid < toggle && toggle < size && size < canvas,
+    "focus stays under View; grid visibility and snap spacing sit together under Grid",
   );
-  assert.ok(nesting < viewing, "nesting stays in the layout menu, before Viewing");
-  const viewingGroup = html.slice(viewing, canvas);
-  assert.match(viewingGroup, /id="focus-switcher"/);
-  assert.match(viewingGroup, /id="canvas-grid-toggle"/);
-  assert.match(viewingGroup, /id="canvas-grid-size"/);
+  assert.ok(nesting < view, "nesting stays in the layout menu, before View");
+  const gridGroup = html.slice(grid, canvas);
+  assert.match(gridGroup, /id="canvas-grid-toggle"/);
+  assert.match(gridGroup, /class="layout-group chrome-secondary"/);
+  assert.match(gridGroup, /id="canvas-grid-size"/);
+  assert.equal(html.slice(view, grid).includes('id="canvas-grid-size"'), false, "spacing is not a peer of View");
   assert.match(html, /id="canvas-grid-toggle"[^>]*aria-pressed="true"/);
   assert.match(html, /does not turn snap off/);
   assert.match(html, /aria-label="Snap spacing"/);

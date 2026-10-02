@@ -135,19 +135,18 @@
         <section class="diagram-pane">
           <div class="diagram-chrome">
             <div id="current-view" class="current-view" aria-live="polite">
-              <span class="current-view-kicker">View</span>
               <h2 id="diagram-heading">Viewpoint</h2>
             </div>
             <div
               class="layout-controls"
               role="toolbar"
-              aria-label="Layout and viewing"
+              aria-label="Layout, view, and grid"
             >
               <div class="chrome-cluster" role="group" aria-label="Layout">
                 <span class="chrome-cluster-label">Layout</span>
                 <div class="layout-primary">
                   <div class="layout-group">
-                    <span class="layout-kicker">Auto layout</span>
+                    <span class="layout-kicker" title="Auto layout">Auto</span>
                     <div
                       id="auto-layout-switcher"
                       class="layout-switcher"
@@ -163,7 +162,7 @@
                       class="layout-switcher"
                       role="radiogroup"
                       aria-label="Layout mode"
-                      title="File default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
+                      title="Default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
                     ></div>
                   </div>
                 </div>
@@ -223,8 +222,8 @@
                   </div>
                 </div>
               </div>
-              <div class="chrome-cluster" role="group" aria-label="Viewing">
-                <span class="chrome-cluster-label">Viewing</span>
+              <div class="chrome-cluster" role="group" aria-label="View">
+                <span class="chrome-cluster-label">View</span>
                 <div class="layout-group">
                   <span class="layout-kicker">Focus</span>
                   <span class="chrome-optional">optional</span>
@@ -236,6 +235,9 @@
                     title="Optional. On shades the canvas outside the selected element and one hop out. Off leaves every box fully visible. Default is on, so the shade stays as it is until you turn it off."
                   ></div>
                 </div>
+              </div>
+              <div class="chrome-cluster" role="group" aria-label="Grid">
+                <span class="chrome-cluster-label">Grid</span>
                 <button
                   type="button"
                   id="canvas-grid-toggle"
@@ -243,10 +245,10 @@
                   aria-pressed="true"
                   title="Hide the snap lines. Hiding the lines does not turn snap off. Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom."
                 >
-                  Grid
+                  Lines
                 </button>
-                <div class="layout-group">
-                  <span class="layout-kicker">Snap spacing</span>
+                <div class="layout-group chrome-secondary">
+                  <span class="layout-kicker">Spacing</span>
                   <div
                     id="canvas-grid-size"
                     class="layout-switcher"
@@ -258,7 +260,7 @@
               </div>
             </div>
           </div>
-          <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Focus is optional and on by default: selecting one element shades the rest of the canvas so that element, relationships that start from it, and the elements they point to stay fully visible. Turn Focus off under Viewing to leave every box fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
+          <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Focus is optional and on by default: selecting one element shades the rest of the canvas so that element, relationships that start from it, and the elements they point to stay fully visible. Turn Focus off under View to leave every box fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
           <div id="canvas-menu" class="canvas-menu" hidden role="menu" aria-label="Canvas"></div>
         </section>
         <aside id="inspector" class="inspector" aria-label="Element inspector">
