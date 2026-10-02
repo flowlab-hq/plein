@@ -189,6 +189,8 @@ export { ICON_IDS, iconMarkup, isIconId } from "./archimate-icons.js";
 export {
   diagramTargetsForSelection,
   elementSelection,
+  focusSeedId,
+  focusShade,
   isSameSelection,
   listRowForSelection,
   nextSelectionFromClick,
@@ -202,9 +204,13 @@ export {
   selectionFromDiagramHit,
   selectionFromMarquee,
   selectionIncludes,
+  shadedByFocus,
   svgHasSelectionTarget,
   type DiagramHit,
   type DiagramSelection,
+  type FocusEndpoint,
+  type FocusMembership,
+  type FocusShade,
   type ListRowRef,
   type MarqueeRect,
 } from "./selection.js";

@@ -224,3 +224,85 @@ export function selectedElementIds(selection: readonly DiagramSelection[]): stri
   }
   return ids;
 }
+
+/** One relationship endpoint pair already on the canvas (view membership, not the whole file). */
+export type FocusEndpoint = Pick<RelationshipDecl, "source" | "target" | "type">;
+
+/**
+ * Session shade for a single selected element.
+ * `active` is false for an empty selection, a relationship selection, and
+ * any multi-select — those leave the canvas fully visible.
+ * Lit ids are the seed, relationships that start from it, and the elements
+ * those relationships point to. Incoming-only neighbours and further hops
+ * are not lit. This is not written to the `.plein` file.
+ */
+export type FocusShade = {
+  active: boolean;
+  litElementIds: ReadonlySet<string>;
+  litRelationshipIds: ReadonlySet<string>;
+};
+
+/** Element and relationship ids currently drawn for the viewpoint. */
+export type FocusMembership = {
+  elements: readonly string[];
+  relationships: readonly string[];
+};
+
+function inactiveFocus(): FocusShade {
+  return {
+    active: false,
+    litElementIds: new Set(),
+    litRelationshipIds: new Set(),
+  };
+}
+
+/**
+ * Focus seeds only from exactly one selected element.
+ * A relationship, an empty canvas, or two or more items do not seed it.
+ */
+export function focusSeedId(selection: readonly DiagramSelection[]): string | null {
+  if (selection.length !== 1) {
+    return null;
+  }
+  const only = selection[0]!;
+  return only.kind === "element" ? only.id : null;
+}
+
+/**
+ * One hop out from the selected element.
+ * Does not mutate `selection` or `relationships`.
+ */
+export function focusShade(
+  selection: readonly DiagramSelection[],
+  relationships: readonly FocusEndpoint[],
+): FocusShade {
+  const seed = focusSeedId(selection);
+  if (!seed) {
+    return inactiveFocus();
+  }
+  const litElementIds = new Set<string>([seed]);
+  const litRelationshipIds = new Set<string>();
+  for (const rel of relationships) {
+    if (rel.source !== seed) {
+      continue;
+    }
+    litRelationshipIds.add(relationshipId(rel));
+    litElementIds.add(rel.target);
+  }
+  return { active: true, litElementIds, litRelationshipIds };
+}
+
+/**
+ * Canvas ids to shade. Inactive focus shades nothing, so clearing the
+ * selection (or any non-seed selection) restores the full canvas.
+ * Ids that stay lit are omitted. Ids that are not on the canvas are omitted.
+ */
+export function shadedByFocus(shade: FocusShade, canvas: FocusMembership): FocusMembership {
+  if (!shade.active) {
+    return { elements: [], relationships: [] };
+  }
+  return {
+    elements: canvas.elements.filter((id) => !shade.litElementIds.has(id)),
+    relationships: canvas.relationships.filter((id) => !shade.litRelationshipIds.has(id)),
+  };
+}
