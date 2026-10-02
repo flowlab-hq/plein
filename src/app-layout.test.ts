@@ -233,3 +233,25 @@ test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () =
   assert.equal(/grid-template-rows:\s*minmax\(240px/.test(css), false);
   assert.equal(/\.lists\s*\{/.test(css), false);
 });
+
+test("Mac UI saves manual positions from the toolbar and the File menu", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+  const rust = readFileSync(join(repoRoot, "app/src-tauri/src/lib.rs"), "utf8");
+
+  const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
+  assert.match(toolbar, /id="save-button"/);
+  assert.ok(toolbar.indexOf('id="reload-button"') < toolbar.indexOf('id="save-button"'));
+  assert.match(ui, /writeManualPositions/);
+  assert.match(ui, /manualPositionsAreDirty/);
+  assert.match(ui, /syncSaveChrome/);
+  assert.match(ui, /data-dirty/);
+  assert.match(ui, /save-positions/);
+  assert.match(ui, /key === "s"/);
+  assert.match(ui, /groupDragIds/);
+  assert.match(css, /file-label\[data-dirty="true"\]/);
+  assert.match(rust, /"save", "Save"/);
+  assert.match(rust, /CmdOrCtrl\+S/);
+  assert.match(rust, /save-positions/);
+});

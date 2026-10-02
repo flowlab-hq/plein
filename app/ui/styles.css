@@ -90,6 +90,16 @@ button:disabled {
   white-space: nowrap;
 }
 
+.file-label[data-dirty="true"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+#save-button.is-dirty:not(:disabled) {
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .error {
   margin: 0;
   padding: 10px 16px;

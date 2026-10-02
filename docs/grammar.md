@@ -267,7 +267,7 @@ nesting-clause  = "nesting" [ nesting-mode ]
 nesting-mode    = "nested" | "inside" | "beside" | "sideBySide" | "side-by-side" | "side_by_side"
 ```
 
-Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`.
+Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`. The Mac app **Save** control writes this shape: `autoLayout off` plus one `position` clause per element top-left, for the view on screen. It does not invent a second coordinate format. **Save** is available only while that view is in manual placement.
 
 `nesting` consumes a mode token only when the next identifier is not a view-clause keyword. Bare `nesting` stores `nested`. The parser stores the mode spelling it saw (`inside`, `side-by-side`, and the rest). Format writes `nesting nested` for `nested` and `inside`, and omits beside and its aliases.
 

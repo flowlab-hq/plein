@@ -90,7 +90,7 @@ Bidirectional. Click a box or edge on the canvas to highlight the matching left-
 
 **Multi-select.** Shift-click a box, edge, or list row to add it, or to remove it if it is already selected. Shift-click on empty canvas does not clear. Drag on empty canvas (auto-layout on or off) draws a marquee and selects every element box the rectangle meets; shift-drag adds those boxes and leaves the previous selection in place. Connectors are not marquee targets. Each selected box and edge keeps the blue stroke, and the matching list rows highlight. Two or more boxes also get a dashed outline around the set.
 
-**Group move** works with **Auto layout** **Off**, or a view already on manual positions. Dragging one selected box moves every selected box by the same delta, so relative positions stay. The box under the pointer still snaps to the grid and to neighbour centres and edges; the rest of the set keeps its offset from that box. Nested children of a moved container move with it, as they do for a single box. Dragging a box that is not selected moves only that box and its nested children. Auto layout **On** still does not drag boxes.
+**Group move** works with **Auto layout** **Off**, or a view already on manual positions. Dragging one selected box moves every selected box by the same delta, so relative positions stay. The box under the pointer still snaps to the grid and to neighbour centres and edges; the rest of the set keeps its offset from that box. Nested children of a moved container move with it, as they do for a single box. Dragging a box that is not selected moves only that box and its nested children. A move that changes positions marks the file **Unsaved** until **Save**. Auto layout **On** still does not drag boxes.
 
 Out of scope: editing properties for the whole set, align/distribute commands, and turning the selection into a nested container.
 
@@ -141,6 +141,33 @@ Smoke (`npm run app:preview` or `Plein.app`):
 3. Open **Options → Grid size** and choose **32**. The drawn lines look the same. Drag a box: it lands on 32-unit cells, still on a drawn line. The Options button reads **Grid 32**. Zoom in: the lines get larger. Zoom is the only control that does that.
 4. Drag a box past the left or top of the diagram. The canvas grows, the grid continues into the new region, and the box is not stuck against the old content edge.
 5. Set **Auto layout** back to **On**. Boxes are not draggable. **Mode → Grid** still packs by kind or name; it does not switch on this snap grid.
+
+## Save manual positions
+
+**Save** (toolbar button, **File → Save**, or **⌘S**) writes the positions on screen into the open `.plein`. The shape is the existing view clause, not a second layout format:
+
+```plein
+autoLayout off
+position shipper 40 240
+position booking 280 40
+```
+
+Coordinates are view-space top-lefts (`position <id> <x> <y>`). Each id in that view is written once. Other clauses, other views that you have not moved, and the rest of the file stay as they were. A group move stores every box that moved.
+
+| Auto layout | Save |
+| --- | --- |
+| **Off** | Enabled. Writes `autoLayout off` and the top-lefts on screen for this view. Also writes any other view that still has unsaved moves. |
+| **File**, and this view is `off` or `manual` | Enabled. Same write. The view is already manual in the file. |
+| **On** | Disabled. Placement is recomputed. `position` clauses are not applied and are not updated. |
+| **File**, and this view is automatic | Disabled. Same as **On** for this view. |
+
+Turning **On** discards unsaved moves. Turning **Off** on a view the file still lays out automatically marks the file unsaved, because that freeze is not in the file yet. A drag or a group move does the same. The toolbar file name reads **Unsaved —** until **Save**. **Save** clears it and returns **Auto layout** to **File**, so the open view follows the clauses just written.
+
+**Reload** re-reads the file and keeps an unsaved freeze on screen. It does not write. Quit and reopen uses only what **Save** wrote.
+
+In `Plein.app`, **Save** overwrites the open `.plein` path. Browser preview (`npm run app:preview`) cannot write that path, so **Save** downloads the `.plein` and keeps the saved text for **Reload**. Open the download to see the same positions in a new session. An Open Exchange import has no `.plein` to save; **Save** stays disabled.
+
+Direction, routing, nesting, mode, and grid size are still local preview. **Save** does not write them.
 
 ## Reload after edit
 
