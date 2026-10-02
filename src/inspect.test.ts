@@ -13,7 +13,7 @@ const cli = join(repoRoot, "dist", "cli.js");
 const goldenPath = join(repoRoot, "fixtures", "golden-inspect-valid-basic.json");
 
 const DUMP_KEYS = ["file", "elements", "relationships", "views"];
-const ELEMENT_KEYS = ["keyword", "label", "id", "line"];
+const ELEMENT_KEYS = ["keyword", "label", "id", "line", "linksView"];
 const RELATIONSHIP_KEYS = ["type", "source", "target", "line"];
 const VIEW_KEYS = [
   "name",

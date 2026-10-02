@@ -206,5 +206,6 @@ A chain (`premium-customer specializes customer`, `customer specializes business
 | `//` comments | Preserved by format. They are not properties or documentation fields. |
 | Element `id` after `as` | The identifier other statements use. Export writes it as the element identifier. |
 | Quoted label | The element's name (`<name>` in Open Exchange). |
+| `links view <name>` after `as <id>` | Canvas navigation only. One named view. Not a relationship, and not written to Open Exchange. |
 
 Layer-band layout (`autoLayout layers`) stacks the view by the layers in the element tables: Motivation and Strategy, then Business, Application, Technology and Physical, then Implementation and migration. That stacking is presentation. It does not change the concepts.

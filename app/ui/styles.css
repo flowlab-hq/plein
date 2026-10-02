@@ -759,3 +759,80 @@ body.dragging {
   gap: 8px;
   margin-top: 16px;
 }
+
+.canvas-menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 180px;
+  margin: 0;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.canvas-menu[hidden] {
+  display: none;
+}
+
+.canvas-menu-item {
+  position: relative;
+}
+
+.canvas-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  text-align: left;
+  padding: 6px 8px;
+}
+
+.canvas-menu button:hover:not(:disabled),
+.canvas-menu button:focus-visible {
+  background: var(--bg);
+  border-color: transparent;
+}
+
+.canvas-menu button[aria-checked="true"]::after {
+  content: "✓";
+}
+
+.canvas-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.canvas-submenu {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: calc(100% - 4px);
+  min-width: 180px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.canvas-menu-item:hover > .canvas-submenu,
+.canvas-menu-item.open > .canvas-submenu,
+.canvas-menu-item:focus-within > .canvas-submenu {
+  display: block;
+}
+
+.canvas-menu.flip-sub .canvas-submenu {
+  left: auto;
+  right: calc(100% - 4px);
+}
+
+.diagram .view-link {
+  pointer-events: none;
+}

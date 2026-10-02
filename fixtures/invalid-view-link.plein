@@ -1,0 +1,11 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper links view missing
+  }
+
+  views {
+    view booking {
+      include shipper
+    }
+  }
+}

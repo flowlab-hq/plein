@@ -243,6 +243,9 @@ function writeElement(lines: string[], element: ElementDecl, model: PleinModel, 
   if (element.viaHook && element.specialization) {
     statement += ` hook ${element.specialization}`;
   }
+  if (element.linksView) {
+    statement += ` links view ${element.linksView}`;
+  }
   const children = bodyStatements(element.id, model);
   const trailing = element.trailingComments ?? [];
   if (children.length === 0 && trailing.length === 0) {

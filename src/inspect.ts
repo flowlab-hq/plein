@@ -6,6 +6,8 @@ export type InspectElement = {
   label: string;
   id: string;
   line: number;
+  /** Named view from `links view`, or `null` when the element has no link. */
+  linksView: string | null;
 };
 
 /** One relationship in document order. `type` is the canonical name. */
@@ -99,6 +101,7 @@ export function inspectModel(model: PleinModel, file: string): InspectDump {
       label: element.label,
       id: element.id,
       line: element.line,
+      linksView: element.linksView ?? null,
     })),
     relationships: model.relationships.map((relationship) => ({
       type: relationship.type,
