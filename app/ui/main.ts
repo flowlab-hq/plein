@@ -23,6 +23,7 @@ import {
   NODE_HEIGHT,
   NODE_WIDTH,
   PADDING,
+  renderViewpointSvg,
   edgeRoutingTitle,
   layoutDirectionTitle,
   layoutModeLabel,
@@ -59,7 +60,10 @@ import {
 import {
   CANVAS_GRID_SIZES,
   DEFAULT_CANVAS_GRID_SIZE,
-  canvasGridPatternSpec,
+  DRAWN_CANVAS_GRID_PITCH,
+  canvasGridLinePaths,
+  modelSpaceFrame,
+  seatLayoutOnGrid,
   snapProposedOrigin,
 } from "../../src/canvas-grid.ts";
 import {
@@ -153,10 +157,13 @@ let autoLayoutOverride: "file" | "auto" | "off" = "file";
  * Canvas snap grid. Visibility only draws the lines. Snap stays on either
  * way: `gridSnapForDrag` is always passed to `alignDraggedBox`, which runs
  * grid snap first and then neighbour-align only within threshold.
- * Size is the Options control (default 24). Neither is written to the file.
+ * `canvasGridSize` is snap spacing (Options, default 24). Drawn lines stay
+ * on `DRAWN_CANVAS_GRID_PITCH` until the user zooms. Neither is written to the file.
+ * `alignHold` keeps a top-left that neighbour-align pulled off the lattice.
  */
 let canvasGridVisible = true;
 let canvasGridSize: number = DEFAULT_CANVAS_GRID_SIZE;
+const alignHold = new Set<string>();
 /**
  * Frozen top-lefts per view, from turning auto-layout off or from dragging.
  * Survives Reload so a disabled view does not jump. Cleared when auto-layout
@@ -700,91 +707,135 @@ function renderCanvasGridSizeSwitcher(): void {
         size === canvasGridSize,
         String(size),
         size === DEFAULT_CANVAS_GRID_SIZE
-          ? `${size}px cells (default). Dragged boxes snap to this size even when the grid is hidden.`
-          : `${size}px cells. Dragged boxes snap to this size even when the grid is hidden.`,
+          ? `${size} snap spacing (default). The drawn lines stay the same until you zoom. Dragged boxes snap to this spacing even when the grid is hidden.`
+          : `${size} snap spacing. The drawn lines stay the same until you zoom. Dragged boxes snap to this spacing even when the grid is hidden.`,
         () => {
           canvasGridSize = size;
+          alignHold.clear();
           renderCanvasGridSizeSwitcher();
           syncLayoutOptionsButton();
-          const svg = diagram.querySelector("svg");
-          if (svg instanceof SVGSVGElement) {
-            paintCanvasGrid(svg);
-          }
+          void render();
         },
       ),
     ),
   );
 }
 
-const CANVAS_GRID_PATTERN_ID = "plein-canvas-grid";
+function rememberModelContent(
+  svg: SVGSVGElement,
+  bounds: { x: number; y: number; width: number; height: number },
+): void {
+  svg.dataset.modelX = String(bounds.x);
+  svg.dataset.modelY = String(bounds.y);
+  svg.dataset.modelWidth = String(bounds.width);
+  svg.dataset.modelHeight = String(bounds.height);
+}
+
+function readModelContent(svg: SVGSVGElement): { x: number; y: number; width: number; height: number } {
+  const x = Number(svg.dataset.modelX);
+  const y = Number(svg.dataset.modelY);
+  const width = Number(svg.dataset.modelWidth);
+  const height = Number(svg.dataset.modelHeight);
+  if ([x, y, width, height].every((value) => Number.isFinite(value)) && width > 0 && height > 0) {
+    return { x, y, width, height };
+  }
+  const box = svg.viewBox.baseVal;
+  return {
+    x: box.width > 0 ? box.x : 0,
+    y: box.height > 0 ? box.y : 0,
+    width: box.width > 0 ? box.width : Number(svg.getAttribute("width")) || 0,
+    height: box.height > 0 ? box.height : Number(svg.getAttribute("height")) || 0,
+  };
+}
+
+function modelScale(): { x: number; y: number } {
+  if (nodeDrag) {
+    return { x: nodeDrag.pixelsPerUserX, y: nodeDrag.pixelsPerUserY };
+  }
+  const zoom = canvasZoom > 0 ? canvasZoom : 1;
+  return { x: zoom, y: zoom };
+}
 
 /**
- * Draw or remove the snap-grid overlay. The pattern origin is user-space
- * (0, 0), and the rect covers the current viewBox, including a negative
- * origin after a drag past the old top or left edge.
+ * Stretch the SVG across model space from the top-left, covering the pane
+ * as well as the content box. `preserveAspectRatio="none"` maps that
+ * rectangle onto the element with no letterbox margin.
+ */
+function fitModelSpace(svg: SVGSVGElement): { x: number; y: number; width: number; height: number } | null {
+  const content = readModelContent(svg);
+  if (!(content.width > 0) || !(content.height > 0)) {
+    return null;
+  }
+  const scale = modelScale();
+  const pane = {
+    width: scale.x > 0 ? diagram.clientWidth / scale.x : content.width,
+    height: scale.y > 0 ? diagram.clientHeight / scale.y : content.height,
+  };
+  const frame = modelSpaceFrame(content, pane);
+  if (!(frame.width > 0) || !(frame.height > 0)) {
+    return null;
+  }
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);
+  svg.setAttribute("width", String(frame.width));
+  svg.setAttribute("height", String(frame.height));
+  svg.style.minWidth = "0";
+  svg.style.minHeight = "0";
+  svg.style.width = `${frame.width * scale.x}px`;
+  svg.style.height = `${frame.height * scale.y}px`;
+  zoomBasisWidth = frame.width;
+  zoomBasisHeight = frame.height;
+  contentUserWidth = frame.width;
+  contentUserHeight = frame.height;
+  return frame;
+}
+
+let paintingGrid = false;
+
+/**
+ * Draw or remove the snap-grid overlay. Lines use the fixed drawn pitch
+ * from model-space (0, 0) across the whole frame. Snap spacing is separate,
+ * so the drawn lines stay the same until you zoom.
  */
 function paintCanvasGrid(svg: SVGSVGElement): void {
+  if (paintingGrid) {
+    return;
+  }
+  paintingGrid = true;
+  try {
+    paintCanvasGridNow(svg);
+  } finally {
+    paintingGrid = false;
+  }
+}
+
+function paintCanvasGridNow(svg: SVGSVGElement): void {
+  const frame = fitModelSpace(svg);
   svg.querySelector(":scope > g.canvas-grid")?.remove();
-  svg.querySelector(`#${CANVAS_GRID_PATTERN_ID}`)?.remove();
-  if (!canvasGridVisible) {
+  svg.querySelector("#plein-canvas-grid")?.remove();
+  if (!canvasGridVisible || !frame) {
     delete svg.dataset.canvasGrid;
     return;
   }
-  const spec = canvasGridPatternSpec(canvasGridSize);
-  const box = svg.viewBox.baseVal;
-  const width = box.width > 0 ? box.width : Number(svg.getAttribute("width"));
-  const height = box.height > 0 ? box.height : Number(svg.getAttribute("height"));
-  if (!(width > 0) || !(height > 0)) {
-    return;
-  }
-  const x = box.width > 0 ? box.x : 0;
-  const y = box.height > 0 ? box.y : 0;
-  let defs = svg.querySelector(":scope > defs");
-  if (!defs) {
-    defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-    svg.insertBefore(defs, svg.firstChild);
-  }
-  const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
-  pattern.id = CANVAS_GRID_PATTERN_ID;
-  pattern.setAttribute("width", String(spec.tile));
-  pattern.setAttribute("height", String(spec.tile));
-  pattern.setAttribute("patternUnits", "userSpaceOnUse");
-  pattern.setAttribute("x", String(spec.originX));
-  pattern.setAttribute("y", String(spec.originY));
-  const minor = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  minor.setAttribute("d", spec.minorPath);
-  minor.setAttribute("fill", "none");
-  minor.setAttribute("stroke", "#d2d2d7");
-  minor.setAttribute("stroke-width", "1");
-  minor.setAttribute("vector-effect", "non-scaling-stroke");
-  const major = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  major.setAttribute("d", spec.majorPath);
-  major.setAttribute("fill", "none");
-  major.setAttribute("stroke", "#b0b0b6");
-  major.setAttribute("stroke-width", "1");
-  major.setAttribute("vector-effect", "non-scaling-stroke");
-  pattern.append(minor, major);
-  defs.append(pattern);
-
+  const paths = canvasGridLinePaths(frame);
   const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
   group.setAttribute("class", "canvas-grid");
   group.setAttribute("pointer-events", "none");
   group.setAttribute("aria-hidden", "true");
-  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  rect.setAttribute("x", String(x));
-  rect.setAttribute("y", String(y));
-  rect.setAttribute("width", String(width));
-  rect.setAttribute("height", String(height));
-  rect.setAttribute("fill", `url(#${CANVAS_GRID_PATTERN_ID})`);
-  rect.setAttribute("pointer-events", "none");
-  group.append(rect);
+  const minor = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  minor.setAttribute("class", "minor");
+  minor.setAttribute("d", paths.minor);
+  const major = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  major.setAttribute("class", "major");
+  major.setAttribute("d", paths.major);
+  group.append(minor, major);
   const anchor = svg.querySelector(":scope > g.containers, :scope > g.nodes, :scope > g.edges");
   if (anchor) {
     svg.insertBefore(group, anchor);
   } else {
     svg.append(group);
   }
-  svg.dataset.canvasGrid = String(spec.size);
+  svg.dataset.canvasGrid = String(DRAWN_CANVAS_GRID_PITCH);
 }
 
 function forgetCanvasZoom(): void {
@@ -910,8 +961,36 @@ async function renderDiagram(seq: number): Promise<void> {
       canvasZoom = 1;
     }
     canvasZoomView = browsed.viewName;
-    diagram.innerHTML = browsed.svg;
-    lastLayout = browsed.layout;
+    let layout = browsed.layout;
+    let svgMarkup = browsed.svg;
+    if (layout.auto === false) {
+      const seated = seatLayoutOnGrid(
+        layout.nodes,
+        layout.edges,
+        canvasGridSize,
+        layout.routing,
+        layout.direction,
+        alignHold,
+      );
+      const bounds = contentBounds(
+        seated.nodes,
+        PADDING,
+        PADDING * 2 + NODE_WIDTH,
+        PADDING * 2 + NODE_HEIGHT,
+      );
+      layout = {
+        ...layout,
+        nodes: seated.nodes,
+        edges: seated.edges,
+        x: bounds.x,
+        y: bounds.y,
+        width: Math.max(bounds.width, PADDING * 2 + NODE_WIDTH),
+        height: Math.max(bounds.height, PADDING * 2 + NODE_HEIGHT),
+      };
+      svgMarkup = renderViewpointSvg(layout);
+    }
+    diagram.innerHTML = svgMarkup;
+    lastLayout = layout;
     if (browsed.layout.auto === false) {
       diagram.dataset.manualLayout = "true";
     } else {
@@ -920,12 +999,19 @@ async function renderDiagram(seq: number): Promise<void> {
     const svg = diagram.querySelector("svg");
     if (svg instanceof SVGSVGElement) {
       enhanceEdgeHits(svg);
-      paintCanvasGrid(svg);
-      followContentSize(browsed.layout.width, browsed.layout.height);
+      rememberModelContent(svg, {
+        x: layout.x ?? 0,
+        y: layout.y ?? 0,
+        width: layout.width,
+        height: layout.height,
+      });
+      followContentSize(layout.width, layout.height);
       if (!applyCanvasZoom(svg)) {
         canvasZoom = 1;
         delete diagram.dataset.zoom;
-      } else if (sameView) {
+      }
+      paintCanvasGrid(svg);
+      if (sameView) {
         holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
       }
     }
@@ -1110,6 +1196,7 @@ function openSource(source: string, file: string): void {
   closeExportDialog(false);
   lastSource = source;
   manualPositions.clear();
+  alignHold.clear();
   autoLayoutOverride = "file";
   lastLayout = null;
   forgetCanvasZoom();
@@ -1518,17 +1605,11 @@ function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }):
   const bounds = contentBounds(boxes, PADDING, PADDING * 2 + NODE_WIDTH, PADDING * 2 + NODE_HEIGHT);
   const scaleX = nodeDrag.pixelsPerUserX;
   const scaleY = nodeDrag.pixelsPerUserY;
-  svg.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
-  svg.setAttribute("width", String(bounds.width));
-  svg.setAttribute("height", String(bounds.height));
-  svg.style.minWidth = "0";
-  svg.style.minHeight = "0";
-  svg.style.width = `${bounds.width * scaleX}px`;
-  svg.style.height = `${bounds.height * scaleY}px`;
+  rememberModelContent(svg, bounds);
+  paintCanvasGrid(svg);
   const scrollLeft = Math.max(0, nodeDrag.baseScrollLeft + (nodeDrag.baseOriginX - bounds.x) * scaleX);
   const scrollTop = Math.max(0, nodeDrag.baseScrollTop + (nodeDrag.baseOriginY - bounds.y) * scaleY);
   holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
-  paintCanvasGrid(svg);
 }
 
 /**
@@ -1737,6 +1818,28 @@ diagram.addEventListener("pointerup", (event) => {
     return;
   }
   const shift = dragPlacement(drag, event.clientX, event.clientY).shift;
+  const root = drag.origins.get(drag.id);
+  if (root) {
+    const raw = manualDragShift(
+      event.clientX - drag.startClientX,
+      event.clientY - drag.startClientY,
+      drag.pixelsPerUserX,
+      drag.pixelsPerUserY,
+    );
+    const gridPoint = snapProposedOrigin(
+      { x: root.x + raw.x, y: root.y + raw.y },
+      canvasGridSize,
+    );
+    const held =
+      Math.abs(root.x + shift.x - gridPoint.x) > 0.5 || Math.abs(root.y + shift.y - gridPoint.y) > 0.5;
+    for (const movedId of drag.origins.keys()) {
+      if (held) {
+        alignHold.add(movedId);
+      } else {
+        alignHold.delete(movedId);
+      }
+    }
+  }
   const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
   for (const [movedId, origin] of drag.origins) {
     const existing = session.get(movedId);
@@ -1846,6 +1949,16 @@ function nudgeZoomAxis(
 }
 
 diagram.addEventListener("wheel", zoomDiagramFromWheel, { passive: false });
+
+if (typeof ResizeObserver !== "undefined") {
+  const modelSpaceObserver = new ResizeObserver(() => {
+    const svg = diagram.querySelector("svg");
+    if (svg instanceof SVGSVGElement && svg.dataset.modelWidth) {
+      paintCanvasGrid(svg);
+    }
+  });
+  modelSpaceObserver.observe(diagram);
+}
 
 diagram.addEventListener("click", (event) => {
   if (suppressDiagramClick) {

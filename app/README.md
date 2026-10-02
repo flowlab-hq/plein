@@ -111,26 +111,28 @@ Manual smoke (`npm run app:preview` or `Plein.app`):
 
 ## Canvas snap grid
 
-The diagram pane draws a snap grid in view-space pixels. Cell lines are multiples of the cell size from user-space (0, 0), the same coordinate system as `position` clauses. The default cell size is **24** (the diagram padding; a default-width box is seven cells wide). A stronger line repeats every four cells.
+The diagram pane draws a snap grid in model space, from the top-left `(0, 0)` outward — the same coordinates as `position` clauses, including empty canvas past the boxes. Drawn lines are **8** model units apart (a stronger line every four of those). That drawn pitch does not change when you pick a larger **Grid size**. Only zoom changes how big the lines look on screen.
+
+**Grid size** is snap spacing only: 8, 16, 24, 32, or 48. The default is **24** (the diagram padding; a default-width box is seven snap cells wide). Each of those sizes lands on a drawn line. While auto-layout is off, boxes are seated on that spacing (both edges on a cell) and orthogonal relationships run along those lines.
 
 This is a placement aid for manual drag. It does not replace **Mode → Grid** (`autoLayout grid`), which still packs a catalogue by kind or name.
 
 | Control | Where | Effect |
 | --- | --- | --- |
 | **Grid** | Diagram chrome, beside **Options** | Shows or hides the lines. Default is shown. Hiding the lines does not turn snap off. |
-| **Grid size** | **Options** (8, 16, 24, 32, 48) | Cell size in view pixels. Default is 24. A non-default size is named on the Options button (`Grid 32`). |
+| **Grid size** | **Options** (8, 16, 24, 32, 48) | Snap spacing in model units. Default is 24. Does not redraw a coarser or finer grid. A non-default size is named on the Options button (`Grid 32`). |
 
 Both settings last for this app session. They are not written back to the `.plein`.
 
-Snap runs only while auto-layout is off (toolbar **Off**, or a view with `autoLayout off` / `manual`), because that is when boxes can be dragged. The pointer delta is not clamped to the current content box: dragging past the outermost box still grows the canvas, and the grid grows with the viewBox, including a negative origin. The dragged box’s top-left snaps to the nearest cell. Nested children move by that same delta, so they keep their offset from the parent. Boxes that you have not dragged stay where layout or `position` put them, even if that point is off the grid.
+Snap runs only while auto-layout is off (toolbar **Off**, or a view with `autoLayout off` / `manual`), because that is when boxes can be dragged. The pointer delta is not clamped to the current content box: dragging past the outermost box still grows the canvas, and the grid grows with model space, including a negative origin. The dragged box’s top-left snaps to the nearest snap cell. Nested children move by that same delta, so they keep their offset from the parent.
 
-The neighbour-align pass (centres and edges of nearby boxes) is already on, via `alignDraggedBox`. **Grid snap runs first** on the unclamped pointer position: `gridSnapForDrag` passes `snapProposedOrigin` as the `gridSnap` hook. Neighbour alignment may then move that point, and only if its candidate is still within the align threshold; otherwise the grid result stands. Hiding the lines does not omit `gridSnap`. Alignment guides can pull a box off the cell only in that within-threshold case.
+The neighbour-align pass (centres and edges of nearby boxes) is already on, via `alignDraggedBox`. **Grid snap runs first** on the unclamped pointer position: `gridSnapForDrag` passes `snapProposedOrigin` as the `gridSnap` hook. Neighbour alignment may then move that point, and only if its candidate is still within the align threshold; otherwise the grid result stands. Hiding the lines does not omit `gridSnap`. Alignment guides can pull a box off the cell only in that within-threshold case, and that drop stays off the cell until you change Grid size.
 
 Smoke (`npm run app:preview` or `Plein.app`):
 
-1. Open [fixtures/valid-manual-layout.plein](../fixtures/valid-manual-layout.plein) (or any file, then set **Auto layout** to **Off**). The canvas shows the grid.
+1. Open [fixtures/valid-manual-layout.plein](../fixtures/valid-manual-layout.plein) (or any file, then set **Auto layout** to **Off**). The grid fills the canvas from the top-left. Boxes sit on cells and relationship lines run along the grid.
 2. Click **Grid**. The lines disappear. Drag a box: its top-left still jumps to a cell. Click **Grid** again: the lines return, and the box stays where the snap left it.
-3. Open **Options → Grid size** and choose **32**. Drag another box: it lands on 32px cells. The Options button reads **Grid 32**.
+3. Open **Options → Grid size** and choose **32**. The drawn lines look the same. Drag a box: it lands on 32-unit cells, still on a drawn line. The Options button reads **Grid 32**. Zoom in: the lines get larger. Zoom is the only control that does that.
 4. Drag a box past the left or top of the diagram. The canvas grows, the grid continues into the new region, and the box is not stuck against the old content edge.
 5. Set **Auto layout** back to **On**. Boxes are not draggable. **Mode → Grid** still packs by kind or name; it does not switch on this snap grid.
 
