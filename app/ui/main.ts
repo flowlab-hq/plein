@@ -1093,7 +1093,7 @@ function renderNestingSwitcher(): void {
   );
 }
 
-/** Direction, routing, nesting, and a non-default grid size stay in Options. */
+/** Direction, routing, nesting, and a non-default snap spacing stay in Options. */
 function secondaryLayoutSummary(): string {
   const parts: string[] = [];
   if (directionOverride !== "file") {
@@ -1106,7 +1106,7 @@ function secondaryLayoutSummary(): string {
     parts.push(nestingOverride === "nested" ? "Nested" : "Beside");
   }
   if (canvasGridSize !== DEFAULT_CANVAS_GRID_SIZE) {
-    parts.push(`Grid ${canvasGridSize}`);
+    parts.push(`Snap ${canvasGridSize}`);
   }
   return parts.join(" · ");
 }
@@ -1127,13 +1127,13 @@ function syncLayoutOptionsButton(): void {
   layoutOptionsButton.classList.toggle("is-active", summary.length > 0);
   const detail =
     summary.length > 0
-      ? `Options. Direction, routing, nesting, and grid size. Current preview: ${summary}.`
-      : "Options. Direction, routing, nesting, and grid size. File follows the open view.";
+      ? `Options. Direction, routing, nesting, and snap spacing. Current preview: ${summary}.`
+      : "Options. Direction, routing, nesting, and snap spacing. File follows the open view.";
   layoutOptionsButton.setAttribute("aria-label", detail);
   layoutOptionsButton.title =
     summary.length > 0
-      ? `Direction, routing, nesting, and grid size (${summary}). Local preview only.`
-      : "Direction, routing, nesting, and grid size. Local preview only — not written back to the file.";
+      ? `Direction, routing, nesting, and snap spacing (${summary}). Local preview only.`
+      : "Direction, routing, nesting, and snap spacing. Local preview only — not written back to the file.";
 }
 
 function syncCanvasGridToggle(): void {
@@ -1151,8 +1151,8 @@ function renderCanvasGridSizeSwitcher(): void {
         size === canvasGridSize,
         String(size),
         size === DEFAULT_CANVAS_GRID_SIZE
-          ? `${size} snap spacing (default). The drawn lines stay the same until you zoom. Dragged boxes snap to this spacing even when the grid is hidden.`
-          : `${size} snap spacing. The drawn lines stay the same until you zoom. Dragged boxes snap to this spacing even when the grid is hidden.`,
+          ? `${size} (default). How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden.`
+          : `${size}. How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden.`,
         () => {
           canvasGridSize = size;
           alignHold.clear();

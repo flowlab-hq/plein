@@ -7,7 +7,7 @@
  * by kind or name): that mode is left as packed.
  *
  * Two pitches share one model-space origin, (0, 0):
- * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Options → Grid size does not
+ * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Options → Snap spacing does not
  *   change that pitch, so at a fixed zoom the lines look the same. Zoom scales
  *   the SVG, which is what changes how big the lines look on screen.
  * - Snap spacing is the Options cell size (default 24). Every offered size is
@@ -40,7 +40,7 @@ export const CANVAS_GRID_SIZES = [8, 16, 24, 32, 48] as const;
 export type CanvasGridSize = (typeof CANVAS_GRID_SIZES)[number];
 
 /**
- * Drawn line pitch in model units. Fixed: Grid size does not change it.
+ * Drawn line pitch in model units. Fixed: snap spacing does not change it.
  * Zoom is the only control that changes how large this pitch looks on screen.
  */
 export const DRAWN_CANVAS_GRID_PITCH = 8;
@@ -175,7 +175,7 @@ function isMajorLine(coordinate: number, pitch: number): boolean {
 
 /**
  * Drawn grid lines for `frame`. Pitch is always `DRAWN_CANVAS_GRID_PITCH`,
- * never the snap spacing, so changing Grid size does not redraw a coarser
+ * never the snap spacing, so changing snap spacing does not redraw a coarser
  * or finer grid.
  */
 export function canvasGridLines(frame: ModelSpaceFrame): CanvasGridLine[] {

@@ -324,10 +324,12 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(toggle, -1, "grid visibility toggle is present");
   assert.ok(toggle < options, "grid toggle sits on the chrome, beside Options");
-  assert.ok(nesting < size && size < canvas, "grid size stays in Options above the canvas");
+  assert.ok(nesting < size && size < canvas, "snap spacing stays in Options above the canvas");
   assert.match(html, /id="canvas-grid-toggle"[^>]*aria-pressed="true"/);
   assert.match(html, /does not turn snap off/);
-  assert.match(html, /aria-label="Canvas grid size"/);
+  assert.match(html, /aria-label="Snap spacing"/);
+  assert.match(html, /How far boxes jump on snap/);
+  assert.match(html, /does not change how large the drawn squares look/);
 
   assert.match(css, /\.canvas-grid-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.diagram \.canvas-grid\s*\{[^}]*pointer-events:\s*none/);
@@ -342,7 +344,8 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(ui, /layoutSitsOnSnapGrid/);
   assert.match(ui, /modelSpaceFrame/);
   assert.match(ui, /paintCanvasGrid/);
-  assert.match(ui, /drawn lines stay the same until you zoom/);
+  assert.match(ui, /How far boxes jump on snap/);
+  assert.match(ui, /does not change how large the drawn squares look/);
   assert.match(ui, /canvasGridVisible/);
   assert.match(ui, /grid snap runs first/);
   assert.equal(ui.includes("autoLayout grid"), false);
@@ -378,7 +381,8 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(render, /layout\.auto === false \? alignHold/);
   assert.equal(render.includes("if (layout.auto === false)"), false, "seating is not limited to Auto Off");
 
-  assert.match(readme, /Grid size/);
+  assert.match(readme, /Snap spacing/);
+  assert.match(readme, /How far boxes jump on snap/);
   assert.match(readme, /does not turn snap off/);
   assert.match(readme, /neighbour-align/);
   assert.match(readme, /not `autoLayout grid`/);
