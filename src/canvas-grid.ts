@@ -1,7 +1,10 @@
 /**
- * Visible snap grid for manual placement on the diagram canvas.
+ * Visible snap grid for the diagram canvas.
  *
- * This is not `autoLayout grid` (catalogue packing by kind or name).
+ * Boxes and orthogonal routes sit on the snap lattice for manual placement
+ * and for automatic packing (ELK layered, layers, organic), including the
+ * default file-open path. This is not `autoLayout grid` (catalogue packing
+ * by kind or name): that mode is left as packed.
  *
  * Two pitches share one model-space origin, (0, 0):
  * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Options → Grid size does not
@@ -457,7 +460,22 @@ function withRoute<E extends GridSeatEdge>(edge: E, points: GridPoint[]): E {
 }
 
 /**
- * Move manual boxes onto the snap lattice and rebuild relationship routes so
+ * Whether the diagram should seat boxes and routes on the snap lattice.
+ *
+ * Auto Off always seats (manual positions and a frozen snapshot).
+ * Auto On seats ELK and organic packing the same way, including a file that
+ * never says `autoLayout off`. Catalogue packing (`mode` `grid` while
+ * automatic) stays where the packer put it.
+ */
+export function layoutSitsOnSnapGrid(layout: { auto?: boolean; mode?: string }): boolean {
+  if (layout.mode === "grid" && layout.auto !== false) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Move boxes onto the snap lattice and rebuild relationship routes so
  * orthogonal segments track those lines. `hold` keeps a top-left that
  * neighbour-align pulled off the lattice; the far edges still land on a line.
  * Nested parents grow to keep their children inside. Children are not shifted

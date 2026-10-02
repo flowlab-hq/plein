@@ -4,18 +4,23 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { loadPleinSource } from "./list-model.js";
+import { layoutViewpoint } from "./layout.js";
 import {
   CANVAS_GRID_SIZES,
   DEFAULT_CANVAS_GRID_SIZE,
   DRAWN_CANVAS_GRID_PITCH,
   canvasGridLinePaths,
   canvasGridLines,
+  layoutSitsOnSnapGrid,
   modelSpaceFrame,
   seatLayoutOnGrid,
   snapProposedOrigin,
   snapToGrid,
   gridSnapDragPosition,
   normalizeCanvasGridSize,
+  type GridSeatEdge,
+  type GridSeatNode,
 } from "./canvas-grid.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -144,6 +149,168 @@ test("boxes sit on snap cells and orthogonal relationships track those lines", (
   assert.equal((held.nodes[0]!.x + held.nodes[0]!.width) % 24, 0);
 });
 
+function onLattice(value: number, size: number): boolean {
+  const mod = Math.abs(value % size);
+  return mod < 1e-6 || Math.abs(mod - size) < 1e-6;
+}
+
+function assertBoxesAndOrthogonalOnLattice(
+  nodes: readonly GridSeatNode[],
+  edges: readonly GridSeatEdge[],
+  size: number,
+): void {
+  assert.ok(nodes.length > 0);
+  for (const node of nodes) {
+    assert.ok(onLattice(node.x, size), `${node.id} x`);
+    assert.ok(onLattice(node.y, size), `${node.id} y`);
+    assert.ok(onLattice(node.x + node.width, size), `${node.id} right`);
+    assert.ok(onLattice(node.y + node.height, size), `${node.id} bottom`);
+    assert.ok(onLattice(node.x, DRAWN_CANVAS_GRID_PITCH));
+  }
+  const orthogonal = edges.filter((edge) => !edge.impliedByNest && edge.points && edge.points.length >= 2);
+  assert.ok(orthogonal.length > 0, "orthogonal routes are present");
+  for (const edge of orthogonal) {
+    const points = edge.points ?? [];
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = points[index - 1]!;
+      const point = points[index]!;
+      assert.ok(previous.x === point.x || previous.y === point.y, `${edge.source}->${edge.target} is orthogonal`);
+      for (const spot of [previous, point]) {
+        assert.ok(onLattice(spot.x, size));
+        assert.ok(onLattice(spot.y, size));
+      }
+    }
+  }
+}
+
+test("auto layout and the default file path sit on the snap lattice", async () => {
+  assert.equal(layoutSitsOnSnapGrid({ auto: false, mode: "layered" }), true);
+  assert.equal(layoutSitsOnSnapGrid({ auto: false, mode: "grid" }), true);
+  assert.equal(layoutSitsOnSnapGrid({ auto: true, mode: "layered" }), true);
+  assert.equal(layoutSitsOnSnapGrid({ auto: true, mode: "layers" }), true);
+  assert.equal(layoutSitsOnSnapGrid({ auto: true, mode: "organic" }), true);
+  assert.equal(layoutSitsOnSnapGrid({ auto: true, mode: "grid" }), false);
+  assert.equal(layoutSitsOnSnapGrid({ mode: "grid" }), false);
+  assert.equal(layoutSitsOnSnapGrid({ mode: "layered" }), true);
+
+  const basic = loadPleinSource(
+    readFileSync(join(repoRoot, "fixtures/valid-basic.plein"), "utf8"),
+    "fixtures/valid-basic.plein",
+  );
+  assert.equal(basic.ok, true);
+  if (!basic.ok) {
+    return;
+  }
+  const opened = await layoutViewpoint(basic.model, "booking-context");
+  assert.equal(opened.auto, true, "default file-open path is automatic");
+  assert.equal(opened.mode, "layered");
+  assert.equal(opened.routing, "orthogonal");
+  assert.equal(layoutSitsOnSnapGrid(opened), true);
+  assert.ok(
+    opened.nodes.some(
+      (node) =>
+        !onLattice(node.x, DEFAULT_CANVAS_GRID_SIZE) ||
+        !onLattice(node.y, DEFAULT_CANVAS_GRID_SIZE) ||
+        !onLattice(node.x + node.width, DEFAULT_CANVAS_GRID_SIZE) ||
+        !onLattice(node.y + node.height, DEFAULT_CANVAS_GRID_SIZE),
+    ),
+    "ELK placement is not already on the snap lattice",
+  );
+  const seatedOpen = seatLayoutOnGrid(
+    opened.nodes,
+    opened.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    opened.routing,
+    opened.direction,
+  );
+  assertBoxesAndOrthogonalOnLattice(seatedOpen.nodes, seatedOpen.edges, DEFAULT_CANVAS_GRID_SIZE);
+
+  const manual = loadPleinSource(
+    readFileSync(join(repoRoot, "fixtures/valid-manual-layout.plein"), "utf8"),
+    "fixtures/valid-manual-layout.plein",
+  );
+  assert.equal(manual.ok, true);
+  if (!manual.ok) {
+    return;
+  }
+  const turnedOn = await layoutViewpoint(manual.model, "story", { autoLayout: "auto" });
+  assert.equal(turnedOn.auto, true);
+  assert.equal(layoutSitsOnSnapGrid(turnedOn), true);
+  const seatedOn = seatLayoutOnGrid(
+    turnedOn.nodes,
+    turnedOn.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    turnedOn.routing,
+    turnedOn.direction,
+  );
+  assertBoxesAndOrthogonalOnLattice(seatedOn.nodes, seatedOn.edges, DEFAULT_CANVAS_GRID_SIZE);
+
+  const bands = loadPleinSource(
+    readFileSync(join(repoRoot, "fixtures/valid-layer-bands.plein"), "utf8"),
+    "fixtures/valid-layer-bands.plein",
+  );
+  assert.equal(bands.ok, true);
+  if (!bands.ok) {
+    return;
+  }
+  const layers = await layoutViewpoint(bands.model, "layerBands");
+  assert.equal(layers.auto, true);
+  assert.equal(layers.mode, "layers");
+  assert.equal(layoutSitsOnSnapGrid(layers), true);
+  const seatedLayers = seatLayoutOnGrid(
+    layers.nodes,
+    layers.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    layers.routing,
+    layers.direction,
+  );
+  assertBoxesAndOrthogonalOnLattice(seatedLayers.nodes, seatedLayers.edges, DEFAULT_CANVAS_GRID_SIZE);
+  const parent = seatedLayers.nodes.find((node) => node.id === "platform");
+  const child = seatedLayers.nodes.find((node) => node.id === "tms");
+  assert.ok(parent && child && child.parentId === "platform");
+  assert.ok(child.x >= parent.x && child.y >= parent.y);
+  assert.ok(child.x + child.width <= parent.x + parent.width);
+  assert.ok(child.y + child.height <= parent.y + parent.height);
+
+  const organicFile = loadPleinSource(
+    readFileSync(join(repoRoot, "fixtures/valid-organic-grid.plein"), "utf8"),
+    "fixtures/valid-organic-grid.plein",
+  );
+  assert.equal(organicFile.ok, true);
+  if (!organicFile.ok) {
+    return;
+  }
+  const catalogue = await layoutViewpoint(organicFile.model, "catalogue");
+  assert.equal(catalogue.auto, true);
+  assert.equal(catalogue.mode, "grid");
+  assert.equal(layoutSitsOnSnapGrid(catalogue), false);
+  const movedIfSeated = seatLayoutOnGrid(
+    catalogue.nodes,
+    catalogue.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    catalogue.routing,
+    catalogue.direction,
+  );
+  assert.ok(
+    movedIfSeated.nodes.some((node, index) => {
+      const raw = catalogue.nodes[index]!;
+      return node.x !== raw.x || node.y !== raw.y || node.width !== raw.width || node.height !== raw.height;
+    }),
+    "catalogue packing is not already the snap lattice",
+  );
+  const landscape = await layoutViewpoint(organicFile.model, "landscape");
+  assert.equal(landscape.mode, "organic");
+  assert.equal(layoutSitsOnSnapGrid(landscape), true);
+  const seatedOrganic = seatLayoutOnGrid(
+    landscape.nodes,
+    landscape.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    landscape.routing,
+    landscape.direction,
+  );
+  assertBoxesAndOrthogonalOnLattice(seatedOrganic.nodes, seatedOrganic.edges, DEFAULT_CANVAS_GRID_SIZE);
+});
+
 test("Mac canvas toggles grid visibility without turning snap off", () => {
   const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
@@ -172,6 +339,7 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(ui, /DRAWN_CANVAS_GRID_PITCH/);
   assert.match(ui, /fitModelSpace/);
   assert.match(ui, /seatLayoutOnGrid/);
+  assert.match(ui, /layoutSitsOnSnapGrid/);
   assert.match(ui, /modelSpaceFrame/);
   assert.match(ui, /paintCanvasGrid/);
   assert.match(ui, /drawn lines stay the same until you zoom/);
@@ -202,8 +370,19 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(placement, /alignDraggedBox/);
   assert.match(placement, /gridSnapForDrag\(\)/);
 
+  const renderFrom = ui.indexOf("async function renderDiagram");
+  const renderTo = ui.indexOf("async function render():", renderFrom);
+  assert.ok(renderFrom !== -1 && renderTo > renderFrom);
+  const render = ui.slice(renderFrom, renderTo);
+  assert.match(render, /layoutSitsOnSnapGrid\(layout\)/);
+  assert.match(render, /layout\.auto === false \? alignHold/);
+  assert.equal(render.includes("if (layout.auto === false)"), false, "seating is not limited to Auto Off");
+
   assert.match(readme, /Grid size/);
   assert.match(readme, /does not turn snap off/);
   assert.match(readme, /neighbour-align/);
   assert.match(readme, /not `autoLayout grid`/);
+  assert.match(readme, /Auto layout\*\* \*\*On/);
+  assert.match(readme, /default file-open path/);
+  assert.match(readme, /catalogue packing is not reseated/);
 });

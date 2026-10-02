@@ -119,9 +119,9 @@ Manual smoke (`npm run app:preview` or `Plein.app`):
 
 The diagram pane draws a snap grid in model space, from the top-left `(0, 0)` outward — the same coordinates as `position` clauses, including empty canvas past the boxes. Drawn lines are **8** model units apart (a stronger line every four of those). That drawn pitch does not change when you pick a larger **Grid size**. Only zoom changes how big the lines look on screen.
 
-**Grid size** is snap spacing only: 8, 16, 24, 32, or 48. The default is **24** (the diagram padding; a default-width box is seven snap cells wide). Each of those sizes lands on a drawn line. While auto-layout is off, boxes are seated on that spacing (both edges on a cell) and orthogonal relationships run along those lines.
+**Grid size** is snap spacing only: 8, 16, 24, 32, or 48. The default is **24** (the diagram padding; a default-width box is seven snap cells wide). Each of those sizes lands on a drawn line. Boxes are seated on that spacing (both edges on a cell) and orthogonal relationships run along those lines. That seating applies with **Auto layout** **Off** and with **Auto layout** **On**, including the default file-open path (ELK layered, layers, and organic). **Mode → Grid** catalogue packing is not reseated.
 
-This is a placement aid for manual drag. It does not replace **Mode → Grid** (`autoLayout grid`), which still packs a catalogue by kind or name.
+This is a placement aid. It does not replace **Mode → Grid** (`autoLayout grid`), which still packs a catalogue by kind or name.
 
 | Control | Where | Effect |
 | --- | --- | --- |
@@ -136,11 +136,11 @@ The neighbour-align pass (centres and edges of nearby boxes) is already on, via 
 
 Smoke (`npm run app:preview` or `Plein.app`):
 
-1. Open [fixtures/valid-manual-layout.plein](../fixtures/valid-manual-layout.plein) (or any file, then set **Auto layout** to **Off**). The grid fills the canvas from the top-left. Boxes sit on cells and relationship lines run along the grid.
-2. Click **Grid**. The lines disappear. Drag a box: its top-left still jumps to a cell. Click **Grid** again: the lines return, and the box stays where the snap left it.
+1. Open [fixtures/valid-basic.plein](../fixtures/valid-basic.plein) and leave **Auto layout** on **File** (the view is automatic). The grid fills the canvas from the top-left. Boxes sit on cells and orthogonal relationship lines run along the grid without turning **Auto layout** **Off**. The same seating is on [fixtures/valid-manual-layout.plein](../fixtures/valid-manual-layout.plein) with **Auto layout** **Off**.
+2. Turn **Auto layout** **Off**. Click **Grid**. The lines disappear. Drag a box: its top-left still jumps to a cell. Click **Grid** again: the lines return, and the box stays where the snap left it.
 3. Open **Options → Grid size** and choose **32**. The drawn lines look the same. Drag a box: it lands on 32-unit cells, still on a drawn line. The Options button reads **Grid 32**. Zoom in: the lines get larger. Zoom is the only control that does that.
 4. Drag a box past the left or top of the diagram. The canvas grows, the grid continues into the new region, and the box is not stuck against the old content edge.
-5. Set **Auto layout** back to **On**. Boxes are not draggable. **Mode → Grid** still packs by kind or name; it does not switch on this snap grid.
+5. **Mode → Grid** still packs by kind or name and does not move those boxes onto the snap lattice. With **Auto layout** **On**, boxes stay on the lattice and are not draggable. Turning **Auto layout** **Off** keeps that seating and makes a drag snap to the same cells.
 
 ## Save manual positions
 
