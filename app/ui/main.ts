@@ -66,6 +66,7 @@ import {
   DEFAULT_CANVAS_GRID_SIZE,
   DRAWN_CANVAS_GRID_PITCH,
   canvasGridLinePaths,
+  layoutSitsOnSnapGrid,
   modelSpaceFrame,
   seatLayoutOnGrid,
   snapProposedOrigin,
@@ -1296,14 +1297,14 @@ async function renderDiagram(seq: number): Promise<void> {
     canvasZoomView = browsed.viewName;
     let layout = browsed.layout;
     let svgMarkup = browsed.svg;
-    if (layout.auto === false) {
+    if (layoutSitsOnSnapGrid(layout)) {
       const seated = seatLayoutOnGrid(
         layout.nodes,
         layout.edges,
         canvasGridSize,
         layout.routing,
         layout.direction,
-        alignHold,
+        layout.auto === false ? alignHold : undefined,
       );
       const bounds = contentBounds(
         seated.nodes,
