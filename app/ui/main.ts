@@ -39,6 +39,7 @@ import {
   type ViewpointLayout,
 } from "../../src/layout.ts";
 import {
+  focusShade,
   nextSelectionFromClick,
   normalizeMarquee,
   retainSelections,
@@ -507,16 +508,18 @@ function paintSelection(options?: { scroll?: boolean }): void {
   );
 
   const svg = diagram.querySelector("svg");
-  if (!(svg instanceof SVGSVGElement)) {
+  const svgEl = svg instanceof SVGSVGElement ? svg : null;
+  paintCanvasFocus(svgEl);
+  if (!svgEl) {
     return;
   }
-  for (const marked of svg.querySelectorAll("[data-selected]")) {
+  for (const marked of svgEl.querySelectorAll("[data-selected]")) {
     marked.removeAttribute("data-selected");
   }
   for (const item of selectedItems) {
     if (item.kind === "element") {
-      const node = findByAttr(svg, "data-node-id", item.id);
-      const container = findByAttr(svg, "data-container-id", item.id);
+      const node = findByAttr(svgEl, "data-node-id", item.id);
+      const container = findByAttr(svgEl, "data-container-id", item.id);
       node?.setAttribute("data-selected", "true");
       container?.setAttribute("data-selected", "true");
       if (scroll && focus?.kind === "element" && focus.id === item.id) {
@@ -524,13 +527,48 @@ function paintSelection(options?: { scroll?: boolean }): void {
       }
       continue;
     }
-    const edge = findByAttr(svg, "data-edge-id", item.id);
+    const edge = findByAttr(svgEl, "data-edge-id", item.id);
     edge?.setAttribute("data-selected", "true");
     if (scroll && focus?.kind === "relationship" && focus.id === item.id) {
       edge?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   }
-  paintSelectionBounds(svg, { x: 0, y: 0 });
+  paintSelectionBounds(svgEl, { x: 0, y: 0 });
+}
+
+/**
+ * Shade every canvas element and relationship outside the one-hop-out
+ * neighbourhood. Attributes only — positions, the selection, and the file
+ * stay as they are. Clearing the seed removes the shade.
+ */
+function paintCanvasFocus(svg: SVGSVGElement | null): void {
+  const shade = focusShade(selectedItems, lastLayout?.edges ?? []);
+  if (!svg || !shade.active) {
+    diagram.classList.remove("is-focus");
+    if (svg) {
+      for (const marked of svg.querySelectorAll("[data-focus-lit]")) {
+        marked.removeAttribute("data-focus-lit");
+      }
+    }
+    return;
+  }
+  diagram.classList.add("is-focus");
+  for (const node of svg.querySelectorAll("[data-node-id]")) {
+    const id = node.getAttribute("data-node-id");
+    if (id && shade.litElementIds.has(id)) {
+      node.setAttribute("data-focus-lit", "true");
+    } else {
+      node.removeAttribute("data-focus-lit");
+    }
+  }
+  for (const edge of svg.querySelectorAll("[data-edge-id]")) {
+    const id = edge.getAttribute("data-edge-id");
+    if (id && shade.litRelationshipIds.has(id)) {
+      edge.setAttribute("data-focus-lit", "true");
+    } else {
+      edge.removeAttribute("data-focus-lit");
+    }
+  }
 }
 
 /** Dashed union of two or more selected element boxes. One box keeps its own stroke. */
@@ -1452,6 +1490,7 @@ async function render(): Promise<void> {
     elementList.replaceChildren();
     relationshipList.replaceChildren();
     await renderDiagram(seq);
+    diagram.classList.remove("is-focus");
     return;
   }
 
@@ -1465,6 +1504,7 @@ async function render(): Promise<void> {
     elementList.replaceChildren();
     relationshipList.replaceChildren();
     await renderDiagram(seq);
+    diagram.classList.remove("is-focus");
     return;
   }
 

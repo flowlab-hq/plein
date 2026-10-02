@@ -48,6 +48,12 @@ test("Mac UI wires bidirectional diagram ↔ list selection", () => {
   assert.match(css, /\.rows li\.selected/);
   assert.match(css, /data-selection-bounds/);
   assert.match(css, /selection-marquee/);
+  assert.match(ui, /focusShade/);
+  assert.match(ui, /paintCanvasFocus/);
+  assert.match(ui, /classList\.remove\("is-focus"\)/);
+  assert.match(css, /\.diagram\.is-focus \[data-node-id\]:not\(\[data-focus-lit="true"\]\)/);
+  assert.match(css, /\.diagram\.is-focus \[data-edge-id\]:not\(\[data-focus-lit="true"\]\)/);
+  assert.match(css, /opacity:\s*0\.22/);
   assert.match(html, /aria-multiselectable="true"/);
 });
 

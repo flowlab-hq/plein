@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { browseNamedView, switchNamedView } from "./browser.js";
 import { edgeId } from "./layout.js";
-import { filterModel, loadPleinSource } from "./list-model.js";
+import { filterModel, loadPleinSource, type FilteredList } from "./list-model.js";
 import {
   diagramTargetsForSelection,
   elementSelection,
@@ -17,10 +17,13 @@ import {
   relationshipId,
   relationshipSelection,
   retainSelection,
+  focusSeedId,
+  focusShade,
   retainSelections,
   selectedElementIds,
   selectionFromDiagramHit,
   selectionFromMarquee,
+  shadedByFocus,
   svgHasSelectionTarget,
 } from "./selection.js";
 
@@ -229,4 +232,199 @@ test("retainSelections keeps every item still listed, in order", async () => {
   const serving = relationshipSelection("tms", "bookingApi", "serves");
   assert.deepEqual(retainSelections([shipment, tms, serving], cooperation), [tms, serving]);
   assert.deepEqual(retainSelections([], cooperation), []);
+});
+
+function canvasOf(list: FilteredList) {
+  return {
+    elements: list.elements.map((element) => element.id),
+    relationships: list.relationships.map((rel) => relationshipId(rel)),
+  };
+}
+
+test("one selected element lights itself, outgoing relationships, and their destinations", () => {
+  const result = loadPleinSource(readFixture("valid-basic.plein"), "fixtures/valid-basic.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const source = readFixture("valid-basic.plein");
+  const list = filterModel(result.model, "booking-context");
+  const canvas = canvasOf(list);
+  const booking = elementSelection("booking");
+  const selection = [booking];
+
+  const shade = focusShade(selection, list.relationships);
+  assert.equal(focusSeedId(selection), "booking");
+  assert.equal(shade.active, true);
+  assert.deepEqual(selection, [booking]);
+  assert.equal(readFixture("valid-basic.plein"), source);
+
+  assert.equal(shade.litElementIds.has("booking"), true);
+  assert.equal(shade.litElementIds.has("order"), true);
+  assert.equal(shade.litElementIds.has("rates"), true);
+  assert.equal(shade.litElementIds.has("shipper"), false, "incoming-only neighbour stays out");
+  assert.equal(shade.litRelationshipIds.has(relationshipId({ source: "booking", target: "order", type: "accesses" })), true);
+  assert.equal(shade.litRelationshipIds.has(relationshipId({ source: "booking", target: "rates", type: "serves" })), true);
+  assert.equal(
+    shade.litRelationshipIds.has(relationshipId({ source: "shipper", target: "booking", type: "serves" })),
+    false,
+  );
+  assert.equal(
+    shade.litRelationshipIds.has(relationshipId({ source: "rates", target: "order", type: "accesses" })),
+    false,
+    "a relationship between two lit elements stays shaded unless it starts from the selection",
+  );
+
+  const shaded = shadedByFocus(shade, canvas);
+  assert.deepEqual(shaded.elements, ["shipper"]);
+  assert.deepEqual(shaded.relationships, [
+    relationshipId({ source: "shipper", target: "booking", type: "serves" }),
+    relationshipId({ source: "rates", target: "order", type: "accesses" }),
+  ]);
+  assert.equal(canvas.elements.includes("shipper"), true, "shaded elements stay on the canvas");
+  assert.equal(canvas.relationships.length, list.relationships.length);
+});
+
+test("focus stops at one hop and ignores incoming-only neighbours", () => {
+  const result = loadPleinSource(readFixture("valid-basic.plein"), "fixtures/valid-basic.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const list = filterModel(result.model, "booking-context");
+  const canvas = canvasOf(list);
+
+  const fromShipper = focusShade([elementSelection("shipper")], list.relationships);
+  assert.equal(fromShipper.litElementIds.has("shipper"), true);
+  assert.equal(fromShipper.litElementIds.has("booking"), true);
+  assert.equal(fromShipper.litElementIds.has("order"), false, "order is two hops out");
+  assert.equal(fromShipper.litElementIds.has("rates"), false);
+  assert.equal(
+    fromShipper.litRelationshipIds.has(relationshipId({ source: "shipper", target: "booking", type: "serves" })),
+    true,
+  );
+  assert.equal(fromShipper.litRelationshipIds.size, 1);
+
+  const orderOnly = focusShade([elementSelection("order")], list.relationships);
+  assert.deepEqual([...orderOnly.litElementIds], ["order"]);
+  assert.equal(orderOnly.litRelationshipIds.size, 0);
+  const shaded = shadedByFocus(orderOnly, canvas);
+  assert.deepEqual(shaded.elements, ["shipper", "booking", "rates"]);
+  assert.equal(shaded.relationships.length, list.relationships.length);
+});
+
+test("clearing the selection, multi-select, and a relationship seed restore an unshaded canvas", () => {
+  const result = loadPleinSource(readFixture("valid-basic.plein"), "fixtures/valid-basic.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const list = filterModel(result.model, "booking-context");
+  const canvas = canvasOf(list);
+  const booking = elementSelection("booking");
+  const focused = focusShade([booking], list.relationships);
+  assert.equal(shadedByFocus(focused, canvas).elements.length > 0, true);
+
+  const cleared = focusShade([], list.relationships);
+  assert.equal(cleared.active, false);
+  assert.equal(focusSeedId([]), null);
+  assert.deepEqual(shadedByFocus(cleared, canvas), { elements: [], relationships: [] });
+
+  const several = [booking, elementSelection("order")];
+  assert.equal(focusSeedId(several), null);
+  assert.deepEqual(shadedByFocus(focusShade(several, list.relationships), canvas), {
+    elements: [],
+    relationships: [],
+  });
+
+  const edge = [relationshipSelection("booking", "order", "access")];
+  assert.equal(focusSeedId(edge), null);
+  assert.deepEqual(shadedByFocus(focusShade(edge, list.relationships), canvas), {
+    elements: [],
+    relationships: [],
+  });
+
+  assert.deepEqual(nextSelectionFromClick([booking], null, false), []);
+});
+
+test("a relationship excluded from the view does not light its destination", () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const structure = filterModel(result.model, "applicationStructure");
+  const canvas = canvasOf(structure);
+  assert.equal(
+    structure.relationships.some((rel) => rel.source === "tms" && rel.target === "legacyBatch"),
+    false,
+  );
+  assert.equal(canvas.elements.includes("legacyBatch"), true);
+
+  const shade = focusShade([elementSelection("tms")], structure.relationships);
+  assert.equal(shade.litElementIds.has("tms"), true);
+  assert.equal(shade.litElementIds.has("bookingApi"), true);
+  assert.equal(shade.litElementIds.has("legacyBatch"), false);
+  assert.equal(shade.litElementIds.has("shipment"), false, "shipment is a second hop through bookingApi");
+  const shaded = shadedByFocus(shade, canvas);
+  assert.equal(shaded.elements.includes("legacyBatch"), true);
+  assert.equal(shaded.elements.includes("tms"), false);
+  assert.equal(shaded.elements.includes("bookingApi"), false);
+});
+
+test("nested composedOf stays in the one-hop set even when the edge is not drawn", async () => {
+  const result = loadPleinSource(
+    readFixture("samples/value-stream-demo.plein"),
+    "fixtures/samples/value-stream-demo.plein",
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const source = readFixture("samples/value-stream-demo.plein");
+  const browsed = await browseNamedView(result.model, "strategy");
+  const positions = browsed.layout.nodes.map((node) => ({
+    id: node.id,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+  }));
+  const selection = [elementSelection("quoteToCash")];
+  const shade = focusShade(selection, browsed.layout.edges);
+  assert.equal(shade.litElementIds.has("quoteToCash"), true);
+  assert.equal(shade.litElementIds.has("quote"), true);
+  assert.equal(shade.litElementIds.has("book"), true);
+  assert.equal(shade.litElementIds.has("collect"), true);
+  assert.equal(shade.litElementIds.has("rateQuote"), false);
+  assert.equal(
+    shade.litRelationshipIds.has(relationshipId({ source: "quote", target: "book", type: "flowsTo" })),
+    false,
+    "a relationship that starts on a child is a second hop",
+  );
+  assert.equal(svgHasSelectionTarget(browsed.svg, elementSelection("quote")), true);
+  assert.equal(
+    svgHasSelectionTarget(browsed.svg, relationshipSelection("quoteToCash", "quote", "composedOf")),
+    false,
+  );
+
+  const quote = focusShade([elementSelection("quote")], browsed.layout.edges);
+  assert.equal(quote.litElementIds.has("quote"), true);
+  assert.equal(quote.litElementIds.has("book"), true);
+  assert.equal(quote.litElementIds.has("collect"), false);
+  assert.equal(quote.litElementIds.has("quoteToCash"), false, "the parent only points at quote, not from it");
+  assert.equal(quote.litRelationshipIds.has(relationshipId({ source: "quote", target: "book", type: "flowsTo" })), true);
+
+  assert.deepEqual(
+    browsed.layout.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+    })),
+    positions,
+  );
+  assert.deepEqual(selection, [elementSelection("quoteToCash")]);
+  assert.equal(readFixture("samples/value-stream-demo.plein"), source);
 });

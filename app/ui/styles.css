@@ -531,6 +531,13 @@ button:disabled {
   stroke-width: 2.5;
 }
 
+/* One selected element: it, relationships that start from it, and their
+   destinations stay fully visible. Everything else is shaded, not removed. */
+.diagram.is-focus [data-node-id]:not([data-focus-lit="true"]),
+.diagram.is-focus [data-edge-id]:not([data-focus-lit="true"]) {
+  opacity: 0.22;
+}
+
 .diagram-empty {
   margin: auto;
   padding: 24px;
