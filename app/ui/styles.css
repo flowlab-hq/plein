@@ -293,8 +293,8 @@ button:disabled {
   align-items: baseline;
   gap: 8px;
   flex: 0 1 auto;
-  min-width: 6.5rem;
-  max-width: 14rem;
+  min-width: 7rem;
+  max-width: 12rem;
 }
 
 .layout-controls {
@@ -316,7 +316,7 @@ button:disabled {
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px 8px;
+  gap: 4px 6px;
   flex: 0 0 auto;
 }
 
