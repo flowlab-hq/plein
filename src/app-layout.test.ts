@@ -110,6 +110,7 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
 
   const chrome = html.indexOf('class="diagram-chrome"');
+  const layoutCluster = html.indexOf('class="chrome-cluster" role="group" aria-label="Layout"');
   const autoLayout = html.indexOf('id="auto-layout-switcher"');
   const mode = html.indexOf('id="mode-switcher"');
   const options = html.indexOf('id="layout-options"');
@@ -117,8 +118,11 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const direction = html.indexOf('id="direction-switcher"');
   const routing = html.indexOf('id="routing-switcher"');
   const nesting = html.indexOf('id="nesting-switcher"');
+  const viewingCluster = html.indexOf('class="chrome-cluster" role="group" aria-label="Viewing"');
+  const focus = html.indexOf('id="focus-switcher"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(chrome, -1);
+  assert.notEqual(layoutCluster, -1, "layout grouping is present");
   assert.notEqual(autoLayout, -1, "auto-layout switcher is present");
   assert.notEqual(mode, -1, "mode switcher is present");
   assert.notEqual(options, -1, "layout options disclosure is present");
@@ -126,23 +130,41 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.notEqual(direction, -1, "direction switcher is present");
   assert.notEqual(routing, -1, "routing switcher is present");
   assert.notEqual(nesting, -1, "nesting switcher remains");
+  assert.notEqual(viewingCluster, -1, "viewing grouping is present");
+  assert.notEqual(focus, -1, "focus mode switcher is present");
   assert.ok(
-    chrome < autoLayout &&
+    chrome < layoutCluster &&
+      layoutCluster < autoLayout &&
       autoLayout < mode &&
       mode < options &&
       options < optionsPanel &&
       optionsPanel < direction &&
       direction < routing &&
       routing < nesting &&
-      nesting < canvas,
-    "auto layout and mode stay on the chrome; direction, routing, and nesting sit in Options above the canvas",
+      nesting < viewingCluster &&
+      viewingCluster < focus &&
+      focus < canvas,
+    "layout groups auto layout with direction, routing, and nesting; viewing follows that group",
   );
-  const panel = html.slice(optionsPanel, canvas);
+  const layoutGroup = html.slice(layoutCluster, viewingCluster);
+  assert.match(layoutGroup, /id="auto-layout-switcher"/);
+  assert.match(layoutGroup, /id="mode-switcher"/);
+  assert.match(layoutGroup, /id="direction-switcher"/);
+  assert.match(layoutGroup, /id="routing-switcher"/);
+  assert.match(layoutGroup, /id="nesting-switcher"/);
+  assert.match(layoutGroup, /class="chrome-section-label">Layout</);
+  const panel = html.slice(optionsPanel, viewingCluster);
   assert.match(panel, /id="direction-switcher"/);
   assert.match(panel, /id="routing-switcher"/);
   assert.match(panel, /id="nesting-switcher"/);
   assert.equal(panel.includes('id="auto-layout-switcher"'), false, "auto layout stays one click away");
   assert.equal(panel.includes('id="mode-switcher"'), false, "mode stays one click away");
+  assert.equal(panel.includes('id="canvas-grid-size"'), false, "snap spacing sits in Viewing, not in Layout options");
+  assert.match(ui, /let focusMode: "off" \| "on" = "on"/);
+  assert.match(ui, /focusMode !== "on"/);
+  assert.match(ui, /renderFocusSwitcher/);
+  assert.match(html, /chrome-optional">optional</);
+  assert.match(html, /aria-label="Focus mode, optional"/);
   assert.match(html, /class="layout-primary"/);
   assert.match(html, /aria-label="Auto layout"/);
   assert.match(html, /aria-label="Layout mode"/);
@@ -183,6 +205,8 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.match(css, /\.layout-options-panel\s*\{/);
   assert.match(css, /\.layout-options-panel\[hidden\]\s*\{[^}]*display:\s*none/);
   assert.match(css, /\.layout-primary\s*\{/);
+  assert.match(css, /\.chrome-cluster\s*\{/);
+  assert.match(css, /\.chrome-cluster \+ \.chrome-cluster\s*\{/);
 });
 
 test("Mac UI switches named views from the left sidebar only", () => {
