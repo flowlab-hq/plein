@@ -254,6 +254,20 @@ test("toolbar brand mark is the locked B2 monogram", () => {
   assert.match(svg, /<circle\b/);
 });
 
+test("browser preview serves the B2 icon as favicon.ico", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const headEnd = html.indexOf("</head>");
+  const head = html.slice(0, headEnd);
+  const favicon = readFileSync(join(repoRoot, "app/ui/favicon.ico"));
+  const appIcon = readFileSync(join(repoRoot, "app/src-tauri/icons/icon.ico"));
+
+  assert.match(head, /<link rel="icon" href="\.\/favicon\.ico" type="image\/x-icon"\s*\/>/);
+  assert.equal(favicon.readUInt16LE(0), 0, "ICO reserved field");
+  assert.equal(favicon.readUInt16LE(2), 1, "ICO type is icon");
+  assert.ok(favicon.readUInt16LE(4) >= 1, "ICO contains at least one image");
+  assert.deepEqual(favicon, appIcon, "preview favicon is the existing product icon");
+});
+
 test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () => {
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
   const workspace = css.match(/\.workspace\s*\{[^}]+\}/);
