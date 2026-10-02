@@ -40,6 +40,8 @@ body {
   padding: 10px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
+  position: relative;
+  z-index: 5;
 }
 
 .brand {
@@ -97,7 +99,76 @@ button:disabled {
 
 #save-button.is-dirty:not(:disabled) {
   border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
+}
+
+.file-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.file-menu[hidden] {
+  display: none;
+}
+
+.file-menu > summary {
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.file-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.file-menu > summary:hover,
+.file-menu > summary:focus-visible,
+.file-menu[open] > summary {
+  border-color: var(--accent);
+}
+
+.file-menu-list {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  margin: 0;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.file-menu-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  text-align: left;
+  padding: 6px 8px;
+}
+
+.file-menu-list button:hover:not(:disabled),
+.file-menu-list button:focus-visible {
+  background: var(--bg);
+  border-color: transparent;
+}
+
+.file-menu-list kbd {
+  color: var(--muted);
+  font: inherit;
 }
 
 .error {

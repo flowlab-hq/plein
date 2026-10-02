@@ -244,15 +244,68 @@ test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () =
   assert.equal(/\.lists\s*\{/.test(css), false);
 });
 
-test("Mac UI saves manual positions from the toolbar and the File menu", () => {
+test("Open, Save, Import, and Export live in the File menu, not the toolbar chrome", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const rust = readFileSync(join(repoRoot, "app/src-tauri/src/lib.rs"), "utf8");
+
+  const menuStart = html.indexOf('<details id="file-menu"');
+  const menuEnd = html.indexOf("</details>", menuStart);
+  assert.ok(menuStart !== -1 && menuEnd > menuStart, "in-app File menu exists for browser preview");
+  const fileMenu = html.slice(menuStart, menuEnd);
+  assert.match(fileMenu, /\shidden\b/, "in-app File menu stays hidden when the native menu bar is present");
+  assert.match(fileMenu, /id="open-button"/);
+  assert.match(fileMenu, /id="save-button"/);
+  assert.match(fileMenu, /id="import-button"/);
+  assert.match(fileMenu, /Import Open Exchange XML…/);
+  assert.match(fileMenu, /id="export-button"/);
+  assert.ok(
+    fileMenu.indexOf('id="open-button"') < fileMenu.indexOf('id="save-button"') &&
+      fileMenu.indexOf('id="save-button"') < fileMenu.indexOf('id="import-button"') &&
+      fileMenu.indexOf('id="import-button"') < fileMenu.indexOf('id="export-button"'),
+    "File menu order matches the native menu",
+  );
+
+  const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
+  const chrome = toolbar.replace(fileMenu, "");
+  for (const id of ["open-button", "save-button", "import-button", "export-button"]) {
+    assert.equal(chrome.includes(`id="${id}"`), false, `${id} is not a toolbar button`);
+  }
+  assert.match(chrome, /id="reload-button"/, "Reload stays in the toolbar");
+
+  assert.match(ui, /function useInAppFileMenu/);
+  assert.match(ui, /if \(!tauri\(\)\) \{\s*fileMenu\.hidden = false;\s*\}/);
+  assert.match(ui, /key === "o"/);
+  assert.match(ui, /key === "s"/);
+  assert.match(ui, /event\.key\.toLowerCase\(\) === "i"/);
+  assert.match(ui, /event\.key\.toLowerCase\(\) === "e"/);
+  assert.match(ui, /listen\("open-dialog"/);
+  assert.match(ui, /listen\("save-positions"/);
+  assert.match(ui, /listen\("import-open-exchange"/);
+  assert.match(ui, /listen\("export-view"/);
+
+  assert.match(rust, /"open", "Open…"/);
+  assert.match(rust, /CmdOrCtrl\+O/);
+  assert.match(rust, /"save", "Save"/);
+  assert.match(rust, /CmdOrCtrl\+S/);
+  assert.match(rust, /"import-open-exchange",\s*"Import Open Exchange XML…"/);
+  assert.match(rust, /CmdOrCtrl\+Shift\+I/);
+  assert.match(rust, /"export", "Export…"/);
+  assert.match(rust, /CmdOrCtrl\+Shift\+E/);
+  assert.match(rust, /Submenu::with_items\(\s*app,\s*"File"/);
+});
+
+test("Mac UI saves manual positions from the File menu", () => {
   const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
   const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
   const rust = readFileSync(join(repoRoot, "app/src-tauri/src/lib.rs"), "utf8");
 
+  const menuStart = html.indexOf('<details id="file-menu"');
+  const fileMenu = html.slice(menuStart, html.indexOf("</details>", menuStart));
+  assert.match(fileMenu, /id="save-button"/);
   const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
-  assert.match(toolbar, /id="save-button"/);
-  assert.ok(toolbar.indexOf('id="reload-button"') < toolbar.indexOf('id="save-button"'));
+  assert.equal(toolbar.replace(fileMenu, "").includes('id="save-button"'), false);
   assert.match(ui, /writeManualPositions/);
   assert.match(ui, /manualPositionsAreDirty/);
   assert.match(ui, /syncSaveChrome/);

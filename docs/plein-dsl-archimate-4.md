@@ -340,7 +340,7 @@ viewpoint story "Story" {
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
-The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away. **Save** (toolbar, File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
+The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away. **Save** (File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
 
 | Choice | Effect |
 | --- | --- |

@@ -31,7 +31,7 @@ Prefer the GitHub Release **`.dmg`** ([README](../README.md#download-the-mac-app
 
 ## Run the UI without a `.app`
 
-Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Diagram ↔ list selection (nested containers + multi-view) is `src/selection.test.ts` or `./scripts/assert-selection-sync.sh`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open and Import dialogs are file pickers):
+Automated load→list coverage lives in `src/list-model.test.ts`. The left-sidebar layout (no bottom list strip) is pinned in `src/app-layout.test.ts`. Diagram ↔ list selection (nested containers + multi-view) is `src/selection.test.ts` or `./scripts/assert-selection-sync.sh`. Viewpoint include/exclude layout (golden `applicationStructure`) is `src/layout.test.ts` or `./scripts/assert-viewpoint-layout.sh`. Type/layer colours and icons are `src/archimate-style.test.ts` or `./scripts/assert-archimate-style.sh` (visual pin `fixtures/golden-catalogue-layers.svg`). Edit → reload → diagram is `src/reload.test.ts` or `./scripts/assert-reload-diagram.sh`. One model → many views (and a new view after reload) is `src/browser.test.ts` or `./scripts/assert-multi-view-browser.sh`. To click through the same UI in a browser (Open and Import dialogs are file pickers). The Mac app uses the menu bar **File** menu. Browser preview has no menu bar, so the same **File** menu opens from the window toolbar:
 
 ```bash
 npm install
@@ -70,7 +70,7 @@ This Linux checkout cannot produce `Plein.app` (no macOS SDK). `npm test` and `n
 ## Open → view path
 
 1. Launch `Plein.app` (or `npm run app:preview` in a browser).
-2. **Open…** a `.plein` file — toolbar button (native dialog in the `.app`, file picker in preview), drag-and-drop onto the window, or Finder **Open With** once the `.app` is installed (`.plein` is registered as a Plein Model).
+2. **File → Open…** a `.plein` file — native menu in the `.app`, **File** in the window toolbar during browser preview (file picker), drag-and-drop onto the window, or Finder **Open With** once the `.app` is installed (`.plein` is registered as a Plein Model).
 3. The first named viewpoint in the `views` block is selected (golden: `applicationStructure` in `fixtures/valid-views.plein`).
 4. The diagram pane draws `browseNamedView(model, viewName)` (layout + SVG from M9). The **View** chrome above the canvas always shows the current view name (outside the scrollable SVG). Clicking a **Views** row in the left sidebar switches the canvas without reloading the file. The left sidebar lists the current view’s elements and relationships (or the whole model when **All** is selected). **All** filters the lists only; the **View** name and the **Showing** row stay on the last named viewpoint.
 5. Membership must match the markup: includes add elements (and implied relationships between them); excludes remove them. `fixtures/golden-applicationStructure.json` is the asserted set (`legacyBatch` stays as a node; `tms -> legacyBatch` is omitted).
@@ -150,7 +150,7 @@ Smoke (`npm run app:preview` or `Plein.app`):
 
 ## Save manual positions
 
-**Save** (toolbar button, **File → Save**, or **⌘S**) writes the positions on screen into the open `.plein`. The shape is the existing view clause, not a second layout format:
+**Save** (**File → Save**, or **⌘S**) writes the positions on screen into the open `.plein`. The shape is the existing view clause, not a second layout format:
 
 ```plein
 autoLayout off
@@ -191,7 +191,7 @@ Browser preview (`npm run app:preview`) has no filesystem path after the file pi
 
 ## Import Open Exchange XML
 
-**File → Import Open Exchange XML…**, the toolbar **Import…** button, or **⇧⌘I** reads an ArchiMate Model Exchange File Format document and opens it as a model. The converter is `importOpenExchange` — the same subset as `plein import`, not a second one. The open panel accepts an `.xml` file (in browser preview, the file picker replaces that panel). Cancel leaves the current model alone and shows no banner.
+**File → Import Open Exchange XML…** or **⇧⌘I** reads an ArchiMate Model Exchange File Format document and opens it as a model. The converter is `importOpenExchange` — the same subset as `plein import`, not a second one. The open panel accepts an `.xml` file (in browser preview, the file picker replaces that panel). Cancel leaves the current model alone and shows no banner.
 
 The imported source is loaded with `loadPleinSource`, the same path as **Open…** on a `.plein`. The first named viewpoint is selected. **Reload** (⌘R) re-imports that XML: from disk in `Plein.app`, or the text from the file picker in browser preview. Opening a `.plein` leaves the import session.
 
@@ -211,7 +211,7 @@ Smoke from `Plein.app` (or `npm run app:preview` for the file picker):
 
 ## Export the current view
 
-**File → Export…**, the toolbar **Export…** button, or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome. **Open Exchange** in the same sheet is the whole model; see [Export the open model as Open Exchange](#export-the-open-model-as-open-exchange).
+**File → Export…** or **⇧⌘E** writes the viewpoint on the canvas. **All** in the Views list filters the sidebar only. Export follows the named view in the **View** chrome. **Open Exchange** in the same sheet is the whole model; see [Export the open model as Open Exchange](#export-the-open-model-as-open-exchange).
 
 1. Choose **HTML**, **SVG**, or **HTML and SVG** — the same formats as `plein export --format html|svg|both`.
 2. **Save…** opens the standard Mac save panel (in browser preview, the browser downloads the file instead). HTML is one `.html` page. SVG is one `.svg`. **HTML and SVG** writes both files from the name you choose (`booking.html` and `booking.svg`).
@@ -231,7 +231,7 @@ Smoke from `Plein.app` (or `npm run app:preview` for the dialog; the preview dow
 
 ## Export the open model as Open Exchange
 
-**File → Export…**, the toolbar **Export…**, or **⇧⌘E**, then **Open Exchange**. That choice writes the **whole open model** as XML. It is not the viewpoint on the canvas (HTML, SVG, and HTML and SVG are unchanged and still follow the **View** chrome).
+**File → Export…** or **⇧⌘E**, then **Open Exchange**. That choice writes the **whole open model** as XML. It is not the viewpoint on the canvas (HTML, SVG, and HTML and SVG are unchanged and still follow the **View** chrome).
 
 1. Choose **Open Exchange**. The sheet title reads **Export Open Exchange**, and the line under it names the `.plein` file, not only the view.
 2. **Save…** opens the standard Mac save panel with a `.xml` name taken from the file stem (`booking.plein` or an imported `booking.xml` → `booking.xml`, not `booking.xml.xml`). Trailing dots in front of that extension collapse (`booking2..xml` → `booking2.xml`). In browser preview, the browser downloads that `.xml` instead.
