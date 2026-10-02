@@ -1,0 +1,17 @@
+plein {
+  model {
+    application-component "TMS" as tms links view cooperation
+    application-interface "Booking API" as bookingApi
+
+    tms -> bookingApi: serving
+  }
+
+  views {
+    viewpoint structure "Structure" {
+      include *
+    }
+    viewpoint cooperation "Cooperation" {
+      include tms, bookingApi
+    }
+  }
+}

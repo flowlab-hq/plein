@@ -516,6 +516,22 @@ The example intentionally excludes `rates` from the context view while retaining
 
 File-level `styles { }` blocks are accepted and ignored. The Mac renderer colours boxes by ArchiMate layer and draws a type glyph from a built-in map — see [ArchiMate type colours and icons](archimate-style.md). That map is not overridden by `styles` and is not an Open Exchange or full Archi skin.
 
+## Link an element to a view
+
+One element may name one view. The clause sits on the element declaration, after `as <id>` and after `hook <name>` when the element has a hook:
+
+```plein
+application-component "TMS" as tms links view cooperation
+```
+
+`<view>` is the view's identifier (`structure`, `cooperation`), not its quoted title. `plein check` rejects a name that is not a view in the file. A second destination is out of scope: write the clause once. Replacing it is how the link changes. Omitting it clears the link.
+
+This is canvas navigation, not an ArchiMate relationship and not a general hyperlink. Open Exchange import and export do not carry it. A relationship whose source identifier happens to be `links` stays a relationship (`links -> shipper: association`), because `links` starts this clause only when the next word is `view`.
+
+In the Mac app, right-click a box and choose **Link to view…**. The choice is written into the open `.plein` immediately (browser preview downloads the file; an Open Exchange import keeps the link for the session only). A linked box draws a small chain in the bottom-right. Double-click that box to open the named view. Double-click on a box with no `links view` clause does not navigate: the click still selects the box. The context menu is one list — **Link to view…**, then **Clear link** when a link is stored, then any later actions — so another command can be added without a second menu.
+
+Golden: [`fixtures/valid-view-link.plein`](../fixtures/valid-view-link.plein). An unknown view name fails: [`fixtures/invalid-view-link.plein`](../fixtures/invalid-view-link.plein).
+
 ## Canonical layout (`plein format`)
 
 `plein format` rewrites a checked `.plein` file to one layout so a pull-request diff shows architecture changes instead of whitespace and spelling. Formatting twice produces identical bytes. Indentation is **two spaces** per level. The file uses LF newlines and ends with one newline. `//` comments stay with the statement they precede. A `styles` block is kept and reindented; check and the Mac renderer still ignore it.
@@ -535,9 +551,11 @@ An element is one line, keys in this order:
 ```plein
 <keyword> "<label>" as <id>
 <keyword> "<label>" as <id> hook <name>
+<keyword> "<label>" as <id> links view <view>
+<keyword> "<label>" as <id> hook <name> links view <view>
 ```
 
-Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
+Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. `links view <view>` is the canvas link, written after the hook when both are present. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
 
 Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, `composition`, `flow`, and the rest of the [relationships table](#relationships)). An infix verb (`shipper serves booking`) is rewritten to that arrow form. A specialization parent that is a catalogue keyword is kebab-case.
 

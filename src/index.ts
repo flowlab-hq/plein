@@ -27,6 +27,13 @@ export {
   type SavedPosition,
 } from "./save-layout.js";
 export {
+  ViewLinkError,
+  applyElementViewLink,
+  doubleClickViewTarget,
+  elementContextMenu,
+  type CanvasMenuItem,
+} from "./view-link.js";
+export {
   formatInspect,
   inspectModel,
   type InspectDump,

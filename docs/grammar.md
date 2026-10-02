@@ -79,8 +79,9 @@ There is no property list, documentation block, influence modifier, or access ty
 ## Element
 
 ```
-element-decl = element-head string "as" ident [ hook ] [ value-stream-body ]
+element-decl = element-head string "as" ident [ hook ] [ view-link ] [ value-stream-body ]
 hook         = "hook" ident
+view-link    = "links" "view" ident
 ```
 
 `element-head` is an element keyword or the name of a specialization declared earlier in the file. The quoted label and `as` plus an identifier are required. `stakeholder "Gemba Advantage"` fails with `expected 'as <identifier>' after element label`.
@@ -108,6 +109,10 @@ An unknown head fails with `unknown keyword '<name>' (undeclared specialization)
 
 `hook <name>` is optional and sits immediately after the element id. The name must be a specialization declared inside a profile, and that specialization's catalogue keyword must be this element's catalogue keyword. `hook` on a specialization used as the element head fails with `hook cannot be combined with specialization keyword '<name>'`. A hook name that was never declared fails with `undeclared profile hook '<name>'`. A model-level specialization fails with `specialization '<name>' is not a profile hook`.
 
+`links view <view-name>` is optional and sits after the id, and after `hook` when that is present. The view name is an identifier of a `view` or `viewpoint` in this file. `plein check` rejects a name that is not a view (`unknown view '<name>' linked from '<id>'`). The clause is one destination: the grammar allows it once. It is not a relationship and it is not a property list. `links` starts the clause only when the next identifier is `view`. A relationship whose source identifier is `links` (`links -> shipper: association`) is unchanged.
+
+`plein format` writes the clause on the element line: `as <id>`, then `hook <name>` when the element uses a hook, then `links view <name>`.
+
 Element identifiers are unique within the model. View names are a separate namespace and may reuse an element id. `plein check` reports `duplicate identifier '<id>'`.
 
 ## Value-stream body
@@ -115,7 +120,7 @@ Element identifiers are unique within the model. View names are a separate names
 A `{` after the element id opens a body only when the element's catalogue keyword is `valueStream`. That includes a specialization or hook whose chain ends at `valueStream`. The body is a sequence of stage declarations and relationships.
 
 ```
-stage-decl = ( "value-stream-stage" | "valueStreamStage" ) string "as" ident [ hook ]
+stage-decl = ( "value-stream-stage" | "valueStreamStage" ) string "as" ident [ hook ] [ view-link ]
 ```
 
 A stage is a `valueStream` element. The parse records a `composedOf` relationship from the enclosing value stream to the stage. That relationship is implied by the braces. `plein format` does not write it back out; parsing the nested form creates it again.
@@ -147,7 +152,7 @@ A declared name is rejected when:
 | The same name is declared twice | `duplicate specialization '<name>'` |
 | The parent is unknown | `specialization '<name>' specializes unknown keyword '<parent>'` |
 
-Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`.
+Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`, `links`.
 
 ## Profile
 
@@ -289,6 +294,7 @@ Syntax errors above are parse errors. `checkPlein` then reports:
 5. Duplicate view names.
 6. An `include` or `exclude` selector that the selector table treats as an element id, when no element has that id.
 7. A `position` or `size` id that is not an element id.
+8. A `links view` name that is not a view in this file (`unknown view '<name>' linked from '<id>'`).
 
 Specialization, profile, hook, value-stream, and `autoLayout` failures in the sections above are raised while parsing, because they decide which production matched.
 

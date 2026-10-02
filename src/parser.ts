@@ -48,6 +48,12 @@ export type ElementDecl = {
   viaHook?: boolean;
   /** Parent value-stream id when this element is a nested stage. */
   container?: string;
+  /**
+   * Named view a canvas double-click opens.
+   * Written `links view <name>` after the id, and after `hook` when that is present.
+   * One destination. Absent when the element is not linked.
+   */
+  linksView?: string;
   /** Source order among model statements. Used by `plein format`. */
   order?: number;
   /** `//` comments immediately above this declaration, text after `//`. */
@@ -285,6 +291,7 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "profile",
   "organization",
   "hook",
+  "links",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -800,6 +807,7 @@ class Parser {
         );
       }
       const hookName = this.takeProfileHook();
+      const linksView = this.takeViewLink();
       if (options.valueStreamBody && this.check("{")) {
         throw new ParseError(
           "valueStreamStage cannot nest a body",
@@ -819,6 +827,7 @@ class Parser {
         order: this.nextOrder++,
         ...(comments.length > 0 ? { leadingComments: comments } : {}),
         ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
+        ...(linksView ? { linksView: linksView.value } : {}),
       };
       if (hookName && specialization) {
         throw new ParseError(
@@ -937,6 +946,24 @@ class Parser {
       first.line,
       first.column,
     );
+  }
+
+  /**
+   * `links view <name>` after the element id (and optional hook).
+   * `links` is the clause only when the next identifier is `view`.
+   * A relationship whose source identifier is `links` is left alone.
+   */
+  private takeViewLink(): PleinToken | undefined {
+    if (!this.checkIdent("links")) {
+      return undefined;
+    }
+    const next = this.tokens[this.index + 1];
+    if (!next || next.kind !== "ident" || next.value !== "view") {
+      return undefined;
+    }
+    this.advance();
+    this.advance();
+    return this.expect("ident", "expected view name after 'links view'");
   }
 
   /** `hook <name>` after an element id. The name token is the hook. */
@@ -1576,6 +1603,20 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
           1,
         );
       }
+    }
+  }
+
+  for (const element of model.elements) {
+    if (!element.linksView) {
+      continue;
+    }
+    if (!viewNames.has(element.linksView)) {
+      throw new ParseError(
+        `unknown view '${element.linksView}' linked from '${element.id}'`,
+        file,
+        element.line,
+        1,
+      );
     }
   }
 

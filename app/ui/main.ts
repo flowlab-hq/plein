@@ -101,6 +101,13 @@ import {
   writeManualPositions,
   type SavedPosition,
 } from "../../src/save-layout.ts";
+import {
+  applyElementViewLink,
+  doubleClickViewTarget,
+  elementContextMenu,
+  ViewLinkError,
+  type CanvasMenuItem,
+} from "../../src/view-link.ts";
 
 type TauriBridge = {
   core: {
@@ -145,6 +152,7 @@ const relationshipHeading = document.querySelector("#relationship-heading") as H
 const currentView = document.querySelector("#current-view") as HTMLElement;
 const diagramHeading = document.querySelector("#diagram-heading") as HTMLElement;
 const diagram = document.querySelector("#diagram") as HTMLElement;
+const canvasMenu = document.querySelector("#canvas-menu") as HTMLElement;
 const autoLayoutSwitcher = document.querySelector("#auto-layout-switcher") as HTMLElement;
 const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
@@ -158,6 +166,12 @@ const canvasGridToggle = document.querySelector("#canvas-grid-toggle") as HTMLBu
 const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HTMLElement;
 
 let loaded: LoadResult | null = null;
+/**
+ * Extra canvas context-menu items, appended after Link to view… and Clear link.
+ * Future actions belong here. An id that is not a built-in link action
+ * dispatches `plein-canvas-menu` with `{ id, elementId }` and does not write the file.
+ */
+let canvasMenuExtras: CanvasMenuItem[] = [];
 let selectedView: string | null = null;
 let lastNamedView: string | null = null;
 let lastSource: string | null = null;
@@ -303,6 +317,7 @@ const IMPORT_ERROR_LEAD = "Could not import this Open Exchange file";
 const EXPORT_ERROR_LEAD = "Could not export this view";
 const OPEN_EXCHANGE_ERROR_LEAD = "Could not export Open Exchange";
 const SAVE_ERROR_LEAD = "Could not save positions";
+const LINK_ERROR_LEAD = "Could not save the view link";
 /** Lead used the next time a load failure is shown. */
 let bannerLead = LOAD_ERROR_LEAD;
 /**
@@ -1569,14 +1584,7 @@ function buttonForView(options: {
     button.setAttribute("aria-pressed", "true");
   }
   button.addEventListener("click", () => {
-    selectedView = options.name;
-    if (options.name !== null) {
-      lastNamedView = options.name;
-    }
-    if (loaded?.ok) {
-      selectedItems = retainSelections(selectedItems, filterModel(loaded.model, selectedView));
-    }
-    void render();
+    openNamedView(options.name);
   });
   item.append(button);
   return item;
@@ -1590,7 +1598,20 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
+function openNamedView(name: string | null): void {
+  closeCanvasMenu();
+  selectedView = name;
+  if (name !== null) {
+    lastNamedView = name;
+  }
+  if (loaded?.ok) {
+    selectedItems = retainSelections(selectedItems, filterModel(loaded.model, selectedView));
+  }
+  void render();
+}
+
 function openSource(source: string, file: string): void {
+  closeCanvasMenu();
   closeExportDialog(false);
   lastSource = source;
   manualPositions.clear();
@@ -1645,6 +1666,7 @@ function commitImported(xml: string, file: string, reload: boolean): void {
 }
 
 function applyReload(source: string, file: string): void {
+  closeCanvasMenu();
   closeExportDialog(false);
   lastSource = source;
   const next = reloadPleinSource(source, file, selectedView);
@@ -1866,6 +1888,11 @@ window.addEventListener("keydown", (event) => {
       layoutOptionsButton.focus();
       return;
     }
+    if (!canvasMenu.hidden) {
+      event.preventDefault();
+      closeCanvasMenu();
+      return;
+    }
     if (selectedItems.length > 0) {
       event.preventDefault();
       setSelection(null);
@@ -1913,6 +1940,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 let suppressDiagramClick = false;
+let suppressNextDblClick = false;
 
 function clientFromUser(svg: SVGSVGElement, x: number, y: number): { x: number; y: number } | null {
   const point = svg.createSVGPoint();
@@ -2346,6 +2374,7 @@ function finishResize(event: PointerEvent): void {
     return;
   }
   suppressDiagramClick = true;
+  suppressNextDblClick = true;
   const viewName = namedViewForDiagram();
   if (!viewName) {
     return;
@@ -2374,6 +2403,7 @@ diagram.addEventListener("pointerdown", (event) => {
   if (event.button !== 0 || nodeDrag || marqueeDrag || resizeDrag) {
     return;
   }
+  suppressNextDblClick = false;
   const target = event.target;
   if (!(target instanceof Element) || !diagram.contains(target)) {
     return;
@@ -2551,6 +2581,7 @@ diagram.addEventListener("pointerup", (event) => {
     return;
   }
   suppressDiagramClick = true;
+  suppressNextDblClick = true;
   const viewName = namedViewForDiagram();
   const svg = diagram.querySelector("svg");
   if (!viewName || !(svg instanceof SVGSVGElement) || !lastLayout) {
@@ -2716,6 +2747,212 @@ if (typeof ResizeObserver !== "undefined") {
   });
   modelSpaceObserver.observe(diagram);
 }
+
+function closeCanvasMenu(): void {
+  canvasMenu.hidden = true;
+  canvasMenu.replaceChildren();
+  canvasMenu.classList.remove("flip-sub");
+}
+
+function diagramElementId(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  return (
+    target.closest("[data-node-id]")?.getAttribute("data-node-id") ??
+    target.closest("[data-container-id]")?.getAttribute("data-container-id") ??
+    null
+  );
+}
+
+function activateCanvasMenuItem(elementId: string, item: Extract<CanvasMenuItem, { kind: "action" }>): void {
+  closeCanvasMenu();
+  if (!item.enabled) {
+    return;
+  }
+  if (item.id.startsWith("link-to-view:")) {
+    void persistElementViewLink(elementId, item.id.slice("link-to-view:".length));
+    return;
+  }
+  if (item.id === "clear-view-link") {
+    void persistElementViewLink(elementId, null);
+    return;
+  }
+  document.dispatchEvent(new CustomEvent("plein-canvas-menu", { detail: { id: item.id, elementId } }));
+}
+
+function renderCanvasMenuItems(parent: HTMLElement, items: readonly CanvasMenuItem[], elementId: string): void {
+  for (const item of items) {
+    if (item.kind === "separator") {
+      const rule = document.createElement("div");
+      rule.className = "canvas-menu-separator";
+      rule.setAttribute("role", "separator");
+      parent.append(rule);
+      continue;
+    }
+    if (item.kind === "submenu") {
+      const wrap = document.createElement("div");
+      wrap.className = "canvas-menu-item";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("role", "menuitem");
+      button.setAttribute("aria-haspopup", "true");
+      button.disabled = !item.enabled;
+      button.textContent = item.label;
+      const submenu = document.createElement("div");
+      submenu.className = "canvas-submenu";
+      submenu.setAttribute("role", "menu");
+      renderCanvasMenuItems(submenu, item.items, elementId);
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const willOpen = !wrap.classList.contains("open");
+        parent.querySelectorAll(".canvas-menu-item.open").forEach((node) => node.classList.remove("open"));
+        wrap.classList.toggle("open", willOpen);
+      });
+      wrap.append(button, submenu);
+      parent.append(wrap);
+      continue;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.menuId = item.id;
+    button.setAttribute("role", item.checked ? "menuitemradio" : "menuitem");
+    if (item.checked) {
+      button.setAttribute("aria-checked", "true");
+    }
+    button.disabled = !item.enabled;
+    button.textContent = item.label;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      activateCanvasMenuItem(elementId, item);
+    });
+    parent.append(button);
+  }
+}
+
+function openCanvasMenu(x: number, y: number, elementId: string): void {
+  if (!loaded?.ok) {
+    closeCanvasMenu();
+    return;
+  }
+  const items = elementContextMenu(loaded.model, elementId, canvasMenuExtras);
+  if (items.length === 0) {
+    closeCanvasMenu();
+    return;
+  }
+  canvasMenu.replaceChildren();
+  renderCanvasMenuItems(canvasMenu, items, elementId);
+  canvasMenu.hidden = false;
+  canvasMenu.classList.remove("flip-sub");
+  canvasMenu.style.left = `${x}px`;
+  canvasMenu.style.top = `${y}px`;
+  const rect = canvasMenu.getBoundingClientRect();
+  const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+  const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
+  canvasMenu.style.left = `${Math.min(Math.max(8, x), maxLeft)}px`;
+  canvasMenu.style.top = `${Math.min(Math.max(8, y), maxTop)}px`;
+  if (x + rect.width + 200 > window.innerWidth) {
+    canvasMenu.classList.add("flip-sub");
+  }
+  setSelections([{ kind: "element", id: elementId }]);
+}
+
+/**
+ * Write `links view` into the open .plein and reload that text.
+ * An Open Exchange import keeps the link in the session only: reload re-imports the XML.
+ * Browser preview downloads the `.plein` (the page cannot write the original path).
+ */
+async function persistElementViewLink(elementId: string, viewName: string | null): Promise<void> {
+  if (saveInFlight || !loaded?.ok || lastSource === null) {
+    return;
+  }
+  const file = loaded.file;
+  saveInFlight = true;
+  try {
+    let next: string;
+    try {
+      next = applyElementViewLink(lastSource, elementId, viewName, file);
+    } catch (error) {
+      const message = error instanceof ViewLinkError ? error.message : errorMessage(error);
+      showError(message, LINK_ERROR_LEAD);
+      return;
+    }
+    if (openExchangeFile) {
+      applyReload(next, file);
+      return;
+    }
+    const api = tauri();
+    if (api && isFilesystemPath(file)) {
+      try {
+        await api.core.invoke("write_export_file", { path: file, contents: next });
+      } catch (error) {
+        showError(errorMessage(error), LINK_ERROR_LEAD);
+        return;
+      }
+    } else {
+      try {
+        downloadText(pleinDownloadName(file), "text/plain", next);
+      } catch (error) {
+        showError(errorMessage(error), LINK_ERROR_LEAD);
+        return;
+      }
+    }
+    applyReload(next, file);
+  } finally {
+    saveInFlight = false;
+  }
+}
+
+diagram.addEventListener("contextmenu", (event) => {
+  if (!diagram.contains(event.target instanceof Node ? event.target : null)) {
+    return;
+  }
+  event.preventDefault();
+  if (!exportDialog.hidden || !loaded?.ok) {
+    closeCanvasMenu();
+    return;
+  }
+  const elementId = diagramElementId(event.target);
+  if (!elementId || !loaded.model.elements.some((element) => element.id === elementId)) {
+    closeCanvasMenu();
+    return;
+  }
+  openCanvasMenu(event.clientX, event.clientY, elementId);
+});
+
+diagram.addEventListener("dblclick", (event) => {
+  if (suppressNextDblClick) {
+    suppressNextDblClick = false;
+    return;
+  }
+  if (!loaded?.ok) {
+    return;
+  }
+  const viewName = doubleClickViewTarget(loaded.model, diagramElementId(event.target));
+  if (!viewName) {
+    return;
+  }
+  event.preventDefault();
+  openNamedView(viewName);
+});
+
+window.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (canvasMenu.hidden) {
+      return;
+    }
+    if (event.target instanceof Node && canvasMenu.contains(event.target)) {
+      return;
+    }
+    closeCanvasMenu();
+  },
+  true,
+);
+
+canvasMenu.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+});
 
 diagram.addEventListener("click", (event) => {
   if (suppressDiagramClick) {

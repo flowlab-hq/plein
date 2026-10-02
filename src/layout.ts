@@ -253,6 +253,8 @@ export type LayoutNode = {
   parentId?: string;
   /** True when this node is a nested container wrapping children. */
   container?: boolean;
+  /** Named view this element opens on double-click. Absent when unlinked. */
+  linksView?: string;
 };
 
 export type LayoutEdge = {
@@ -838,19 +840,38 @@ export function svgNodeStyles(svg: string): SvgNodeStyle[] {
   return styles.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+function viewLinkFields(element: Pick<ElementDecl, "linksView">): { linksView: string } | Record<string, never> {
+  return element.linksView ? { linksView: element.linksView } : {};
+}
+
 function renderNode(node: LayoutNode): string {
   const style = elementStyle(node.keyword);
   const typeName = toKebabCaseKeyword(style.keyword === "unknown" ? node.keyword : style.keyword);
   const parentAttr = node.parentId ? ` data-parent-id="${escapeXml(node.parentId)}"` : "";
   const containerAttr = node.container ? ` data-container="true"` : "";
   const containerIdAttr = node.container ? ` data-container-id="${escapeXml(node.id)}"` : "";
+  const linkAttr = node.linksView ? ` data-links-view="${escapeXml(node.linksView)}"` : "";
   const rx = node.container ? 10 : 8;
-  return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr}${containerIdAttr} transform="translate(${node.x} ${node.y})">
-      <title>${escapeXml(`${typeName} — ${node.label}`)}</title>
+  const caption = node.linksView
+    ? `${typeName} — ${node.label} — links to ${node.linksView}`
+    : `${typeName} — ${node.label}`;
+  const linkMark = renderViewLinkMark(node, style.ink);
+  return `    <g data-node-id="${escapeXml(node.id)}" data-keyword="${escapeXml(node.keyword)}" data-layer="${style.layer}" data-icon="${style.icon}"${parentAttr}${containerAttr}${containerIdAttr}${linkAttr} transform="translate(${node.x} ${node.y})">
+      <title>${escapeXml(caption)}</title>
       <rect width="${node.width}" height="${node.height}" rx="${rx}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${NODE_STROKE_WIDTH}" />
       ${renderTypeIcon(style.icon, style.stroke, node.width - TYPE_ICON_INSET_X, 4)}
-      ${renderLabelText(node, style.ink)}
+      ${renderLabelText(node, style.ink)}${linkMark ? `\n      ${linkMark}` : ""}
     </g>`;
+}
+
+/** Chain in the bottom-right. Painted only when the element has `links view`. */
+function renderViewLinkMark(node: LayoutNode, ink: string): string {
+  if (!node.linksView) {
+    return "";
+  }
+  const x = Math.max(8, node.width - 18);
+  const y = Math.max(8, node.height - 12);
+  return `<g class="view-link" pointer-events="none" aria-hidden="true"><circle cx="${x}" cy="${y}" r="2.1" fill="none" stroke="${ink}" stroke-width="1.2"/><circle cx="${x + 5.2}" cy="${y}" r="2.1" fill="none" stroke="${ink}" stroke-width="1.2"/><path d="M${x + 1.6} ${y} H${x + 3.6}" stroke="${ink}" stroke-width="1.2" fill="none"/></g>`;
 }
 
 function linesForNode(node: LayoutNode): string[] {
@@ -1423,6 +1444,7 @@ async function layoutCompound(
         width: element.width,
         height: element.height,
         ...(kids.length > 0 ? { container: true } : {}),
+        ...viewLinkFields(element),
       });
       const inner = innerByParent.get(element.id);
       if (!inner) {
@@ -1976,6 +1998,7 @@ function layoutManual(
       height: explicitSpan(known?.height, heightFloor, childIds.length > 0 ? minHeight : box.height),
       ...(parentId ? { parentId } : {}),
       ...(childIds.length > 0 ? { container: true } : {}),
+      ...viewLinkFields(element),
     };
   });
 
@@ -3702,6 +3725,7 @@ function flattenElkLayout(
           height: roundCoord(child.height ?? NODE_HEIGHT),
           ...(parentId ? { parentId } : {}),
           ...(nestedKids.length > 0 ? { container: true } : {}),
+          ...viewLinkFields(element),
         });
         absById.set(child.id, { x, y });
       }
