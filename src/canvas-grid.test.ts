@@ -7,11 +7,15 @@ import { fileURLToPath } from "node:url";
 import {
   CANVAS_GRID_SIZES,
   DEFAULT_CANVAS_GRID_SIZE,
-  canvasGridPatternSpec,
-  gridSnapDragPosition,
-  normalizeCanvasGridSize,
+  DRAWN_CANVAS_GRID_PITCH,
+  canvasGridLinePaths,
+  canvasGridLines,
+  modelSpaceFrame,
+  seatLayoutOnGrid,
   snapProposedOrigin,
   snapToGrid,
+  gridSnapDragPosition,
+  normalizeCanvasGridSize,
 } from "./canvas-grid.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,15 +63,85 @@ test("snapProposedOrigin is the gridSnap hook for alignDraggedBox", () => {
   assert.deepEqual(snapProposedOrigin({ x: Number.NaN, y: 20 }, 24), { x: 0, y: 24 });
 });
 
-test("grid lines tile from user-space zero, not from the content origin", () => {
-  const spec = canvasGridPatternSpec(24);
-  assert.equal(spec.originX, 0);
-  assert.equal(spec.originY, 0);
-  assert.equal(spec.size, 24);
-  assert.equal(spec.tile, 96);
-  assert.match(spec.majorPath, /M 0 0 H 96/);
-  assert.match(spec.minorPath, /M 24 0 V 96/);
-  assert.equal(canvasGridPatternSpec(Number.NaN).size, DEFAULT_CANVAS_GRID_SIZE);
+test("drawn grid pitch is fixed and every snap size lands on it", () => {
+  assert.equal(DRAWN_CANVAS_GRID_PITCH, 8);
+  for (const size of CANVAS_GRID_SIZES) {
+    assert.equal(size % DRAWN_CANVAS_GRID_PITCH, 0, `${size} is a multiple of the drawn pitch`);
+    const snapped = snapToGrid(50, size);
+    assert.equal(snapped % DRAWN_CANVAS_GRID_PITCH, 0);
+    assert.equal(snapToGrid(snapped, size), snapped);
+  }
+});
+
+test("grid lines fill model space from the top-left, not only under content", () => {
+  const frame = modelSpaceFrame({ x: 0, y: 0, width: 472, height: 316 }, { width: 960, height: 640 });
+  assert.equal(frame.x, 0);
+  assert.equal(frame.y, 0);
+  assert.ok(frame.width >= 960);
+  assert.ok(frame.height >= 640);
+  const lines = canvasGridLines(frame);
+  assert.ok(lines.some((line) => line.x1 === 0 && line.x2 === 0 && line.y1 === 0));
+  assert.ok(lines.some((line) => line.y1 === 0 && line.y2 === 0 && line.x1 === 0));
+  assert.ok(lines.some((line) => line.x1 > 472), "lines continue past the content box");
+  assert.ok(lines.some((line) => line.y1 > 316));
+  const paths = canvasGridLinePaths(frame);
+  assert.match(paths.major, /M 0 0 L 0 /);
+  assert.match(paths.minor, /M 8 0 L 8 /);
+  const outward = modelSpaceFrame({ x: -30, y: -10, width: 200, height: 120 }, { width: 50, height: 40 });
+  assert.equal(outward.x, -30);
+  assert.equal(outward.y, -10);
+  assert.ok(canvasGridLines(outward).some((line) => line.x1 === 0 || line.y1 === 0));
+});
+
+test("boxes sit on snap cells and orthogonal relationships track those lines", () => {
+  const nodes = [
+    { id: "order", x: 40, y: 40, width: 168, height: 52 },
+    { id: "booking", x: 280, y: 40, width: 168, height: 52 },
+    { id: "shipper", x: 40, y: 240, width: 168, height: 52 },
+  ];
+  const edges = [
+    { source: "order", target: "booking", x1: 0, y1: 0, x2: 0, y2: 0, points: [] as { x: number; y: number }[] },
+    { source: "order", target: "shipper", x1: 0, y1: 0, x2: 0, y2: 0, points: [] as { x: number; y: number }[] },
+  ];
+  const seated = seatLayoutOnGrid(nodes, edges, 24, "orthogonal", "lr");
+  for (const node of seated.nodes) {
+    assert.equal(node.x % 24, 0, `${node.id} x`);
+    assert.equal(node.y % 24, 0, `${node.id} y`);
+    assert.equal((node.x + node.width) % 24, 0, `${node.id} right`);
+    assert.equal((node.y + node.height) % 24, 0, `${node.id} bottom`);
+    assert.equal(node.x % DRAWN_CANVAS_GRID_PITCH, 0);
+  }
+  const across = seated.edges[0]!;
+  assert.ok(across.points && across.points.length >= 2);
+  for (let index = 1; index < across.points.length; index += 1) {
+    const previous = across.points[index - 1]!;
+    const point = across.points[index]!;
+    assert.ok(previous.x === point.x || previous.y === point.y, "segment is horizontal or vertical");
+    for (const spot of [previous, point]) {
+      assert.equal(spot.x % 24, 0);
+      assert.equal(spot.y % 24, 0);
+    }
+  }
+  const parent = { id: "parent", x: 30, y: 30, width: 420, height: 280 };
+  const child = { id: "child", x: 50, y: 80, width: 168, height: 52, parentId: "parent" };
+  const nested = seatLayoutOnGrid([parent, child], [], 24, "orthogonal", "tb");
+  const seatedParent = nested.nodes.find((node) => node.id === "parent")!;
+  const seatedChild = nested.nodes.find((node) => node.id === "child")!;
+  assert.ok(seatedChild.x >= seatedParent.x);
+  assert.ok(seatedChild.y >= seatedParent.y);
+  assert.ok(seatedChild.x + seatedChild.width <= seatedParent.x + seatedParent.width);
+  assert.ok(seatedChild.y + seatedChild.height <= seatedParent.y + seatedParent.height);
+  const held = seatLayoutOnGrid(
+    [{ id: "a", x: 50, y: 48, width: 168, height: 72 }],
+    [],
+    24,
+    "orthogonal",
+    "lr",
+    new Set(["a"]),
+  );
+  assert.equal(held.nodes[0]!.x, 50);
+  assert.equal(held.nodes[0]!.y, 48);
+  assert.equal((held.nodes[0]!.x + held.nodes[0]!.width) % 24, 0);
 });
 
 test("Mac canvas toggles grid visibility without turning snap off", () => {
@@ -94,8 +168,13 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(ui, /snapProposedOrigin/);
   assert.match(ui, /alignDraggedBox/);
   assert.match(ui, /gridSnapForDrag/);
-  assert.match(ui, /canvasGridPatternSpec/);
+  assert.match(ui, /canvasGridLinePaths/);
+  assert.match(ui, /DRAWN_CANVAS_GRID_PITCH/);
+  assert.match(ui, /fitModelSpace/);
+  assert.match(ui, /seatLayoutOnGrid/);
+  assert.match(ui, /modelSpaceFrame/);
   assert.match(ui, /paintCanvasGrid/);
+  assert.match(ui, /drawn lines stay the same until you zoom/);
   assert.match(ui, /canvasGridVisible/);
   assert.match(ui, /grid snap runs first/);
   assert.equal(ui.includes("autoLayout grid"), false);
