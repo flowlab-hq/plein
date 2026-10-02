@@ -70,7 +70,7 @@ npx plein format --check fixtures/golden-format-messy.plein
 ./scripts/mac/smoke.sh
 ```
 
-`plein format` (and `plein format --check`) is how a model PR keeps a readable diff: two-space indent, declarations then elements then relationships, and view clauses in the order `include`, `exclude`, `autoLayout`, `nesting`, `position`. Key order and the `autoLayout` token order are in [the language reference](plein-dsl-archimate-4.md#canonical-layout-plein-format).
+`plein format` (and `plein format --check`) is how a model PR keeps a readable diff: two-space indent, declarations then elements then relationships, and view clauses in the order `include`, `exclude`, `autoLayout`, `nesting`, `position`, `size`. Key order and the `autoLayout` token order are in [the language reference](plein-dsl-archimate-4.md#canonical-layout-plein-format).
 
 `npm test` compiles with `tsc` and runs `src/*.test.ts` (including `check.test.ts`, the `plein inspect` JSON golden, the `plein format` before/after golden, layout golden, ArchiMate style golden, static HTML/SVG export golden, Open Exchange import/export golden, and parser golden). `./scripts/assert-viewpoint-layout.sh` is the layout-only assert. `./scripts/assert-archimate-style.sh` is the colour/icon assert. `./scripts/assert-export.sh` is the `plein export` snapshot (`fixtures/golden-booking-context.html`).
 

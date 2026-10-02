@@ -343,6 +343,12 @@ function writeView(lines: string[], view: ViewDecl, specNames: ReadonlySet<strin
       `      position ${position.id} ${formatNumber(position.x)} ${formatNumber(position.y)}`,
     );
   }
+  for (const size of view.sizes ?? []) {
+    pushComments(lines, size.leadingComments, "      ");
+    lines.push(
+      `      size ${size.id} ${formatNumber(size.width)} ${formatNumber(size.height)}`,
+    );
+  }
   pushComments(lines, view.trailingComments, "      ");
   lines.push("    }");
 }

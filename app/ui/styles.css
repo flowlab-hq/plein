@@ -464,6 +464,20 @@ button:disabled {
   touch-action: none;
 }
 
+.diagram[data-manual-layout="true"].is-resize-ew,
+.diagram[data-manual-layout="true"].is-resize-ew [data-node-id],
+.diagram.is-resizing.is-resize-ew,
+.diagram.is-resizing.is-resize-ew [data-node-id] {
+  cursor: ew-resize;
+}
+
+.diagram[data-manual-layout="true"].is-resize-ns,
+.diagram[data-manual-layout="true"].is-resize-ns [data-node-id],
+.diagram.is-resizing.is-resize-ns,
+.diagram.is-resizing.is-resize-ns [data-node-id] {
+  cursor: ns-resize;
+}
+
 .diagram.is-dragging [data-node-id] {
   cursor: grabbing;
 }

@@ -81,6 +81,35 @@ test("manual positions are dirty when they would not reload from the file", () =
     false,
     "manual is an alias of off",
   );
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      file,
+      new Map([["shipper", { x: 40, y: 240, width: 200, height: 80, explicitSize: true }]]),
+      [],
+    ),
+    true,
+    "an explicit resize with no size clause is unsaved",
+  );
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      file,
+      new Map([["shipper", { x: 40, y: 240, width: 200, height: 80, explicitSize: true }]]),
+      [{ id: "shipper", width: 200, height: 80 }],
+    ),
+    false,
+    "a resize that matches the size clause is saved",
+  );
+  assert.equal(
+    manualPositionsAreDirty(
+      "off",
+      file,
+      new Map([["shipper", { x: 40, y: 240, width: 168, height: 52 }]]),
+    ),
+    false,
+    "a session width that is not an explicit resize does not mark the file dirty",
+  );
 });
 
 test("writeManualPositions sets autoLayout off and replaces position clauses", () => {
@@ -244,4 +273,57 @@ test("writeManualPositions rejects a view or id the file cannot store", () => {
       ]),
     /duplicate position/,
   );
+});
+
+test("writeManualPositions writes a size clause on the same path as position", () => {
+  const source = `plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-actor "Dock" as dock
+  }
+
+  views {
+    viewpoint story "Story" {
+      include shipper dock
+      autoLayout lr
+      position shipper 40 240
+      // wide
+      size shipper 168 52
+      position dock 80 24
+    }
+  }
+}
+`;
+  const saved = writeManualPositions(source, [
+    {
+      view: "story",
+      positions: [
+        { id: "shipper", x: 48, y: 72, width: 216, height: 80 },
+        { id: "dock", x: 288, y: 72 },
+      ],
+    },
+  ]);
+  assert.match(saved, /autoLayout off/);
+  assert.match(saved, /position shipper 48 72/);
+  assert.match(saved, /position dock 288 72/);
+  assert.match(saved, /\/\/ wide\n\s+size shipper 216 80/);
+  assert.doesNotMatch(saved, /size dock/);
+  assert.doesNotMatch(saved, /size shipper 168 52/);
+  const model = checkPlein(saved);
+  const view = model.views[0]!;
+  assert.deepEqual(
+    view.sizes?.map((size) => [size.id, size.width, size.height]),
+    [["shipper", 216, 80]],
+  );
+  assert.equal(view.sizes?.[0]?.leadingComments?.[0], "wide");
+  const again = writeManualPositions(saved, [
+    {
+      view: "story",
+      positions: [
+        { id: "shipper", x: 48, y: 72, width: 216, height: 80 },
+        { id: "dock", x: 288, y: 72 },
+      ],
+    },
+  ]);
+  assert.equal(again, saved);
 });

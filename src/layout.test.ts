@@ -32,6 +32,8 @@ import {
   isAutoLayoutEnabled,
   resolveAutoLayout,
   MANUAL_LAYOUT_ENGINE,
+  MIN_NODE_HEIGHT,
+  MIN_NODE_WIDTH,
   NODE_HEIGHT,
   NODE_WIDTH,
   PADDING,
@@ -1774,6 +1776,75 @@ views {
   assert.equal(child.parentId, "parent");
   assert.ok(parent.x + parent.width >= child.x + child.width);
   assert.ok(parent.y + parent.height >= child.y + child.height);
+});
+
+test("size clauses set the manual box and are ignored while auto-layout is on", async () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+  business-service "Booking" as booking
+}
+views {
+  view story {
+    include shipper booking
+    autoLayout off
+    position shipper 48 72
+    position booking 240 72
+    size shipper 96 40
+  }
+  view storyAuto {
+    include shipper
+    autoLayout lr
+    position shipper 48 72
+    size shipper 96 40
+  }
+}
+`;
+  const result = loadPleinSource(source, "sized.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const manual = await layoutViewpoint(result.model, "story");
+  const shipper = manual.nodes.find((node) => node.id === "shipper");
+  const booking = manual.nodes.find((node) => node.id === "booking");
+  assert.ok(shipper && booking);
+  assert.equal(shipper.width, 96);
+  assert.equal(shipper.height, 40);
+  assert.equal(booking.width, NODE_WIDTH);
+  assert.equal(booking.height, NODE_HEIGHT);
+  const svg = renderViewpointSvg(manual);
+  assert.match(svg, /data-node-id="shipper"[^>]*>[\s\S]*?<rect width="96" height="40"/);
+
+  const session = await layoutViewpoint(result.model, "story", {
+    autoLayout: "off",
+    manualPositions: [{ id: "shipper", x: 48, y: 72, width: 200, height: 80 }],
+  });
+  const moved = session.nodes.find((node) => node.id === "shipper");
+  assert.equal(moved?.width, 200);
+  assert.equal(moved?.height, 80);
+
+  const kept = await layoutViewpoint(result.model, "story", {
+    autoLayout: "off",
+    manualPositions: [{ id: "shipper", x: 72, y: 96 }],
+  });
+  const shifted = kept.nodes.find((node) => node.id === "shipper");
+  assert.equal(shifted?.x, 72);
+  assert.equal(shifted?.width, 96);
+  assert.equal(shifted?.height, 40);
+
+  const tiny = await layoutViewpoint(result.model, "story", {
+    autoLayout: "off",
+    manualPositions: [{ id: "shipper", x: 48, y: 72, width: 10, height: 10 }],
+  });
+  const floored = tiny.nodes.find((node) => node.id === "shipper");
+  assert.equal(floored?.width, MIN_NODE_WIDTH);
+  assert.equal(floored?.height, MIN_NODE_HEIGHT);
+
+  const automatic = await layoutViewpoint(result.model, "storyAuto");
+  const autoNode = automatic.nodes.find((node) => node.id === "shipper");
+  assert.equal(automatic.auto, true);
+  assert.equal(autoNode?.width, NODE_WIDTH);
+  assert.equal(autoNode?.height, NODE_HEIGHT);
 });
 
 test("dragging past the previous outermost edge expands content bounds", async () => {

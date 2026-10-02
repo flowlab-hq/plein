@@ -330,10 +330,13 @@ viewpoint story "Story" {
   position booking 280 40
   position order 40 40
   position rates 280 240
+  size shipper 216 80
 }
 ```
 
 `off` / `manual` must be the only `autoLayout` token. Coordinates are view-space pixels (decimals allowed; a leading minus is allowed). Each id may appear once, and it must exist in the model. Positions are **ignored while auto-layout is on**, so you can leave them in the file and turn `autoLayout lr` back on — the next layout runs ELK Layered again from the model.
+
+`size <id> <width> <height>` is the explicit box in those same pixels. Width and height must be positive. Each id may appear once. Like `position`, a `size` clause is **ignored while auto-layout is on** and applied when auto-layout is `off` or `manual`. An element with no `size` clause keeps the label-fit box. The viewer draws nothing smaller than 48 by 32. A nested parent still grows to cover its children.
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
@@ -342,13 +345,13 @@ The Mac diagram chrome **Auto layout** control (File / On / Off) is one click aw
 | Choice | Effect |
 | --- | --- |
 | File | Follow the view. `off` or `manual` uses `position` clauses; anything else stays automatic (layered, layers, organic, or grid). |
-| Off | Freeze the positions currently on screen (the last automatic layout, or the file positions). **Reload** keeps that freeze. Drag a box to move it while auto-layout is off; nested children move with their parent. A multi-selection moves together. |
-| On | Drop the freeze and recompute from the model. Saved `position` clauses are not applied. **Save** is disabled. Unsaved moves are discarded. |
-| Save | Enabled only while placement is manual (**Off**, or **File** when this view is `off` / `manual`). Writes `autoLayout off` and one `position <id> <x> <y>` per element on the canvas for this view, and for any other view that still has unsaved moves. Coordinates are view-space top-lefts, the same clauses as above. |
+| Off | Freeze the positions currently on screen (the last automatic layout, or the file positions). **Reload** keeps that freeze. Drag a box to move it while auto-layout is off; nested children move with their parent. A multi-selection moves together. Drag the left or right edge to change width, or the top or bottom edge to change height. That resize is one element, not the whole selection. |
+| On | Drop the freeze and recompute from the model. Saved `position` and `size` clauses are not applied. **Save** is disabled. Unsaved moves and resizes are discarded. |
+| Save | Enabled only while placement is manual (**Off**, or **File** when this view is `off` / `manual`). Writes `autoLayout off` and one `position <id> <x> <y>` per element on the canvas for this view, and for any other view that still has unsaved moves. An element you resized also gets `size <id> <width> <height>`. A `size` already in the file is kept and updated. Coordinates are view-space top-lefts; width and height are the same pixels. |
 
-Dragging, a group move, and turning **Off** on a view that is still automatic in the file mark the file name **Unsaved** until **Save**. **Save** clears that mark. **On** also clears it, because those moves are dropped. Quit and reopen reads the `position` clauses; **Reload** alone does not write them. In browser preview, **Save** downloads the `.plein` (the page cannot write the original path) and keeps that text for **Reload**.
+Dragging, a resize, a group move, and turning **Off** on a view that is still automatic in the file mark the file name **Unsaved** until **Save**. **Save** clears that mark. **On** also clears it, because those moves are dropped. Quit and reopen reads the `position` and `size` clauses; **Reload** alone does not write them. In browser preview, **Save** downloads the `.plein` (the page cannot write the original path) and keeps that text for **Reload**.
 
-Boxes sit on the canvas snap grid and orthogonal relationships run along its lines with auto-layout on and off. The default file-open path (ELK layered, layers, and organic) uses that same seating, so a view does not need **Auto layout** **Off** before boxes land on cells. **Mode → Grid** (`autoLayout grid`) is catalogue packing and is not moved onto this lattice. The grid fills model space from `(0, 0)` outward, the same coordinates as `position`, not only the area under the boxes. Drawn lines stay **8** model units apart; **Options → Grid size** (8, 16, 24, 32, or 48, default 24) changes snap spacing only, so a larger size does not redraw a coarser grid. Zoom is what changes how big the lines look. **Grid** on the Mac chrome shows or hides the lines; hiding them does not turn snap off. A drag, which runs only while auto-layout is off, snaps the box’s top-left to the snap spacing. Nested children move with the dragged parent and keep their offset. Neighbour-align (centres and edges) is on as well. `alignDraggedBox` runs grid snap first (`gridSnapForDrag` / `snapProposedOrigin`), then may move that point only when a centre or edge is still within the align threshold.
+Boxes sit on the canvas snap grid and orthogonal relationships run along its lines with auto-layout on and off. The default file-open path (ELK layered, layers, and organic) uses that same seating, so a view does not need **Auto layout** **Off** before boxes land on cells. **Mode → Grid** (`autoLayout grid`) is catalogue packing and is not moved onto this lattice. The grid fills model space from `(0, 0)` outward, the same coordinates as `position`, not only the area under the boxes. Drawn lines stay **8** model units apart; **Options → Grid size** (8, 16, 24, 32, or 48, default 24) changes snap spacing only, so a larger size does not redraw a coarser grid. Zoom is what changes how big the lines look. **Grid** on the Mac chrome shows or hides the lines; hiding them does not turn snap off. A drag, which runs only while auto-layout is off, snaps the box’s top-left to the snap spacing. Dragging an edge snaps that edge to the same spacing and leaves the opposite edge where it was. Nested children move with the dragged parent and keep their offset. Neighbour-align (centres and edges) is on for a body drag as well. `alignDraggedBox` runs grid snap first (`gridSnapForDrag` / `snapProposedOrigin`), then may move that point only when a centre or edge is still within the align threshold.
 
 ### Edge routing (`orthogonal` / `polyline`)
 
@@ -549,6 +552,7 @@ Clauses inside the view are written in this order:
 3. `autoLayout`
 4. `nesting` — only when it is nested. `nesting beside` and its aliases are omitted, because beside is the default.
 5. `position <id> <x> <y>` — source order. Whole numbers have no decimal point. Trailing zeros on a fractional coordinate are dropped (`10.50` is `10.5`).
+6. `size <id> <width> <height>` — source order, after every `position`. The same number spelling. Width and height are view-space pixels and must be positive.
 
 `autoLayout` tokens are written in this order. A token that is the default is omitted:
 

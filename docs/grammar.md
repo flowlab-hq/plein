@@ -147,7 +147,7 @@ A declared name is rejected when:
 | The same name is declared twice | `duplicate specialization '<name>'` |
 | The parent is unknown | `specialization '<name>' specializes unknown keyword '<parent>'` |
 
-Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`.
+Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`.
 
 ## Profile
 
@@ -203,7 +203,7 @@ The identifier is the view name in both forms. `viewpoint` also records that sam
 
 View names are unique (`duplicate view name '<name>'`). They are not required to differ from element ids.
 
-Clauses may appear in any order. `plein format` writes them as `include`, `exclude`, `autoLayout`, `nesting`, then each `position`. A view with a title is rewritten as `viewpoint <name> "<title>"`. A view with no title is rewritten as `view <name>`.
+Clauses may appear in any order. `plein format` writes them as `include`, `exclude`, `autoLayout`, `nesting`, each `position`, then each `size`. A view with a title is rewritten as `viewpoint <name> "<title>"`. A view with no title is rewritten as `view <name>`.
 
 ### Selectors
 
@@ -245,7 +245,7 @@ A profile name is not a selector.
 auto-layout-clause = "autoLayout" { auto-layout-token }
 ```
 
-Following identifiers are consumed until the next view-clause keyword (`include`, `exclude`, `title`, `autoLayout`, `position`, `nesting`, `view`, `viewpoint`). At most one token from each group. `kind` or `name` is legal only with mode `grid`. `off` or `manual` must be the only token.
+Following identifiers are consumed until the next view-clause keyword (`include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `view`, `viewpoint`). At most one token from each group. `kind` or `name` is legal only with mode `grid`. `off` or `manual` must be the only token.
 
 The parser stores the tokens joined by a space, in source order. Bare `autoLayout` stores `tb`. Format rewrites to the canonical subset in [the language reference](plein-dsl-archimate-4.md#canonical-layout-plein-format): mode, then grid order, then direction, then routing, dropping tokens that are the default.
 
@@ -259,15 +259,22 @@ The parser stores the tokens joined by a space, in source order. Bare `autoLayou
 
 What each mode draws: [Views and membership](plein-dsl-archimate-4.md#views-and-membership).
 
-### `position` and `nesting`
+### `position`, `size`, and `nesting`
 
 ```
 position-clause = "position" ident number number
+size-clause     = "size" ident number number
 nesting-clause  = "nesting" [ nesting-mode ]
 nesting-mode    = "nested" | "inside" | "beside" | "sideBySide" | "side-by-side" | "side_by_side"
 ```
 
-Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`. The Mac app **Save** control writes this shape: `autoLayout off` plus one `position` clause per element top-left, for the view on screen. It does not invent a second coordinate format. **Save** is available only while that view is in manual placement.
+Coordinates are numbers (decimals and a leading minus are legal). The same element id may appear once in a view (`duplicate position for '<id>'`). `plein check` requires the id to exist in the model. Positions apply when this view's auto-layout value is `off` or `manual`.
+
+`size <id> <width> <height>` is the explicit box in the same view-space pixels. Width and height must be positive (`size width and height must be positive`). The same element id may appear once (`duplicate size for '<id>'`). `plein check` requires the id to exist in the model. Sizes apply only when auto-layout is `off` or `manual`, and they are ignored while auto-layout is on, the same way `position` is. An element with no `size` clause keeps the label-fit box. The viewer will not draw a box smaller than 48 by 32. A nested parent still grows to cover its children.
+
+```
+size shipper 216 80
+``` The Mac app **Save** control writes this shape: `autoLayout off` plus one `position` clause per element top-left, for the view on screen. It does not invent a second coordinate format. **Save** is available only while that view is in manual placement.
 
 `nesting` consumes a mode token only when the next identifier is not a view-clause keyword. Bare `nesting` stores `nested`. The parser stores the mode spelling it saw (`inside`, `side-by-side`, and the rest). Format writes `nesting nested` for `nested` and `inside`, and omits beside and its aliases.
 
@@ -281,7 +288,7 @@ Syntax errors above are parse errors. `checkPlein` then reports:
 4. A source type, relationship, and target type that the [relationship matrix](relationship-matrix.md) does not list. The diagnostic uses file spellings: `invalid relationship '<relationship>' from '<source-type>' to '<target-type>'`.
 5. Duplicate view names.
 6. An `include` or `exclude` selector that the selector table treats as an element id, when no element has that id.
-7. A `position` id that is not an element id.
+7. A `position` or `size` id that is not an element id.
 
 Specialization, profile, hook, value-stream, and `autoLayout` failures in the sections above are raised while parsing, because they decide which production matched.
 

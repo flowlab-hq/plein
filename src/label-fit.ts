@@ -14,6 +14,13 @@ export const NODE_WIDTH = 168;
 export const NODE_HEIGHT = 52;
 
 /**
+ * Smallest box an edge drag or a `size` clause may draw.
+ * Below this, the label and the type icon have no usable band.
+ */
+export const MIN_NODE_WIDTH = 48;
+export const MIN_NODE_HEIGHT = 32;
+
+/**
  * Widest box a label may claim while trying to stay on two lines.
  * Past this, extra words add lines and the box grows in height instead.
  */

@@ -9,6 +9,7 @@ export {
   type ProfileDecl,
   type ViewDecl,
   type PositionDecl,
+  type SizeDecl,
 } from "./parser.js";
 export {
   FormatError,
@@ -31,6 +32,7 @@ export {
   type InspectDump,
   type InspectElement,
   type InspectPosition,
+  type InspectSize,
   type InspectRelationship,
   type InspectView,
 } from "./inspect.js";

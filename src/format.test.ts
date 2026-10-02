@@ -86,6 +86,11 @@ function project(model: PleinModel) {
         x: position.x,
         y: position.y,
       })),
+      sizes: (view.sizes ?? []).map((size) => ({
+        id: size.id,
+        width: size.width,
+        height: size.height,
+      })),
     })),
     styles: (model.styles ?? []).map((block) => canonicalStyleBody(block.body)),
   };
@@ -132,6 +137,9 @@ function collectComments(model: PleinModel): string[] {
     push(view.trailingComments);
     for (const position of view.positions ?? []) {
       push(position.leadingComments);
+    }
+    for (const size of view.sizes ?? []) {
+      push(size.leadingComments);
     }
   }
   return comments;
@@ -274,6 +282,31 @@ test("plein format rejects a missing file, a syntax error, and conflicting flags
   const outputs = runFormat(["--write", "-o", "out.plein", "fixtures/valid-basic.plein"]);
   assert.equal(outputs.status, 2);
   assert.match(outputs.stderr, /either --write or -o/);
+});
+
+test("format writes size after position and keeps the size comment", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view story {
+    size shipper 200 64
+    // placed
+    position shipper 10 20
+    include shipper
+    autoLayout off
+  }
+}
+`;
+  const formatted = formatPleinSource(source, "sized.plein");
+  assert.match(
+    formatted,
+    /include shipper\n\s+autoLayout off\n\s+\/\/ placed\n\s+position shipper 10 20\n\s+size shipper 200 64\n/,
+  );
+  assert.equal(formatPleinSource(formatted, "sized.plein"), formatted);
+  const model = checkPlein(formatted, "sized.plein");
+  assert.equal(model.views[0]!.sizes?.[0]?.width, 200);
+  assert.equal(model.views[0]!.positions?.[0]?.leadingComments?.[0], "placed");
 });
 
 test("formatPleinSource throws ParseError on an unknown keyword", () => {
