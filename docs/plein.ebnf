@@ -54,16 +54,20 @@ profile-keyword = "profile" | "organization" ;
 (* element-head is an element-keyword, or a specialization-name declared
    earlier in the file. value-stream-body is legal only when the head
    resolves to the valueStream catalogue keyword. *)
-element-decl = element-head string "as" ident [ hook ] [ view-link ] [ value-stream-body ] ;
+element-decl = element-head string "as" ident [ hook ] [ view-link ] [ notes-clause ] [ value-stream-body ] ;
 element-head = element-keyword | specialization-name ;
 hook = "hook" hook-name ;
 (* "links" starts this clause only when the next ident is "view".
    Otherwise the element statement has ended (a relationship source may be "links"). *)
 view-link = "links" "view" ident ;
+(* "notes" starts this clause only when the next token is a string.
+   Otherwise the element statement has ended (a relationship source may be "notes").
+   Empty quotes are accepted and mean no notes. *)
+notes-clause = "notes" string ;
 
 value-stream-body = "{" { value-stream-statement } "}" ;
 value-stream-statement = stage-decl | relationship ;
-stage-decl = stage-keyword string "as" ident [ hook ] [ view-link ] ;
+stage-decl = stage-keyword string "as" ident [ hook ] [ view-link ] [ notes-clause ] ;
 stage-keyword = "value-stream-stage" | "valueStreamStage" ;
 
 (* Arrow form and infix form. Inside a value-stream body the type must

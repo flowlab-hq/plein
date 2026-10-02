@@ -218,6 +218,34 @@
           <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Selecting one element shades the rest of the canvas: that element, relationships that start from it, and the elements they point to stay fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
           <div id="canvas-menu" class="canvas-menu" hidden role="menu" aria-label="Canvas"></div>
         </section>
+        <aside id="inspector" class="inspector" aria-label="Element inspector">
+          <div class="inspector-chrome">
+            <h2 class="inspector-heading">Inspector</h2>
+            <button
+              type="button"
+              id="inspector-toggle"
+              class="inspector-toggle"
+              aria-expanded="true"
+              aria-controls="inspector-body"
+              title="Collapse the inspector"
+            >
+              <span id="inspector-toggle-label">Hide</span>
+            </button>
+          </div>
+          <div id="inspector-body" class="inspector-body">
+            <p id="inspector-empty" class="inspector-empty">Select an element to see its name and notes.</p>
+            <div id="inspector-detail" class="inspector-detail" hidden>
+              <p class="inspector-kicker">Name</p>
+              <p id="inspector-name" class="inspector-name"></p>
+              <p id="inspector-id" class="inspector-id"></p>
+              <label class="inspector-kicker" for="inspector-notes">Notes</label>
+              <textarea id="inspector-notes" rows="6" spellcheck="true"></textarea>
+              <p id="inspector-notes-empty" class="inspector-notes-empty">No notes yet.</p>
+              <p class="inspector-hint">Leaving this field saves the note into the .plein.</p>
+              <p id="inspector-status" class="inspector-status" role="status"></p>
+            </div>
+          </div>
+        </aside>
       </main>
 
       <p id="empty-hint" class="hint">

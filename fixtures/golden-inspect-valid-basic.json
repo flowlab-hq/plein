@@ -6,28 +6,32 @@
       "label": "Shipper",
       "id": "shipper",
       "line": 3,
-      "linksView": null
+      "linksView": null,
+      "notes": null
     },
     {
       "keyword": "businessService",
       "label": "Booking service",
       "id": "booking",
       "line": 4,
-      "linksView": null
+      "linksView": null,
+      "notes": null
     },
     {
       "keyword": "businessObject",
       "label": "Freight order",
       "id": "order",
       "line": 5,
-      "linksView": null
+      "linksView": null,
+      "notes": null
     },
     {
       "keyword": "applicationComponent",
       "label": "Rate engine",
       "id": "rates",
       "line": 6,
-      "linksView": null
+      "linksView": null,
+      "notes": null
     }
   ],
   "relationships": [

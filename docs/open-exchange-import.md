@@ -204,7 +204,7 @@ Other deltas:
 - Styles (fill, line, font, opacity). The Mac renderer keeps the [built-in layer colours and icons](archimate-style.md).
 - Organization / folder trees (Archi `item` folders and the exchange `organizations` tree).
 - Property definitions as real `.plein` properties. Values are comments only. The language reference's attribute syntax is not used, because the parser does not accept it yet.
-- Documentation as a first-class field. Comments only.
+- Documentation as a first-class field. Comments only. The element `notes` clause is separate and is not filled from this documentation.
 - The ArchiMate viewpoint kind, other than the comment above.
 - `Junction`, `AndJunction`, and `OrJunction`, plus any relationship that references one. The import summary counts them.
 - Diagram-only labels, notes, and visual containers.

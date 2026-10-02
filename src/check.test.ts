@@ -175,6 +175,13 @@ test("plein check exits 0 on fixtures/valid-relationship-matrix.plein", () => {
   assert.match(result.stdout, /1 views/);
 });
 
+test("plein check exits 0 on fixtures/valid-notes.plein", () => {
+  const result = runCheck("fixtures/valid-notes.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-notes\.plein/);
+  assert.match(result.stdout, /3 elements/);
+});
+
 test("plein check exits non-zero on an invalid relationship pair with line and types", () => {
   const result = runCheck("fixtures/invalid-relationship.plein");
   assert.notEqual(result.status, 0);

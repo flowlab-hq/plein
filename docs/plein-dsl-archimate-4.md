@@ -516,6 +516,24 @@ The example intentionally excludes `rates` from the context view while retaining
 
 File-level `styles { }` blocks are accepted and ignored. The Mac renderer colours boxes by ArchiMate layer and draws a type glyph from a built-in map — see [ArchiMate type colours and icons](archimate-style.md). That map is not overridden by `styles` and is not an Open Exchange or full Archi skin.
 
+## Element notes
+
+One element may carry one notes string. The clause sits on the declaration, after `as <id>`, after `hook <name>` when the element has a hook, and after `links view <view>` when the element has a link:
+
+```plein
+business-actor "Shipper" as shipper notes "Owns the outbound booking"
+business-service "Booking service" as booking
+value-stream "Order to cash" as orderToCash notes "End to end" {
+  value-stream-stage "Quote" as quote notes "First step"
+}
+```
+
+The string follows the same rules as a label: no double quote and no newline. `notes ""` means no notes, and `plein format` omits it. Leaving the clause off means the same thing. `notes` starts the clause only when a string follows, so a relationship whose source identifier is `notes` stays a relationship. `plein inspect` writes `notes` as the string, or `null` when it is absent. This is not a property sheet, and it is not Open Exchange documentation: import does not fill `notes`, and export does not write it.
+
+In the Mac app, a collapsible inspector on the right of the canvas shows the selected element's name and notes. An element with no notes shows **No notes yet.** Leaving the field saves the clause. The Mac app writes the open `.plein` immediately. Browser preview downloads the `.plein` and **Reload** uses that text. An Open Exchange import keeps the note for the session only — **Reload** re-imports the XML. Collapsing the panel does not clear the selection.
+
+Golden: [`fixtures/valid-notes.plein`](../fixtures/valid-notes.plein). `booking` has no notes; `shipper` and `order` do.
+
 ## Link an element to a view
 
 One element may name one view. The clause sits on the element declaration, after `as <id>` and after `hook <name>` when the element has a hook:
@@ -553,9 +571,11 @@ An element is one line, keys in this order:
 <keyword> "<label>" as <id> hook <name>
 <keyword> "<label>" as <id> links view <view>
 <keyword> "<label>" as <id> hook <name> links view <view>
+<keyword> "<label>" as <id> notes "<text>"
+<keyword> "<label>" as <id> hook <name> links view <view> notes "<text>"
 ```
 
-Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. `links view <view>` is the canvas link, written after the hook when both are present. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
+Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. `links view <view>` is the canvas link, written after the hook when both are present. `notes "<text>"` is written last. An empty notes string is omitted. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
 
 Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, `composition`, `flow`, and the rest of the [relationships table](#relationships)). An infix verb (`shipper serves booking`) is rewritten to that arrow form. A specialization parent that is a catalogue keyword is kebab-case.
 

@@ -74,14 +74,15 @@ A model statement starts with an identifier. Classify it in this order. The same
 
 `specialization serves booking` is infix (step 2 does not match, because `serves` is a relationship spelling). `specialization customer specializes business-actor` is a declaration. `profile -> role: assignment` is an arrow relationship whose source identifier is `profile`.
 
-There is no property list, documentation block, influence modifier, or access type on an element or a relationship. Those are comments when a tool needs to record them. See [Open Exchange import and export](open-exchange-import.md).
+There is no property list, influence modifier, or access type on an element or a relationship. An element may carry one [`notes`](#element) string. Open Exchange documentation and properties stay comments. See [Open Exchange import and export](open-exchange-import.md).
 
 ## Element
 
 ```
-element-decl = element-head string "as" ident [ hook ] [ view-link ] [ value-stream-body ]
+element-decl = element-head string "as" ident [ hook ] [ view-link ] [ notes ] [ value-stream-body ]
 hook         = "hook" ident
 view-link    = "links" "view" ident
+notes        = "notes" string
 ```
 
 `element-head` is an element keyword or the name of a specialization declared earlier in the file. The quoted label and `as` plus an identifier are required. `stakeholder "Gemba Advantage"` fails with `expected 'as <identifier>' after element label`.
@@ -113,6 +114,8 @@ An unknown head fails with `unknown keyword '<name>' (undeclared specialization)
 
 `plein format` writes the clause on the element line: `as <id>`, then `hook <name>` when the element uses a hook, then `links view <name>`.
 
+`notes "<text>"` is optional and sits after the id, after `hook` when that is present, and after `links view` when that is present. The string is the element's notes. It uses the same quoting rules as a label: no `"` and no newline. `notes ""` is accepted and means the element has no notes. `plein format` omits an empty notes clause. A second `notes` string fails with `duplicate notes clause`. `hook` or `links view` after `notes` fails with `'hook' must come before 'notes'` or `'links view' must come before 'notes'`. `notes` starts the clause only when the next token is a string. A relationship whose source identifier is `notes` (`notes -> shipper: association`) is unchanged. `notes` without a string, and not as that relationship, fails with `expected a string after 'notes'`. `plein inspect` writes `notes` as that string, or `null` when the clause is absent or empty. This is not a property list. Open Exchange import does not fill it, and export does not write it.
+
 Element identifiers are unique within the model. View names are a separate namespace and may reuse an element id. `plein check` reports `duplicate identifier '<id>'`.
 
 ## Value-stream body
@@ -120,7 +123,7 @@ Element identifiers are unique within the model. View names are a separate names
 A `{` after the element id opens a body only when the element's catalogue keyword is `valueStream`. That includes a specialization or hook whose chain ends at `valueStream`. The body is a sequence of stage declarations and relationships.
 
 ```
-stage-decl = ( "value-stream-stage" | "valueStreamStage" ) string "as" ident [ hook ] [ view-link ]
+stage-decl = ( "value-stream-stage" | "valueStreamStage" ) string "as" ident [ hook ] [ view-link ] [ notes ]
 ```
 
 A stage is a `valueStream` element. The parse records a `composedOf` relationship from the enclosing value stream to the stage. That relationship is implied by the braces. `plein format` does not write it back out; parsing the nested form creates it again.
@@ -152,7 +155,7 @@ A declared name is rejected when:
 | The same name is declared twice | `duplicate specialization '<name>'` |
 | The parent is unknown | `specialization '<name>' specializes unknown keyword '<parent>'` |
 
-Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`, `links`.
+Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`, `links`, `notes`.
 
 ## Profile
 

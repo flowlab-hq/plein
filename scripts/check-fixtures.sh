@@ -43,6 +43,7 @@ GOLDEN=(
   fixtures/valid-profile.plein
   fixtures/valid-relationship-matrix.plein
   fixtures/valid-view-link.plein
+  fixtures/valid-notes.plein
   fixtures/samples/value-stream-demo.plein
   fixtures/samples/research-data.plein
   fixtures/open-exchange/booking.plein

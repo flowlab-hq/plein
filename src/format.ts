@@ -246,6 +246,9 @@ function writeElement(lines: string[], element: ElementDecl, model: PleinModel, 
   if (element.linksView) {
     statement += ` links view ${element.linksView}`;
   }
+  if (element.notes) {
+    statement += ` notes ${quoteLabel(element.notes)}`;
+  }
   const children = bodyStatements(element.id, model);
   const trailing = element.trailingComments ?? [];
   if (children.length === 0 && trailing.length === 0) {

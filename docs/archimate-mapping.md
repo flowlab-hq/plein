@@ -207,5 +207,6 @@ A chain (`premium-customer specializes customer`, `customer specializes business
 | Element `id` after `as` | The identifier other statements use. Export writes it as the element identifier. |
 | Quoted label | The element's name (`<name>` in Open Exchange). |
 | `links view <name>` after `as <id>` | Canvas navigation only. One named view. Not a relationship, and not written to Open Exchange. |
+| `notes "<text>"` after `as <id>` | One documentation string on the element. Not an ArchiMate property list. Open Exchange documentation is not imported into it, and export does not write it. |
 
 Layer-band layout (`autoLayout layers`) stacks the view by the layers in the element tables: Motivation and Strategy, then Business, Application, Technology and Physical, then Implementation and migration. That stacking is presentation. It does not change the concepts.
