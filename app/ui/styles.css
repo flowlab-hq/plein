@@ -310,6 +310,19 @@ button:disabled {
   color: #0b57d0;
 }
 
+.canvas-grid-toggle {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--panel);
+}
+
+.canvas-grid-toggle[aria-pressed="true"] {
+  background: #e8f1ff;
+  border-color: #0b57d0;
+  color: #0b57d0;
+}
+
 .layout-overflow {
   position: relative;
   z-index: 2;
@@ -411,6 +424,10 @@ button:disabled {
 .diagram svg {
   display: block;
   min-height: 100%;
+}
+
+.diagram .canvas-grid {
+  pointer-events: none;
 }
 
 /* Zoom sets an explicit size; the default min-height would block zooming out. */
