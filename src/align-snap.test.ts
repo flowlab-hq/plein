@@ -341,7 +341,7 @@ test("Mac canvas drag paints alignment guides from the shared snap helper", () =
     ui.indexOf('diagram.addEventListener("pointerdown"'),
     ui.indexOf('diagram.addEventListener("pointermove"'),
   );
-  assert.match(down, /auto !== false/);
+  assert.match(down, /auto === false/);
   assert.equal(down.includes("alignDraggedBox"), false);
 
   const placement = ui.slice(ui.indexOf("function dragPlacement"), ui.indexOf('diagram.addEventListener("pointerdown"'));

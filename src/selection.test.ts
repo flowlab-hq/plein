@@ -12,10 +12,15 @@ import {
   elementSelection,
   isSameSelection,
   listRowForSelection,
+  nextSelectionFromClick,
+  normalizeMarquee,
   relationshipId,
   relationshipSelection,
   retainSelection,
+  retainSelections,
+  selectedElementIds,
   selectionFromDiagramHit,
+  selectionFromMarquee,
   svgHasSelectionTarget,
 } from "./selection.js";
 
@@ -164,4 +169,64 @@ test("multi-view: keep selection when the item stays in the list, drop it otherw
   assert.equal(retainSelection(null, structure), null);
   assert.equal(isSameSelection(null, tms), false);
   assert.equal(isSameSelection(null, null), true);
+});
+
+test("shift-click toggles an item; a plain click replaces the set", () => {
+  const tms = elementSelection("tms");
+  const shipment = elementSelection("shipment");
+  const serving = relationshipSelection("tms", "bookingApi", "serves");
+
+  assert.deepEqual(nextSelectionFromClick([], tms, false), [tms]);
+  assert.deepEqual(nextSelectionFromClick([tms], shipment, false), [shipment]);
+  assert.deepEqual(nextSelectionFromClick([tms, shipment], null, false), []);
+
+  assert.deepEqual(nextSelectionFromClick([tms], shipment, true), [tms, shipment]);
+  assert.deepEqual(nextSelectionFromClick([tms, shipment], serving, true), [tms, shipment, serving]);
+  assert.deepEqual(nextSelectionFromClick([tms, shipment, serving], shipment, true), [tms, serving]);
+  assert.deepEqual(nextSelectionFromClick([tms, shipment], null, true), [tms, shipment]);
+  assert.deepEqual(selectedElementIds([tms, serving, shipment]), ["tms", "shipment"]);
+});
+
+test("marquee selects intersecting element boxes and can extend the set", () => {
+  const nodes = [
+    { id: "west", x: 0, y: 0, width: 40, height: 20 },
+    { id: "east", x: 100, y: 0, width: 40, height: 20 },
+    { id: "south", x: 0, y: 80, width: 40, height: 20 },
+  ];
+  const marquee = normalizeMarquee({ x: 90, y: -10 }, { x: 20, y: 30 });
+  assert.equal(marquee.x, 20);
+  assert.equal(marquee.y, -10);
+  assert.equal(marquee.width, 70);
+  assert.equal(marquee.height, 40);
+
+  assert.deepEqual(selectionFromMarquee(nodes, marquee), [elementSelection("west")]);
+  assert.deepEqual(
+    selectionFromMarquee(nodes, { x: 0, y: 0, width: 200, height: 100 }),
+    [elementSelection("west"), elementSelection("east"), elementSelection("south")],
+  );
+  assert.deepEqual(selectionFromMarquee(nodes, { x: 50, y: 40, width: 10, height: 10 }), []);
+
+  const kept = relationshipSelection("west", "east", "flowsTo");
+  assert.deepEqual(
+    selectionFromMarquee(nodes, { x: 100, y: 0, width: 10, height: 10 }, [kept, elementSelection("south")], true),
+    [kept, elementSelection("south"), elementSelection("east")],
+  );
+  assert.deepEqual(
+    selectionFromMarquee(nodes, { x: 100, y: 0, width: 10, height: 10 }, [kept], false),
+    [elementSelection("east")],
+  );
+});
+
+test("retainSelections keeps every item still listed, in order", async () => {
+  const result = loadPleinSource(readFixture("valid-views.plein"), "fixtures/valid-views.plein");
+  assert.equal(result.ok, true);
+  if (!result.ok) {
+    return;
+  }
+  const cooperation = filterModel(result.model, "applicationCooperation");
+  const shipment = elementSelection("shipment");
+  const tms = elementSelection("tms");
+  const serving = relationshipSelection("tms", "bookingApi", "serves");
+  assert.deepEqual(retainSelections([shipment, tms, serving], cooperation), [tms, serving]);
+  assert.deepEqual(retainSelections([], cooperation), []);
 });

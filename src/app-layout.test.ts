@@ -31,16 +31,24 @@ test("Mac UI lists Elements and Relationships in the left sidebar, not a bottom 
 });
 
 test("Mac UI wires bidirectional diagram ↔ list selection", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
   const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
   const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
   assert.match(ui, /selectionFromDiagramHit/);
-  assert.match(ui, /retainSelection/);
+  assert.match(ui, /retainSelections/);
+  assert.match(ui, /nextSelectionFromClick/);
+  assert.match(ui, /selectionFromMarquee/);
+  assert.match(ui, /groupDragIds/);
   assert.match(ui, /data-element-id/);
   assert.match(ui, /data-relationship-id/);
   assert.match(ui, /setSelection\(null\)/);
   assert.match(ui, /event\.key === "Escape"/);
+  assert.match(ui, /event\.shiftKey/);
   assert.match(css, /\[data-selected="true"\]/);
   assert.match(css, /\.rows li\.selected/);
+  assert.match(css, /data-selection-bounds/);
+  assert.match(css, /selection-marquee/);
+  assert.match(html, /aria-multiselectable="true"/);
 });
 
 test("connector hit targets stay under element boxes", () => {
