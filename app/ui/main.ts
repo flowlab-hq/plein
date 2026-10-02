@@ -83,6 +83,12 @@ import {
   formatImportReport,
   importOpenExchange,
 } from "../../src/open-exchange.ts";
+import {
+  manualPositionsAreDirty,
+  SaveLayoutError,
+  writeManualPositions,
+  type SavedPosition,
+} from "../../src/save-layout.ts";
 
 type TauriBridge = {
   core: {
@@ -101,6 +107,7 @@ type OpenedFile = {
 const openButton = document.querySelector("#open-button") as HTMLButtonElement;
 const importButton = document.querySelector("#import-button") as HTMLButtonElement;
 const reloadButton = document.querySelector("#reload-button") as HTMLButtonElement;
+const saveButton = document.querySelector("#save-button") as HTMLButtonElement;
 const exportButton = document.querySelector("#export-button") as HTMLButtonElement;
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
 const importInput = document.querySelector("#import-input") as HTMLInputElement;
@@ -158,7 +165,8 @@ let modeOverride: "file" | LayoutMode = "file";
 let routingOverride: "file" | EdgeRouting = "file";
 /**
  * `file` follows the view. `auto` recomputes with ELK. `off` freezes positions.
- * Not written back to the file. Survives Reload; cleared when another file is opened.
+ * The override itself is not a file edit. Save writes `autoLayout off` and
+ * `position` clauses. Survives Reload; cleared when another file is opened.
  */
 let autoLayoutOverride: "file" | "auto" | "off" = "file";
 /**
@@ -253,6 +261,7 @@ const LOAD_ERROR_LEAD = "This .plein did not load";
 const IMPORT_ERROR_LEAD = "Could not import this Open Exchange file";
 const EXPORT_ERROR_LEAD = "Could not export this view";
 const OPEN_EXCHANGE_ERROR_LEAD = "Could not export Open Exchange";
+const SAVE_ERROR_LEAD = "Could not save positions";
 /** Lead used the next time a load failure is shown. */
 let bannerLead = LOAD_ERROR_LEAD;
 /**
@@ -679,6 +688,176 @@ async function selectAutoLayout(next: "file" | "auto" | "off"): Promise<void> {
   void render();
 }
 
+/** True when the positions on screen would not come back from the open file. */
+function viewHasUnsavedPositions(viewName: string): boolean {
+  if (!loaded?.ok) {
+    return false;
+  }
+  const view = loaded.model.views.find((candidate) => candidate.name === viewName);
+  if (!view) {
+    return false;
+  }
+  return manualPositionsAreDirty(view.autoLayout, view.positions ?? [], manualPositions.get(viewName));
+}
+
+function anyUnsavedPositions(): boolean {
+  if (!loaded?.ok) {
+    return false;
+  }
+  return loaded.model.views.some((view) => viewHasUnsavedPositions(view.name));
+}
+
+/**
+ * Save writes the file only while the diagram is in manual placement.
+ * On, and File when the view is automatic, recompute and do not store drags.
+ */
+function saveEnabled(): boolean {
+  if (!loaded?.ok || !lastSource || openExchangeFile) {
+    return false;
+  }
+  return !autoIsOn(namedViewForDiagram());
+}
+
+function syncSaveChrome(): void {
+  const enabled = saveEnabled();
+  const dirty = anyUnsavedPositions();
+  saveButton.disabled = !enabled;
+  saveButton.classList.toggle("is-dirty", enabled && dirty);
+  const writesInPlace = Boolean(tauri()) && isFilesystemPath(loaded?.file ?? "");
+  if (!enabled) {
+    saveButton.title = openExchangeFile
+      ? "Save writes a .plein file. This model was imported from Open Exchange XML."
+      : "Turn Auto layout Off to save positions. On recomputes and does not write the file.";
+  } else if (writesInPlace && dirty) {
+    saveButton.title = "Write unsaved manual positions into this .plein (⌘S).";
+  } else if (writesInPlace) {
+    saveButton.title = "Write the positions on screen into this .plein (⌘S). Auto layout is off.";
+  } else if (dirty) {
+    saveButton.title = "Download this .plein with the unsaved positions (⌘S). Browser preview cannot write the original path.";
+  } else {
+    saveButton.title = "Download this .plein with the positions on screen (⌘S). Browser preview cannot write the original path.";
+  }
+  if (!loaded) {
+    fileLabel.textContent = "No file open";
+    fileLabel.removeAttribute("title");
+    delete fileLabel.dataset.dirty;
+    return;
+  }
+  fileLabel.textContent = dirty ? `Unsaved — ${loaded.file}` : loaded.file;
+  fileLabel.title = dirty
+    ? "Manual positions are not in the file yet. Save writes them."
+    : loaded.file;
+  if (dirty) {
+    fileLabel.setAttribute("data-dirty", "true");
+  } else {
+    fileLabel.removeAttribute("data-dirty");
+  }
+}
+
+function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
+  if (!loaded?.ok) {
+    return [];
+  }
+  const view = loaded.model.views.find((candidate) => candidate.name === viewName);
+  if (!view) {
+    return [];
+  }
+  const session = manualPositions.get(viewName);
+  const filePos = new Map((view.positions ?? []).map((position) => [position.id, position]));
+  const live =
+    useLive && lastLayout?.viewName === viewName && lastLayout.auto === false
+      ? new Map(lastLayout.nodes.map((node) => [node.id, node]))
+      : null;
+  const positions: SavedPosition[] = [];
+  for (const element of filterModel(loaded.model, viewName).elements) {
+    const fromSession = session?.get(element.id);
+    const node = live?.get(element.id);
+    const fromFile = filePos.get(element.id);
+    const point = fromSession
+      ? { x: fromSession.x, y: fromSession.y }
+      : node
+        ? { x: node.x, y: node.y }
+        : fromFile
+          ? { x: fromFile.x, y: fromFile.y }
+          : null;
+    if (!point) {
+      continue;
+    }
+    positions.push({ id: element.id, x: point.x, y: point.y });
+  }
+  return positions;
+}
+
+function collectSaveUpdates(): Array<{ view: string; positions: SavedPosition[] }> {
+  if (!loaded?.ok) {
+    return [];
+  }
+  const current = namedViewForDiagram();
+  const updates: Array<{ view: string; positions: SavedPosition[] }> = [];
+  for (const view of loaded.model.views) {
+    const isCurrent = view.name === current && !autoIsOn(view.name);
+    const dirty = viewHasUnsavedPositions(view.name);
+    if (!isCurrent && !dirty) {
+      continue;
+    }
+    const positions = positionsToWrite(view.name, isCurrent);
+    if (positions.length === 0) {
+      continue;
+    }
+    updates.push({ view: view.name, positions });
+  }
+  return updates;
+}
+
+let saveInFlight = false;
+
+function pleinDownloadName(file: string): string {
+  const base = file.split(/[/\\]/).pop() || "model.plein";
+  return base.toLowerCase().endsWith(".plein") ? base : `${base}.plein`;
+}
+
+/** Write manual top-lefts into the open .plein. On does not write. */
+async function savePositions(): Promise<void> {
+  if (saveInFlight || !exportDialog.hidden || !saveEnabled() || !loaded?.ok || lastSource === null) {
+    return;
+  }
+  const updates = collectSaveUpdates();
+  if (updates.length === 0) {
+    return;
+  }
+  saveInFlight = true;
+  try {
+    let next: string;
+    try {
+      next = writeManualPositions(lastSource, updates, loaded.file);
+    } catch (error) {
+      const message = error instanceof SaveLayoutError ? error.message : errorMessage(error);
+      showError(message, SAVE_ERROR_LEAD);
+      return;
+    }
+    const api = tauri();
+    if (api && isFilesystemPath(loaded.file)) {
+      try {
+        await api.core.invoke("write_export_file", { path: loaded.file, contents: next });
+      } catch (error) {
+        showError(errorMessage(error), SAVE_ERROR_LEAD);
+        return;
+      }
+    } else {
+      try {
+        downloadText(pleinDownloadName(loaded.file), "text/plain", next);
+      } catch (error) {
+        showError(errorMessage(error), SAVE_ERROR_LEAD);
+        return;
+      }
+    }
+    autoLayoutOverride = "file";
+    applyReload(next, loaded.file);
+  } finally {
+    saveInFlight = false;
+  }
+}
+
 function radioButton(
   checked: boolean,
   label: string,
@@ -705,12 +884,12 @@ function renderAutoLayoutSwitcher(): void {
     {
       id: "auto",
       label: "On",
-      title: "Recompute placement from the model. Saved positions are ignored.",
+      title: "Recompute placement from the model. Saved positions are ignored. Save stays off.",
     },
     {
       id: "off",
       label: "Off",
-      title: "Freeze element positions. They stay put across Reload until you turn auto-layout back on.",
+      title: "Freeze element positions. Save writes them into the .plein. They stay put across Reload.",
     },
   ];
   autoLayoutSwitcher.replaceChildren(
@@ -1070,6 +1249,7 @@ function setCurrentViewChrome(title: string, viewName: string | null): void {
 }
 
 async function renderDiagram(seq: number): Promise<void> {
+  syncSaveChrome();
   renderAutoLayoutSwitcher();
   renderModeSwitcher();
   renderDirectionSwitcher();
@@ -1192,7 +1372,6 @@ async function render(): Promise<void> {
   if (!loaded) {
     workspace.classList.add("empty");
     emptyHint.hidden = false;
-    fileLabel.textContent = "No file open";
     showImportNotice(null);
     showError(null);
     viewList.replaceChildren();
@@ -1203,7 +1382,6 @@ async function render(): Promise<void> {
   }
 
   emptyHint.hidden = true;
-  fileLabel.textContent = loaded.file;
 
   if (!loaded.ok) {
     workspace.classList.add("empty");
@@ -1523,6 +1701,10 @@ reloadButton.addEventListener("click", () => {
   void reloadOpen();
 });
 
+saveButton.addEventListener("click", () => {
+  void savePositions();
+});
+
 exportButton.addEventListener("click", () => {
   beginExport();
 });
@@ -1658,6 +1840,11 @@ window.addEventListener("keydown", (event) => {
   if (key === "o") {
     event.preventDefault();
     void openFromTauriDialog();
+    return;
+  }
+  if (key === "s") {
+    event.preventDefault();
+    void savePositions();
     return;
   }
   if (key === "r") {
@@ -2630,6 +2817,9 @@ async function boot(): Promise<void> {
     });
     await api.event.listen("reload-file", () => {
       void reloadOpen();
+    });
+    await api.event.listen("save-positions", () => {
+      void savePositions();
     });
     await api.event.listen("export-view", () => {
       beginExport();

@@ -184,6 +184,7 @@ fn files_from_cli_args() -> Vec<PathBuf> {
 
 fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", "Open…", true, Some("CmdOrCtrl+O"))?;
+    let save = MenuItem::with_id(app, "save", "Save", true, Some("CmdOrCtrl+S"))?;
     let import_xml = MenuItem::with_id(
         app,
         "import-open-exchange",
@@ -199,6 +200,7 @@ fn build_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
         true,
         &[
             &open,
+            &save,
             &import_xml,
             &export,
             &reload,
@@ -259,6 +261,9 @@ fn emit_menu_action(app: &AppHandle, id: &str) {
     match id {
         "open" => {
             let _ = app.emit("open-dialog", ());
+        }
+        "save" => {
+            let _ = app.emit("save-positions", ());
         }
         "import-open-exchange" => {
             let _ = app.emit("import-open-exchange", ());

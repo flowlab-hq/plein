@@ -185,9 +185,9 @@ export type PleinModel = {
   styles?: StyleBlock[];
 };
 
-type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "comment" | "other" | "eof";
+export type TokenKind = "ident" | "string" | "number" | "{" | "}" | "->" | ":" | "comment" | "other" | "eof";
 
-type Token = {
+export type PleinToken = {
   kind: TokenKind;
   value: string;
   line: number;
@@ -271,8 +271,8 @@ function isDigit(ch: string): boolean {
   return ch >= "0" && ch <= "9";
 }
 
-function tokenize(source: string, file: string): Token[] {
-  const tokens: Token[] = [];
+function tokenize(source: string, file: string): PleinToken[] {
+  const tokens: PleinToken[] = [];
   let i = 0;
   let line = 1;
   let column = 1;
@@ -397,8 +397,13 @@ function tokenize(source: string, file: string): Token[] {
   return tokens;
 }
 
+/** Lexer tokens, including source offsets, for a surgical rewrite of a `.plein` file. */
+export function lexPlein(source: string, file = "input.plein"): PleinToken[] {
+  return tokenize(source, file);
+}
+
 class Parser {
-  private readonly tokens: Token[];
+  private readonly tokens: PleinToken[];
   private readonly source: string;
   private readonly file: string;
   private index = 0;
@@ -543,7 +548,7 @@ class Parser {
     return this.tokens[this.index + 1]?.kind === "{";
   }
 
-  private parseProfile(start: Token, comments: string[]): void {
+  private parseProfile(start: PleinToken, comments: string[]): void {
     const name = this.expect("ident", "expected profile name");
     this.expect("{", "expected '{' after profile name");
     const decl = this.addProfile(start, name, comments);
@@ -572,7 +577,7 @@ class Parser {
     this.currentProfile = undefined;
   }
 
-  private addProfile(start: Token, name: Token, comments: string[]): ProfileDecl {
+  private addProfile(start: PleinToken, name: PleinToken, comments: string[]): ProfileDecl {
     if (resolveElementKeyword(name.value) !== undefined || isValueStreamStageKeyword(name.value)) {
       throw new ParseError(
         `profile '${name.value}' collides with catalogue keyword '${name.value}'`,
@@ -638,7 +643,7 @@ class Parser {
     return true;
   }
 
-  private parseSpecialization(start: Token, comments: string[]): void {
+  private parseSpecialization(start: PleinToken, comments: string[]): void {
     const name = this.expect("ident", "expected specialization name");
     const verb = this.expect("ident", "expected 'specializes' after specialization name");
     if (resolveRelationshipKeyword(verb.value) !== "specializes") {
@@ -649,23 +654,23 @@ class Parser {
         verb.column,
       );
     }
-    const parentToken = this.expect("ident", "expected catalogue type after specializes");
-    const catalogue = resolveElementKeyword(parentToken.value);
-    const parentDecl = this.specializationByName.get(parentToken.value);
+    const parentPleinToken = this.expect("ident", "expected catalogue type after specializes");
+    const catalogue = resolveElementKeyword(parentPleinToken.value);
+    const parentDecl = this.specializationByName.get(parentPleinToken.value);
     if (!catalogue && !parentDecl) {
       throw new ParseError(
-        `specialization '${name.value}' specializes unknown keyword '${parentToken.value}'`,
+        `specialization '${name.value}' specializes unknown keyword '${parentPleinToken.value}'`,
         this.file,
-        parentToken.line,
-        parentToken.column,
+        parentPleinToken.line,
+        parentPleinToken.column,
       );
     }
-    this.addSpecialization(start, name, parentToken.value, catalogue ?? parentDecl!.keyword, comments);
+    this.addSpecialization(start, name, parentPleinToken.value, catalogue ?? parentDecl!.keyword, comments);
   }
 
   private addSpecialization(
-    start: Token,
-    name: Token,
+    start: PleinToken,
+    name: PleinToken,
     parent: string,
     keyword: ElementKeyword,
     comments: string[],
@@ -721,7 +726,7 @@ class Parser {
   }
 
   private parseElementOrRelationship(
-    first: Token,
+    first: PleinToken,
     options: { valueStreamBody: boolean; parentId?: string },
     comments: string[],
   ): void {
@@ -844,28 +849,28 @@ class Parser {
       this.advance();
       const target = this.expect("ident", "expected relationship target");
       this.expect(":", "expected ':' before relationship type");
-      const typeToken = this.expect("ident", "expected relationship type");
-      const type = resolveRelationshipKeyword(typeToken.value);
+      const typePleinToken = this.expect("ident", "expected relationship type");
+      const type = resolveRelationshipKeyword(typePleinToken.value);
       if (!type) {
         throw new ParseError(
-          `unknown relationship type '${typeToken.value}'`,
+          `unknown relationship type '${typePleinToken.value}'`,
           this.file,
-          typeToken.line,
-          typeToken.column,
+          typePleinToken.line,
+          typePleinToken.column,
         );
       }
-      this.pushRelationship(first, target, type, typeToken, options, comments);
+      this.pushRelationship(first, target, type, typePleinToken, options, comments);
       return;
     }
 
     if (this.check("ident") && isRelationshipKeyword(this.peek().value)) {
-      const typeToken = this.advance();
-      const type = resolveRelationshipKeyword(typeToken.value);
+      const typePleinToken = this.advance();
+      const type = resolveRelationshipKeyword(typePleinToken.value);
       if (!type) {
         throw new ParseError("unknown relationship type", this.file, first.line, first.column);
       }
       const target = this.expect("ident", "expected relationship target");
-      this.pushRelationship(first, target, type, typeToken, options, comments);
+      this.pushRelationship(first, target, type, typePleinToken, options, comments);
       return;
     }
 
@@ -915,7 +920,7 @@ class Parser {
   }
 
   /** `hook <name>` after an element id. The name token is the hook. */
-  private takeProfileHook(): Token | undefined {
+  private takeProfileHook(): PleinToken | undefined {
     if (!this.checkIdent("hook")) {
       return undefined;
     }
@@ -923,7 +928,7 @@ class Parser {
     return this.expect("ident", "expected profile hook name after 'hook'");
   }
 
-  private applyProfileHook(element: ElementDecl, hookName: Token): void {
+  private applyProfileHook(element: ElementDecl, hookName: PleinToken): void {
     const decl = this.specializationByName.get(hookName.value);
     if (!decl) {
       throw new ParseError(
@@ -987,10 +992,10 @@ class Parser {
   }
 
   private pushRelationship(
-    source: Token,
-    target: Token,
+    source: PleinToken,
+    target: PleinToken,
     type: RelationshipKeyword,
-    typeToken: Token,
+    typePleinToken: PleinToken,
     options: { valueStreamBody: boolean; parentId?: string },
     comments: string[],
   ): void {
@@ -998,8 +1003,8 @@ class Parser {
       throw new ParseError(
         `value stream stages may only use flowsTo or triggers (got '${type}')`,
         this.file,
-        typeToken.line,
-        typeToken.column,
+        typePleinToken.line,
+        typePleinToken.column,
       );
     }
     this.relationships.push({
@@ -1114,11 +1119,11 @@ class Parser {
       }
       if (this.checkIdent("autoLayout")) {
         this.advance();
-        const tokens: Token[] = [];
+        const tokens: PleinToken[] = [];
         while (this.check("ident") && !this.isViewClauseStart()) {
           tokens.push(this.advance());
         }
-        view.autoLayout = this.parseAutoLayoutTokens(tokens);
+        view.autoLayout = this.parseAutoLayoutPleinTokens(tokens);
         this.attachClauseComments(view, "autoLayoutComments", comments);
         continue;
       }
@@ -1186,7 +1191,7 @@ class Parser {
     view[key] = [...(view[key] ?? []), ...comments];
   }
 
-  private parseSelectorList(verb: string, start: Token, inlineComments: string[]): string[] {
+  private parseSelectorList(verb: string, start: PleinToken, inlineComments: string[]): string[] {
     const selectors: string[] = [];
     while (!this.check("}") && !this.check("eof") && !this.isViewClauseStart()) {
       if (this.check("comment")) {
@@ -1252,7 +1257,7 @@ class Parser {
    * `off` or `manual` alone disables auto-layout and must not be combined
    * with a mode, direction, routing, or grid order.
    */
-  private parseAutoLayoutTokens(tokens: Token[]): string {
+  private parseAutoLayoutPleinTokens(tokens: PleinToken[]): string {
     if (tokens.length === 0) {
       return "tb";
     }
@@ -1278,10 +1283,10 @@ class Parser {
         extra.column,
       );
     }
-    let mode: Token | undefined;
-    let direction: Token | undefined;
-    let routing: Token | undefined;
-    let gridOrder: Token | undefined;
+    let mode: PleinToken | undefined;
+    let direction: PleinToken | undefined;
+    let routing: PleinToken | undefined;
+    let gridOrder: PleinToken | undefined;
     for (const token of tokens) {
       if (LAYOUT_MODE_TOKENS.has(token.value)) {
         if (mode) {
@@ -1384,7 +1389,7 @@ class Parser {
     return comments;
   }
 
-  private peek(): Token {
+  private peek(): PleinToken {
     return this.tokens[this.index] ?? this.tokens[this.tokens.length - 1]!;
   }
 
@@ -1397,7 +1402,7 @@ class Parser {
     return token.kind === "ident" && token.value === value;
   }
 
-  private advance(): Token {
+  private advance(): PleinToken {
     const token = this.peek();
     if (token.kind !== "eof") {
       this.index += 1;
@@ -1418,7 +1423,7 @@ class Parser {
     return value;
   }
 
-  private expect(kind: TokenKind, message: string): Token {
+  private expect(kind: TokenKind, message: string): PleinToken {
     const token = this.peek();
     if (token.kind !== kind) {
       throw new ParseError(message, this.file, token.line, token.column);

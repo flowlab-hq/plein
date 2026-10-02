@@ -337,15 +337,16 @@ viewpoint story "Story" {
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
-The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away and previews this without rewriting the file:
+The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away. **Save** (toolbar, File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and grid size stay local preview and are not written.
 
 | Choice | Effect |
 | --- | --- |
 | File | Follow the view. `off` or `manual` uses `position` clauses; anything else stays automatic (layered, layers, organic, or grid). |
-| Off | Freeze the positions currently on screen (the last automatic layout, or the file positions). **Reload** keeps that freeze. Drag a box to move it while auto-layout is off; nested children move with their parent. |
-| On | Drop the freeze and recompute from the model. Saved `position` clauses are not applied. |
+| Off | Freeze the positions currently on screen (the last automatic layout, or the file positions). **Reload** keeps that freeze. Drag a box to move it while auto-layout is off; nested children move with their parent. A multi-selection moves together. |
+| On | Drop the freeze and recompute from the model. Saved `position` clauses are not applied. **Save** is disabled. Unsaved moves are discarded. |
+| Save | Enabled only while placement is manual (**Off**, or **File** when this view is `off` / `manual`). Writes `autoLayout off` and one `position <id> <x> <y>` per element on the canvas for this view, and for any other view that still has unsaved moves. Coordinates are view-space top-lefts, the same clauses as above. |
 
-Dragging and the Off snapshot last for this open file, including across **Reload**. They are not written back. Put `position` clauses in the `.plein` when the arrangement should travel with the model.
+Dragging, a group move, and turning **Off** on a view that is still automatic in the file mark the file name **Unsaved** until **Save**. **Save** clears that mark. **On** also clears it, because those moves are dropped. Quit and reopen reads the `position` clauses; **Reload** alone does not write them. In browser preview, **Save** downloads the `.plein` (the page cannot write the original path) and keeps that text for **Reload**.
 
 While auto-layout is off, boxes sit on the canvas snap grid and orthogonal relationships run along its lines. The grid fills model space from `(0, 0)` outward, the same coordinates as `position`, not only the area under the boxes. Drawn lines stay **8** model units apart; **Options → Grid size** (8, 16, 24, 32, or 48, default 24) changes snap spacing only, so a larger size does not redraw a coarser grid. Zoom is what changes how big the lines look. **Grid** on the Mac chrome shows or hides the lines; hiding them does not turn snap off. A drag snaps the box’s top-left to the snap spacing. Nested children move with the dragged parent and keep their offset. This overlay is not `autoLayout grid` (catalogue packing). Neighbour-align (centres and edges) is on as well. `alignDraggedBox` runs grid snap first (`gridSnapForDrag` / `snapProposedOrigin`), then may move that point only when a centre or edge is still within the align threshold.
 
@@ -374,7 +375,7 @@ viewpoint applicationProcess "Application Process" {
 
 Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
 
-The Mac diagram chrome keeps **Auto layout** (File / On / Off), **Mode** (File / Layered / Layers / Organic / Grid), and **Grid** (show or hide the snap grid) one click away. **Options** groups **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Grid size** for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload.
+The Mac diagram chrome keeps **Auto layout** (File / On / Off), **Mode** (File / Layered / Layers / Organic / Grid), and **Grid** (show or hide the snap grid) one click away. **Options** groups **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Grid size** for local preview. Those overrides are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload. **Save** writes that freeze as `autoLayout off` and `position` clauses; **On** does not.
 
 ### Layer bands (`autoLayout layers`)
 

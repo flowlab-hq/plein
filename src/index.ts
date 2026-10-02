@@ -18,6 +18,14 @@ export {
   formatPleinSource,
 } from "./format.js";
 export {
+  SaveLayoutError,
+  formatCoordinate,
+  manualPositionsAreDirty,
+  sameCoordinate,
+  writeManualPositions,
+  type SavedPosition,
+} from "./save-layout.js";
+export {
   formatInspect,
   inspectModel,
   type InspectDump,
