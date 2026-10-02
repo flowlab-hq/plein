@@ -118,104 +118,124 @@
             <div
               class="layout-controls"
               role="toolbar"
-              aria-label="Diagram layout"
+              aria-label="Layout and viewing"
             >
-              <div class="layout-primary">
-                <div class="layout-group">
-                  <span class="layout-kicker">Auto layout</span>
-                  <div
-                    id="auto-layout-switcher"
-                    class="layout-switcher"
-                    role="radiogroup"
-                    aria-label="Auto layout"
-                    title="File follows autoLayout in the .plein. Off freezes positions. Drag a box to move it, or an edge to resize it. Save writes positions and sizes. On recomputes and does not write."
-                  ></div>
+              <div class="chrome-cluster" role="group" aria-label="Layout">
+                <span class="chrome-cluster-label">Layout</span>
+                <div class="layout-primary">
+                  <div class="layout-group">
+                    <span class="layout-kicker">Auto layout</span>
+                    <div
+                      id="auto-layout-switcher"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Auto layout"
+                      title="File follows autoLayout in the .plein. Off freezes positions. Drag a box to move it, or an edge to resize it. Save writes positions and sizes. On recomputes and does not write."
+                    ></div>
+                  </div>
+                  <div class="layout-group">
+                    <span class="layout-kicker">Mode</span>
+                    <div
+                      id="mode-switcher"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Layout mode"
+                      title="File default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
+                    ></div>
+                  </div>
                 </div>
-                <div class="layout-group">
-                  <span class="layout-kicker">Mode</span>
+                <div class="layout-overflow">
+                  <button
+                    type="button"
+                    id="layout-options"
+                    class="layout-options"
+                    aria-expanded="false"
+                    aria-controls="layout-options-panel"
+                    title="Layout. Direction, routing, and nesting. Local preview only — not written back to the file."
+                  >
+                    <span class="layout-options-label">Options</span>
+                    <span id="layout-options-summary" class="layout-options-summary" hidden></span>
+                    <span class="layout-options-chevron" aria-hidden="true"></span>
+                  </button>
                   <div
-                    id="mode-switcher"
-                    class="layout-switcher"
-                    role="radiogroup"
-                    aria-label="Layout mode"
-                    title="File default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
-                  ></div>
+                    id="layout-options-panel"
+                    class="layout-options-panel"
+                    role="group"
+                    aria-label="Layout"
+                    hidden
+                  >
+                    <section class="chrome-section" aria-label="Layout">
+                      <h3 class="chrome-section-label">Layout</h3>
+                      <div class="layout-group">
+                        <span class="layout-kicker">Direction</span>
+                        <div
+                          id="direction-switcher"
+                          class="layout-switcher"
+                          role="radiogroup"
+                          aria-label="Layout direction"
+                          title="File default follows autoLayout in the .plein (tb, bt, lr, rl). Other choices override for local preview only."
+                        ></div>
+                      </div>
+                      <div class="layout-group">
+                        <span class="layout-kicker">Routing</span>
+                        <div
+                          id="routing-switcher"
+                          class="layout-switcher"
+                          role="radiogroup"
+                          aria-label="Edge routing"
+                          title="File default follows autoLayout in the .plein (orthogonal or polyline). Other choices override for local preview only."
+                        ></div>
+                      </div>
+                      <div class="layout-group">
+                        <span class="layout-kicker">Nesting</span>
+                        <div
+                          id="nesting-switcher"
+                          class="layout-switcher nesting-switcher"
+                          role="radiogroup"
+                          aria-label="Nesting layout"
+                          title="File default is source of truth for PRs. Nested/Beside override is local preview only."
+                        ></div>
+                      </div>
+                    </section>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                id="canvas-grid-toggle"
-                class="canvas-grid-toggle"
-                aria-pressed="true"
-                title="Hide the snap grid. Hiding the lines does not turn snap off."
-              >
-                Grid
-              </button>
-              <div class="layout-overflow">
+              <div class="chrome-cluster" role="group" aria-label="Viewing">
+                <span class="chrome-cluster-label">Viewing</span>
+                <div class="layout-group">
+                  <span class="layout-kicker">Focus</span>
+                  <span class="chrome-optional">optional</span>
+                  <div
+                    id="focus-switcher"
+                    class="layout-switcher"
+                    role="radiogroup"
+                    aria-label="Focus mode, optional"
+                    title="Optional. On shades the canvas outside the selected element and one hop out. Off leaves every box fully visible. Default is on, so the shade stays as it is until you turn it off."
+                  ></div>
+                </div>
                 <button
                   type="button"
-                  id="layout-options"
-                  class="layout-options"
-                  aria-expanded="false"
-                  aria-controls="layout-options-panel"
-                  title="Direction, routing, nesting, and snap spacing. Local preview only — not written back to the file."
+                  id="canvas-grid-toggle"
+                  class="canvas-grid-toggle"
+                  aria-pressed="true"
+                  title="Hide the snap lines. Hiding the lines does not turn snap off. Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom."
                 >
-                  <span class="layout-options-label">Options</span>
-                  <span id="layout-options-summary" class="layout-options-summary" hidden></span>
-                  <span class="layout-options-chevron" aria-hidden="true"></span>
+                  Grid
                 </button>
-                <div
-                  id="layout-options-panel"
-                  class="layout-options-panel"
-                  role="group"
-                  aria-label="Direction, routing, nesting, and snap spacing"
-                  hidden
-                >
-                  <div class="layout-group">
-                    <span class="layout-kicker">Direction</span>
-                    <div
-                      id="direction-switcher"
-                      class="layout-switcher"
-                      role="radiogroup"
-                      aria-label="Layout direction"
-                      title="File default follows autoLayout in the .plein (tb, bt, lr, rl). Other choices override for local preview only."
-                    ></div>
-                  </div>
-                  <div class="layout-group">
-                    <span class="layout-kicker">Routing</span>
-                    <div
-                      id="routing-switcher"
-                      class="layout-switcher"
-                      role="radiogroup"
-                      aria-label="Edge routing"
-                      title="File default follows autoLayout in the .plein (orthogonal or polyline). Other choices override for local preview only."
-                    ></div>
-                  </div>
-                  <div class="layout-group">
-                    <span class="layout-kicker">Nesting</span>
-                    <div
-                      id="nesting-switcher"
-                      class="layout-switcher nesting-switcher"
-                      role="radiogroup"
-                      aria-label="Nesting layout"
-                      title="File default is source of truth for PRs. Nested/Beside override is local preview only."
-                    ></div>
-                  </div>
-                  <div class="layout-group">
-                    <span class="layout-kicker">Snap spacing</span>
-                    <div
-                      id="canvas-grid-size"
-                      class="layout-switcher"
-                      role="radiogroup"
-                      aria-label="Snap spacing"
-                      title="How far boxes jump on snap, in model units. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden. Default is 24."
-                    ></div>
-                  </div>
+                <div class="layout-group">
+                  <span class="layout-kicker">Snap spacing</span>
+                  <div
+                    id="canvas-grid-size"
+                    class="layout-switcher"
+                    role="radiogroup"
+                    aria-label="Snap spacing"
+                    title="Snap step: How far boxes jump on snap, in model units. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden. Default is 24."
+                  ></div>
                 </div>
               </div>
             </div>
           </div>
-          <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Selecting one element shades the rest of the canvas: that element, relationships that start from it, and the elements they point to stay fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
+          <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Focus is optional and on by default: selecting one element shades the rest of the canvas so that element, relationships that start from it, and the elements they point to stay fully visible. Turn Focus off under Viewing to leave every box fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
           <div id="canvas-menu" class="canvas-menu" hidden role="menu" aria-label="Canvas"></div>
         </section>
         <aside id="inspector" class="inspector" aria-label="Element inspector">

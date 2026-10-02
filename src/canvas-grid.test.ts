@@ -320,16 +320,29 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   const toggle = html.indexOf('id="canvas-grid-toggle"');
   const options = html.indexOf('id="layout-options"');
   const nesting = html.indexOf('id="nesting-switcher"');
+  const viewing = html.indexOf('class="chrome-cluster" role="group" aria-label="Viewing"');
+  const focus = html.indexOf('id="focus-switcher"');
   const size = html.indexOf('id="canvas-grid-size"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(toggle, -1, "grid visibility toggle is present");
-  assert.ok(toggle < options, "grid toggle sits on the chrome, beside Options");
-  assert.ok(nesting < size && size < canvas, "snap spacing stays in Options above the canvas");
+  assert.notEqual(viewing, -1, "viewing grouping is present");
+  assert.ok(options < toggle, "grid toggle stays on the chrome, in Viewing after Layout");
+  assert.ok(
+    viewing < focus && focus < toggle && toggle < size && size < canvas,
+    "focus, grid, and snap spacing sit together under Viewing above the canvas",
+  );
+  assert.ok(nesting < viewing, "nesting stays in the layout menu, before Viewing");
+  const viewingGroup = html.slice(viewing, canvas);
+  assert.match(viewingGroup, /id="focus-switcher"/);
+  assert.match(viewingGroup, /id="canvas-grid-toggle"/);
+  assert.match(viewingGroup, /id="canvas-grid-size"/);
   assert.match(html, /id="canvas-grid-toggle"[^>]*aria-pressed="true"/);
   assert.match(html, /does not turn snap off/);
   assert.match(html, /aria-label="Snap spacing"/);
+  assert.match(html, /Snap step: How far boxes jump on snap/);
   assert.match(html, /How far boxes jump on snap/);
   assert.match(html, /does not change how large the drawn squares look/);
+  assert.match(html, /stays tied to zoom/);
 
   assert.match(css, /\.canvas-grid-toggle\[aria-pressed="true"\]/);
   assert.match(css, /\.diagram \.canvas-grid\s*\{[^}]*pointer-events:\s*none/);
@@ -344,8 +357,10 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(ui, /layoutSitsOnSnapGrid/);
   assert.match(ui, /modelSpaceFrame/);
   assert.match(ui, /paintCanvasGrid/);
+  assert.match(ui, /Snap step: How far boxes jump on snap/);
   assert.match(ui, /How far boxes jump on snap/);
   assert.match(ui, /does not change how large the drawn squares look/);
+  assert.match(ui, /stays tied to zoom/);
   assert.match(ui, /canvasGridVisible/);
   assert.match(ui, /grid snap runs first/);
   assert.equal(ui.includes("autoLayout grid"), false);

@@ -165,6 +165,7 @@ const modeSwitcher = document.querySelector("#mode-switcher") as HTMLElement;
 const directionSwitcher = document.querySelector("#direction-switcher") as HTMLElement;
 const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
+const focusSwitcher = document.querySelector("#focus-switcher") as HTMLElement;
 const layoutOverflow = document.querySelector(".layout-overflow") as HTMLElement;
 const layoutOptionsButton = document.querySelector("#layout-options") as HTMLButtonElement;
 const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HTMLElement;
@@ -221,12 +222,17 @@ let autoLayoutOverride: "file" | "auto" | "off" = "file";
  * Canvas snap grid. Visibility only draws the lines. Snap stays on either
  * way: `gridSnapForDrag` is always passed to `alignDraggedBox`, which runs
  * grid snap first and then neighbour-align only within threshold.
- * `canvasGridSize` is snap spacing (Options, default 24). Drawn lines stay
+ * `canvasGridSize` is snap spacing (Viewing, default 24). Drawn lines stay
  * on `DRAWN_CANVAS_GRID_PITCH` until the user zooms. Neither is written to the file.
  * `alignHold` keeps a top-left that neighbour-align pulled off the lattice.
  */
 let canvasGridVisible = true;
 let canvasGridSize: number = DEFAULT_CANVAS_GRID_SIZE;
+/**
+ * Optional canvas shade. On (the default) is the existing one-hop shade.
+ * Off leaves every box fully visible. Not written to the file.
+ */
+let focusMode: "off" | "on" = "on";
 const alignHold = new Set<string>();
 /**
  * Frozen top-lefts per view, from turning auto-layout off or from dragging.
@@ -562,11 +568,12 @@ function paintSelection(options?: { scroll?: boolean }): void {
 /**
  * Shade every canvas element and relationship outside the one-hop-out
  * neighbourhood. Attributes only — positions, the selection, and the file
- * stay as they are. Clearing the seed removes the shade.
+ * stay as they are. Clearing the seed, or turning Focus off, removes the shade.
+ * Focus on is the same shade as before this control existed.
  */
 function paintCanvasFocus(svg: SVGSVGElement | null): void {
   const shade = focusShade(selectedItems, lastLayout?.edges ?? []);
-  if (!svg || !shade.active) {
+  if (focusMode !== "on" || !svg || !shade.active) {
     diagram.classList.remove("is-focus");
     if (svg) {
       for (const marked of svg.querySelectorAll("[data-focus-lit]")) {
@@ -1202,6 +1209,33 @@ function renderRoutingSwitcher(): void {
   );
 }
 
+function renderFocusSwitcher(): void {
+  const choices: Array<{ id: "off" | "on"; label: string; title: string }> = [
+    {
+      id: "off",
+      label: "Off",
+      title:
+        "Optional. Off leaves every box fully visible. Selection highlighting stays.",
+    },
+    {
+      id: "on",
+      label: "On",
+      title:
+        "Optional, and the default. On shades the canvas outside the selected element and one hop out.",
+    },
+  ];
+  focusSwitcher.replaceChildren(
+    ...choices.map((choice) =>
+      radioButton(choice.id === focusMode, choice.label, choice.title, () => {
+        focusMode = choice.id;
+        renderFocusSwitcher();
+        const svg = diagram.querySelector("svg");
+        paintCanvasFocus(svg instanceof SVGSVGElement ? svg : null);
+      }),
+    ),
+  );
+}
+
 function renderNestingSwitcher(): void {
   const choices: Array<{ id: "file" | NestingMode; label: string }> = [
     { id: "file", label: "File default" },
@@ -1225,7 +1259,7 @@ function renderNestingSwitcher(): void {
   );
 }
 
-/** Direction, routing, nesting, and a non-default snap spacing stay in Options. */
+/** Direction, routing, and nesting stay in Layout → Options. Snap spacing is on Viewing. */
 function secondaryLayoutSummary(): string {
   const parts: string[] = [];
   if (directionOverride !== "file") {
@@ -1236,9 +1270,6 @@ function secondaryLayoutSummary(): string {
   }
   if (nestingOverride !== "file") {
     parts.push(nestingOverride === "nested" ? "Nested" : "Beside");
-  }
-  if (canvasGridSize !== DEFAULT_CANVAS_GRID_SIZE) {
-    parts.push(`Snap ${canvasGridSize}`);
   }
   return parts.join(" · ");
 }
@@ -1259,21 +1290,24 @@ function syncLayoutOptionsButton(): void {
   layoutOptionsButton.classList.toggle("is-active", summary.length > 0);
   const detail =
     summary.length > 0
-      ? `Options. Direction, routing, nesting, and snap spacing. Current preview: ${summary}.`
-      : "Options. Direction, routing, nesting, and snap spacing. File follows the open view.";
+      ? `Layout options. Direction, routing, and nesting. Current preview: ${summary}.`
+      : "Layout options. Direction, routing, and nesting. File follows the open view.";
   layoutOptionsButton.setAttribute("aria-label", detail);
   layoutOptionsButton.title =
     summary.length > 0
-      ? `Direction, routing, nesting, and snap spacing (${summary}). Local preview only.`
-      : "Direction, routing, nesting, and snap spacing. Local preview only — not written back to the file.";
+      ? `Layout. Direction, routing, and nesting (${summary}). Local preview only.`
+      : "Layout. Direction, routing, and nesting. Local preview only — not written back to the file.";
 }
+
+const SNAP_STEP_HOVER =
+  "Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom.";
 
 function syncCanvasGridToggle(): void {
   canvasGridToggle.setAttribute("aria-pressed", canvasGridVisible ? "true" : "false");
   canvasGridToggle.setAttribute("aria-label", canvasGridVisible ? "Hide canvas grid" : "Show canvas grid");
   canvasGridToggle.title = canvasGridVisible
-    ? "Hide the snap grid. Hiding the lines does not turn snap off."
-    : "Show the snap grid. Snap stays on while the lines are hidden.";
+    ? `Hide the snap lines. Hiding the lines does not turn snap off. ${SNAP_STEP_HOVER}`
+    : `Show the snap lines. Snap stays on while the lines are hidden. ${SNAP_STEP_HOVER}`;
 }
 
 function renderCanvasGridSizeSwitcher(): void {
@@ -1283,8 +1317,8 @@ function renderCanvasGridSizeSwitcher(): void {
         size === canvasGridSize,
         String(size),
         size === DEFAULT_CANVAS_GRID_SIZE
-          ? `${size} (default). How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden.`
-          : `${size}. How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden.`,
+          ? `${size} (default). ${SNAP_STEP_HOVER} Dragged boxes still snap when the grid is hidden.`
+          : `${size}. ${SNAP_STEP_HOVER} Dragged boxes still snap when the grid is hidden.`,
         () => {
           canvasGridSize = size;
           alignHold.clear();
@@ -1499,6 +1533,7 @@ async function renderDiagram(seq: number): Promise<void> {
   renderDirectionSwitcher();
   renderRoutingSwitcher();
   renderNestingSwitcher();
+  renderFocusSwitcher();
   renderCanvasGridSizeSwitcher();
   syncCanvasGridToggle();
   syncLayoutOptionsButton();

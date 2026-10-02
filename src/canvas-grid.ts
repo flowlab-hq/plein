@@ -7,10 +7,10 @@
  * by kind or name): that mode is left as packed.
  *
  * Two pitches share one model-space origin, (0, 0):
- * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Options → Snap spacing does not
+ * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Viewing → Snap spacing does not
  *   change that pitch, so at a fixed zoom the lines look the same. Zoom scales
  *   the SVG, which is what changes how big the lines look on screen.
- * - Snap spacing is the Options cell size (default 24). Every offered size is
+ * - Snap spacing is the Viewing cell size (default 24). Every offered size is
  *   a multiple of the drawn pitch, so a snapped coordinate lands on a drawn line.
  *
  * The lines fill model space from its top-left outward (including empty canvas
@@ -32,7 +32,7 @@
 export const DEFAULT_CANVAS_GRID_SIZE = 24;
 
 /**
- * Snap spacings offered in Options. Each divides evenly into the drawn pitch
+ * Snap spacings offered under Viewing. Each divides evenly into the drawn pitch
  * below, so a snap lands on a visible line.
  */
 export const CANVAS_GRID_SIZES = [8, 16, 24, 32, 48] as const;
