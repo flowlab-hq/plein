@@ -12,7 +12,9 @@ import {
   applyElementViewLink,
   doubleClickViewTarget,
   elementContextMenu,
+  isViewLinkDoubleClick,
   type CanvasMenuItem,
+  VIEW_LINK_DOUBLE_CLICK_MS,
   ViewLinkError,
 } from "./view-link.js";
 
@@ -169,16 +171,20 @@ test("context menu extras are appended and do not drop the link action", () => {
   const model = checkPlein(applyElementViewLink(twoViews, "tms", "cooperation", "memory.plein"), "memory.plein");
   const extra: CanvasMenuItem = { kind: "action", id: "future-action", label: "Future action", enabled: true };
   const menu = elementContextMenu(model, "tms", [extra]);
-  assert.equal(menu[0]?.kind, "submenu");
-  assert.equal(menu[0]?.id, "link-to-view");
-  if (menu[0]?.kind !== "submenu") {
+  assert.equal(menu[0]?.kind, "action");
+  assert.equal(menu[0]?.id, "open-view-link");
+  assert.equal(menu[0] && menu[0].kind === "action" ? menu[0].label : "", "Open Cooperation");
+  assert.equal(menu[0] && menu[0].kind === "action" ? menu[0].enabled : false, true);
+  const linkMenu = menu.find((item) => item.kind === "submenu" && item.id === "link-to-view");
+  assert.equal(linkMenu?.kind, "submenu");
+  if (linkMenu?.kind !== "submenu") {
     return;
   }
   assert.deepEqual(
-    menu[0].items.map((item) => (item.kind === "action" ? item.id : item.kind)),
+    linkMenu.items.map((item) => (item.kind === "action" ? item.id : item.kind)),
     ["link-to-view:structure", "link-to-view:cooperation"],
   );
-  const checked = menu[0].items.find((item) => item.kind === "action" && item.checked);
+  const checked = linkMenu.items.find((item) => item.kind === "action" && item.checked);
   assert.equal(checked && checked.kind === "action" ? checked.id : "", "link-to-view:cooperation");
   assert.equal(menu.some((item) => item.kind === "action" && item.id === "clear-view-link"), true);
   assert.equal(menu.at(-1)?.kind === "action" && menu.at(-1)?.id === "future-action", true);
@@ -186,9 +192,19 @@ test("context menu extras are appended and do not drop the link action", () => {
   assert.equal(doubleClickViewTarget(model, "bookingApi"), null);
 
   const unlinked = elementContextMenu(model, "bookingApi", [extra]);
+  assert.equal(unlinked.some((item) => item.kind === "action" && item.id === "open-view-link"), false);
   assert.equal(unlinked.some((item) => item.kind === "action" && item.id === "clear-view-link"), false);
   assert.equal(unlinked.at(-1)?.id, "future-action");
   assert.equal(unlinked[0]?.id, "link-to-view");
+});
+
+test("a second press on the same element is a view-link double-click", () => {
+  const first = { id: "tms", at: 1_000 };
+  assert.equal(isViewLinkDoubleClick(null, first), false);
+  assert.equal(isViewLinkDoubleClick(first, { id: "tms", at: first.at + VIEW_LINK_DOUBLE_CLICK_MS }), true);
+  assert.equal(isViewLinkDoubleClick(first, { id: "tms", at: first.at + VIEW_LINK_DOUBLE_CLICK_MS + 1 }), false);
+  assert.equal(isViewLinkDoubleClick(first, { id: "bookingApi", at: first.at + 100 }), false);
+  assert.equal(isViewLinkDoubleClick(first, { id: "tms", at: first.at - 1 }), false);
 });
 
 test("a linked element draws a view-link mark and an unlinked element does not", async () => {
@@ -207,11 +223,15 @@ test("the canvas menu is one extensible list and unlinked double-click does not 
   assert.match(ui, /elementContextMenu\(/);
   assert.match(ui, /canvasMenuExtras/);
   assert.match(ui, /doubleClickViewTarget\(/);
+  assert.match(ui, /isViewLinkDoubleClick\(/);
+  assert.match(ui, /openLinkedCanvasView\(/);
+  assert.match(ui, /open-view-link/);
   assert.match(ui, /applyElementViewLink\(/);
   assert.match(ui, /contextmenu/);
   assert.match(ui, /dblclick/);
   assert.match(ui, /plein-canvas-menu/);
   assert.match(ui, /if \(!viewName\)/);
+  assert.match(ui, /openNamedView\(viewName\)/);
   const finishResize = ui.slice(ui.indexOf("function finishResize"));
   assert.match(
     finishResize,
