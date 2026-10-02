@@ -5,7 +5,13 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { NODE_HEIGHT, NODE_WIDTH, PADDING, contentBounds } from "./layout.js";
-import { fitCanvasScroll, manualDragShift, nodeBoxesAfterDrag, slackMargin } from "./manual-drag.js";
+import {
+  fitCanvasScroll,
+  groupDragIds,
+  manualDragShift,
+  nodeBoxesAfterDrag,
+  slackMargin,
+} from "./manual-drag.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const minWidth = PADDING * 2 + NODE_WIDTH;
@@ -110,6 +116,54 @@ test("scroll slack appears only when the expanded canvas must scroll past the pa
   });
   assert.equal(fitted.marginRight, 600);
   assert.equal(fitted.marginBottom, 0);
+});
+
+test("a multi-selection shares one shift and keeps relative positions", () => {
+  const nodes = [
+    { id: "parent", parentId: null, x: 40, y: 80, width: NODE_WIDTH, height: NODE_HEIGHT },
+    { id: "child", parentId: "parent", x: 56, y: 120, width: 80, height: 36 },
+    { id: "other", parentId: null, x: 240, y: 80, width: NODE_WIDTH, height: NODE_HEIGHT },
+    { id: "lone", parentId: null, x: 400, y: 200, width: NODE_WIDTH, height: NODE_HEIGHT },
+  ];
+  assert.deepEqual(
+    groupDragIds("parent", ["parent", "other"], nodes),
+    ["parent", "child", "other"],
+  );
+  assert.deepEqual(groupDragIds("lone", ["parent", "other"], nodes), ["lone"]);
+  assert.deepEqual(groupDragIds("child", ["child"], nodes), ["child"]);
+  assert.deepEqual(groupDragIds("parent", [], nodes), ["parent", "child"]);
+  assert.deepEqual(groupDragIds("missing", ["parent"], nodes), []);
+
+  const moving = groupDragIds("other", ["parent", "other"], nodes);
+  const origins = new Map(
+    moving.map((id) => {
+      const node = nodes.find((candidate) => candidate.id === id)!;
+      return [id, { x: node.x, y: node.y }] as const;
+    }),
+  );
+  const shift = { x: 48, y: -16 };
+  const moved = nodeBoxesAfterDrag(nodes, origins, shift);
+  const parent = moved.find((node) => node.id === "parent")!;
+  const child = moved.find((node) => node.id === "child")!;
+  const other = moved.find((node) => node.id === "other")!;
+  const lone = moved.find((node) => node.id === "lone")!;
+  assert.equal(parent.x, 40 + shift.x);
+  assert.equal(other.y, 80 + shift.y);
+  assert.equal(child.x - parent.x, 16);
+  assert.equal(child.y - parent.y, 40);
+  assert.equal(other.x - parent.x, 200);
+  assert.equal(lone.x, 400);
+  assert.equal(lone.y, 200);
+
+  const fractional = { x: 15.6, y: -8.2 };
+  assert.equal(
+    Math.round(other.x + fractional.x) - Math.round(parent.x + fractional.x),
+    other.x - parent.x,
+  );
+  assert.equal(
+    Math.round(child.y + fractional.y) - Math.round(parent.y + fractional.y),
+    child.y - parent.y,
+  );
 });
 
 test("Mac canvas drag uses the unclamped shift and expands content bounds", () => {

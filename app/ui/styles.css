@@ -479,6 +479,28 @@ button:disabled {
   stroke-width: 2.5;
 }
 
+.diagram [data-selection-bounds] rect {
+  fill: rgba(11, 87, 208, 0.08);
+  stroke: #0b57d0;
+  stroke-width: 1.5px;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.diagram .selection-marquee {
+  fill: rgba(11, 87, 208, 0.12);
+  stroke: #0b57d0;
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.diagram.is-marquee {
+  cursor: crosshair;
+}
+
 .diagram [data-edge-id][data-selected="true"] line:not(.edge-hit),
 .diagram [data-edge-id][data-selected="true"] polyline:not(.edge-hit) {
   stroke: #0b57d0;

@@ -24,6 +24,64 @@ export type DragBox = { id: string; x: number; y: number; width: number; height:
  * Apply a drag shift to the nodes that started under the pointer (a container
  * and its children). Every other node keeps its coordinates.
  */
+export type DragNodeRef = { id: string; parentId?: string | null };
+
+/**
+ * `rootId` plus every nested descendant. A container drag keeps children
+ * in place relative to the parent.
+ */
+export function idsMovedWithNode(rootId: string, nodes: readonly DragNodeRef[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const parent = queue.shift();
+    if (!parent || seen.has(parent)) {
+      continue;
+    }
+    seen.add(parent);
+    ids.push(parent);
+    for (const node of nodes) {
+      if (node.parentId === parent) {
+        queue.push(node.id);
+      }
+    }
+  }
+  return ids;
+}
+
+/**
+ * Nodes that share one drag delta.
+ * Grabbing a selected element moves every selected element, and each one's
+ * descendants, by that same shift. Grabbing an element that is not selected
+ * moves only that element and its descendants (single-select drag).
+ */
+export function groupDragIds(
+  grabbedId: string,
+  selectedElementIds: readonly string[],
+  nodes: readonly DragNodeRef[],
+): string[] {
+  const known = new Set(nodes.map((node) => node.id));
+  if (!known.has(grabbedId)) {
+    return [];
+  }
+  const roots = selectedElementIds.includes(grabbedId)
+    ? selectedElementIds.filter((id) => known.has(id))
+    : [grabbedId];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const root of roots) {
+    for (const id of idsMovedWithNode(root, nodes)) {
+      if (seen.has(id) || !known.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
 export function nodeBoxesAfterDrag(
   nodes: ReadonlyArray<DragBox>,
   origins: ReadonlyMap<string, { x: number; y: number }>,

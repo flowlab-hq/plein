@@ -37,8 +37,12 @@ import {
   type ViewpointLayout,
 } from "../../src/layout.ts";
 import {
-  retainSelection,
+  nextSelectionFromClick,
+  normalizeMarquee,
+  retainSelections,
+  selectedElementIds,
   selectionFromDiagramHit,
+  selectionFromMarquee,
   type DiagramSelection,
 } from "../../src/selection.ts";
 import {
@@ -47,7 +51,7 @@ import {
   placeZoomAnchor,
   wheelGestureIsZoom,
 } from "../../src/canvas-zoom.ts";
-import { fitCanvasScroll, manualDragShift } from "../../src/manual-drag.ts";
+import { fitCanvasScroll, groupDragIds, manualDragShift } from "../../src/manual-drag.ts";
 import {
   ALIGN_SNAP_RELEASE_SCREEN_PX,
   ALIGN_SNAP_SCREEN_PX,
@@ -138,8 +142,12 @@ let loaded: LoadResult | null = null;
 let selectedView: string | null = null;
 let lastNamedView: string | null = null;
 let lastSource: string | null = null;
-/** Single element or relationship shared by the diagram and left lists. */
-let selectedItem: DiagramSelection | null = null;
+/**
+ * Diagram and left-list selection, in click order.
+ * More than one element or relationship can be selected. Dragging a selected
+ * element moves every selected element together.
+ */
+let selectedItems: DiagramSelection[] = [];
 /** `file` follows the `.plein` nesting clause; nested/beside is local preview only. */
 let nestingOverride: "file" | NestingMode = "file";
 /** `file` follows the view’s `autoLayout`; tb/bt/lr/rl is local preview only. */
@@ -176,7 +184,11 @@ let lastLayout: ViewpointLayout | null = null;
 let renderSeq = 0;
 /** Drop a slow Off-snapshot if the user picks File or On first. */
 let autoSelectSeq = 0;
-/** Pointer drag of a node while auto-layout is off. */
+/**
+ * Pointer drag of one node, or of every selected element, while auto-layout is off.
+ * `id` is the node under the pointer. Snap follows that box; the rest of the
+ * selection keeps its offset from it.
+ */
 type NodeDrag = {
   id: string;
   pointerId: number;
@@ -196,6 +208,21 @@ type NodeDrag = {
   alignLock: AlignLock;
 };
 let nodeDrag: NodeDrag | null = null;
+/**
+ * Empty-canvas drag that selects every element box it meets.
+ * Shift-marquee unions with the selection captured at pointer-down.
+ */
+type MarqueeDrag = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startUserX: number;
+  startUserY: number;
+  additive: boolean;
+  moved: boolean;
+  baseSelection: DiagramSelection[];
+};
+let marqueeDrag: MarqueeDrag | null = null;
 /** Last laid-out user size, so a zoomed canvas grows when a drag expands the content box. */
 let contentUserWidth = 0;
 let contentUserHeight = 0;
@@ -295,13 +322,17 @@ function failOpen(file: string, error: unknown): void {
   lastSource = null;
   loaded = { ok: false, file, error: formatLoadError(error) };
   selectedView = null;
-  selectedItem = null;
+  selectedItems = [];
   void render();
 }
 
 function setSelection(next: DiagramSelection | null): void {
-  selectedItem = next;
-  paintSelection();
+  setSelections(next ? [next] : []);
+}
+
+function setSelections(next: readonly DiagramSelection[], options?: { scroll?: boolean }): void {
+  selectedItems = next.map((item) => ({ kind: item.kind, id: item.id }));
+  paintSelection(options);
 }
 
 function findByAttr(root: ParentNode, attr: string, value: string): Element | null {
@@ -370,44 +401,166 @@ function edgeHitExists(hits: ParentNode, id: string): boolean {
   return false;
 }
 
-function paintListSelection(list: HTMLElement, attr: string, id: string | null): void {
+function paintListSelection(
+  list: HTMLElement,
+  attr: string,
+  ids: ReadonlySet<string>,
+  focusId: string | null,
+  scroll: boolean,
+): void {
   for (const row of list.querySelectorAll(`[${attr}]`)) {
-    const on = id !== null && row.getAttribute(attr) === id;
+    const rowId = row.getAttribute(attr);
+    const on = rowId !== null && ids.has(rowId);
     row.classList.toggle("selected", on);
     row.setAttribute("aria-selected", on ? "true" : "false");
-    if (on) {
+    if (scroll && on && rowId === focusId) {
       row.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   }
 }
 
-function paintSelection(): void {
-  const elementId = selectedItem?.kind === "element" ? selectedItem.id : null;
-  const relationshipId = selectedItem?.kind === "relationship" ? selectedItem.id : null;
-  paintListSelection(elementList, "data-element-id", elementId);
-  paintListSelection(relationshipList, "data-relationship-id", relationshipId);
+function paintSelection(options?: { scroll?: boolean }): void {
+  const scroll = options?.scroll !== false;
+  const elementIds = new Set(selectedElementIds(selectedItems));
+  const relationshipIds = new Set(
+    selectedItems.filter((item) => item.kind === "relationship").map((item) => item.id),
+  );
+  const focus = selectedItems[selectedItems.length - 1] ?? null;
+  paintListSelection(
+    elementList,
+    "data-element-id",
+    elementIds,
+    focus?.kind === "element" ? focus.id : null,
+    scroll,
+  );
+  paintListSelection(
+    relationshipList,
+    "data-relationship-id",
+    relationshipIds,
+    focus?.kind === "relationship" ? focus.id : null,
+    scroll,
+  );
 
   const svg = diagram.querySelector("svg");
-  if (!svg) {
+  if (!(svg instanceof SVGSVGElement)) {
     return;
   }
   for (const marked of svg.querySelectorAll("[data-selected]")) {
     marked.removeAttribute("data-selected");
   }
-  if (!selectedItem) {
+  for (const item of selectedItems) {
+    if (item.kind === "element") {
+      const node = findByAttr(svg, "data-node-id", item.id);
+      const container = findByAttr(svg, "data-container-id", item.id);
+      node?.setAttribute("data-selected", "true");
+      container?.setAttribute("data-selected", "true");
+      if (scroll && focus?.kind === "element" && focus.id === item.id) {
+        (node ?? container)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+      continue;
+    }
+    const edge = findByAttr(svg, "data-edge-id", item.id);
+    edge?.setAttribute("data-selected", "true");
+    if (scroll && focus?.kind === "relationship" && focus.id === item.id) {
+      edge?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
+  paintSelectionBounds(svg, { x: 0, y: 0 });
+}
+
+/** Dashed union of two or more selected element boxes. One box keeps its own stroke. */
+function selectionBoundsRect(shift: { x: number; y: number }): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | null {
+  if (!lastLayout) {
+    return null;
+  }
+  const ids = new Set(selectedElementIds(selectedItems));
+  if (ids.size < 2) {
+    return null;
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let count = 0;
+  for (const node of lastLayout.nodes) {
+    if (!ids.has(node.id)) {
+      continue;
+    }
+    const origin = nodeDrag?.origins.get(node.id);
+    const x = origin ? origin.x + shift.x : node.x;
+    const y = origin ? origin.y + shift.y : node.y;
+    const width = origin ? origin.width : node.width;
+    const height = origin ? origin.height : node.height;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + width);
+    maxY = Math.max(maxY, y + height);
+    count += 1;
+  }
+  if (count < 2) {
+    return null;
+  }
+  const pad = 8;
+  return {
+    x: minX - pad,
+    y: minY - pad,
+    width: maxX - minX + pad * 2,
+    height: maxY - minY + pad * 2,
+  };
+}
+
+function paintSelectionBounds(svg: SVGSVGElement, shift: { x: number; y: number }): void {
+  const rect = selectionBoundsRect(shift);
+  const existing = svg.querySelector(":scope > [data-selection-bounds]");
+  if (!rect) {
+    existing?.remove();
     return;
   }
-  if (selectedItem.kind === "element") {
-    const node = findByAttr(svg, "data-node-id", selectedItem.id);
-    const container = findByAttr(svg, "data-container-id", selectedItem.id);
-    node?.setAttribute("data-selected", "true");
-    container?.setAttribute("data-selected", "true");
-    (node ?? container)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    return;
+  const layer =
+    existing instanceof SVGGElement ? existing : document.createElementNS("http://www.w3.org/2000/svg", "g");
+  if (!(existing instanceof SVGGElement)) {
+    layer.setAttribute("data-selection-bounds", "true");
+    layer.setAttribute("pointer-events", "none");
+    layer.setAttribute("aria-hidden", "true");
   }
-  const edge = findByAttr(svg, "data-edge-id", selectedItem.id);
-  edge?.setAttribute("data-selected", "true");
-  edge?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  svg.append(layer);
+  let box = layer.querySelector("rect");
+  if (!(box instanceof SVGRectElement)) {
+    box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    layer.replaceChildren(box);
+  }
+  box.setAttribute("x", String(rect.x));
+  box.setAttribute("y", String(rect.y));
+  box.setAttribute("width", String(rect.width));
+  box.setAttribute("height", String(rect.height));
+  box.setAttribute("rx", "4");
+}
+
+function paintMarqueeRect(
+  svg: SVGSVGElement,
+  rect: { x: number; y: number; width: number; height: number },
+): void {
+  let box = svg.querySelector(":scope > rect.selection-marquee");
+  if (!(box instanceof SVGRectElement)) {
+    box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    box.setAttribute("class", "selection-marquee");
+    box.setAttribute("pointer-events", "none");
+    box.setAttribute("aria-hidden", "true");
+  }
+  svg.append(box);
+  box.setAttribute("x", String(rect.x));
+  box.setAttribute("y", String(rect.y));
+  box.setAttribute("width", String(rect.width));
+  box.setAttribute("height", String(rect.height));
+}
+
+function clearMarqueeRect(): void {
+  diagram.querySelector("svg")?.querySelector(":scope > rect.selection-marquee")?.remove();
 }
 
 function namedViewForDiagram(): string | null {
@@ -1101,13 +1254,17 @@ async function render(): Promise<void> {
       item.setAttribute("data-element-id", element.id);
       item.tabIndex = 0;
       item.innerHTML = `<span class="swatch" style="background:${escapeHtml(style.fill)}" title="${escapeHtml(style.layer)}"></span><span class="row-body"><span class="row-title">${escapeHtml(element.label)}</span><span class="row-meta"><span class="kw">${escapeHtml(element.keyword)}</span><code>${escapeHtml(element.id)}</code></span></span>`;
-      item.addEventListener("click", () => {
-        setSelection({ kind: "element", id: element.id });
+      item.addEventListener("click", (event) => {
+        setSelections(
+          nextSelectionFromClick(selectedItems, { kind: "element", id: element.id }, event.shiftKey),
+        );
       });
       item.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          setSelection({ kind: "element", id: element.id });
+          setSelections(
+            nextSelectionFromClick(selectedItems, { kind: "element", id: element.id }, event.shiftKey),
+          );
         }
       });
       return item;
@@ -1124,13 +1281,17 @@ async function render(): Promise<void> {
       item.setAttribute("data-relationship-id", id);
       item.tabIndex = 0;
       item.innerHTML = `<span class="row-body"><span class="row-title"><code>${escapeHtml(rel.source)}</code><span class="meta">→</span><code>${escapeHtml(rel.target)}</code></span><span class="row-meta"><span class="kw">${escapeHtml(rel.type)}</span></span></span>`;
-      item.addEventListener("click", () => {
-        setSelection({ kind: "relationship", id });
+      item.addEventListener("click", (event) => {
+        setSelections(
+          nextSelectionFromClick(selectedItems, { kind: "relationship", id }, event.shiftKey),
+        );
       });
       item.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          setSelection({ kind: "relationship", id });
+          setSelections(
+            nextSelectionFromClick(selectedItems, { kind: "relationship", id }, event.shiftKey),
+          );
         }
       });
       return item;
@@ -1176,7 +1337,7 @@ function buttonForView(options: {
       lastNamedView = options.name;
     }
     if (loaded?.ok) {
-      selectedItem = retainSelection(selectedItem, filterModel(loaded.model, selectedView));
+      selectedItems = retainSelections(selectedItems, filterModel(loaded.model, selectedView));
     }
     void render();
   });
@@ -1203,7 +1364,7 @@ function openSource(source: string, file: string): void {
   loaded = loadPleinSource(source, file);
   selectedView = loaded.ok ? firstNamedView(loaded.model) : null;
   lastNamedView = selectedView;
-  selectedItem = null;
+  selectedItems = [];
   void render();
 }
 
@@ -1232,7 +1393,7 @@ function commitImported(xml: string, file: string, reload: boolean): void {
     loaded = { ok: false, file, error: formatLoadError(error) };
     if (!reload) {
       selectedView = null;
-      selectedItem = null;
+      selectedItems = [];
     }
     void render();
     return;
@@ -1253,9 +1414,9 @@ function applyReload(source: string, file: string): void {
   loaded = next.loaded;
   selectedView = next.selectedView;
   lastNamedView = loaded.ok ? viewAfterReload(loaded.model, lastNamedView) : lastNamedView;
-  selectedItem = loaded.ok
-    ? retainSelection(selectedItem, filterModel(loaded.model, selectedView))
-    : null;
+  selectedItems = loaded.ok
+    ? retainSelections(selectedItems, filterModel(loaded.model, selectedView))
+    : [];
   void render();
 }
 
@@ -1464,7 +1625,7 @@ window.addEventListener("keydown", (event) => {
       layoutOptionsButton.focus();
       return;
     }
-    if (selectedItem) {
+    if (selectedItems.length > 0) {
       event.preventDefault();
       setSelection(null);
     }
@@ -1529,25 +1690,6 @@ function svgLocalPoint(svg: SVGSVGElement, clientX: number, clientY: number): { 
   }
   const local = point.matrixTransform(matrix.inverse());
   return { x: local.x, y: local.y };
-}
-
-function idsMovedWith(rootId: string): string[] {
-  const nodes = lastLayout?.nodes ?? [];
-  const ids = [rootId];
-  const queue = [rootId];
-  while (queue.length > 0) {
-    const parent = queue.shift();
-    if (!parent) {
-      break;
-    }
-    for (const node of nodes) {
-      if (node.parentId === parent) {
-        ids.push(node.id);
-        queue.push(node.id);
-      }
-    }
-  }
-  return ids;
 }
 
 function userPixelsPerUnit(svg: SVGSVGElement): { x: number; y: number } {
@@ -1684,8 +1826,8 @@ function paintAlignGuides(svg: SVGSVGElement, guides: readonly AlignGuide[]): vo
     layer.setAttribute("data-align-guides", "true");
     layer.setAttribute("pointer-events", "none");
     layer.setAttribute("aria-hidden", "true");
-    svg.append(layer);
   }
+  svg.append(layer);
   layer.replaceChildren();
   for (const guide of guides) {
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -1712,61 +1854,180 @@ function clearAlignGuides(svg: Element | null): void {
   svg.querySelector(":scope > [data-align-guides]")?.remove();
 }
 
-diagram.addEventListener("pointerdown", (event) => {
-  if (lastLayout?.auto !== false || event.button !== 0) {
+function releaseDiagramPointer(pointerId: number): void {
+  try {
+    if (diagram.hasPointerCapture(pointerId)) {
+      diagram.releasePointerCapture(pointerId);
+    }
+  } catch {
+    // Pointer capture was not taken.
+  }
+}
+
+function updateMarquee(event: PointerEvent): void {
+  const drag = marqueeDrag;
+  if (!drag || event.pointerId !== drag.pointerId || !lastLayout) {
     return;
   }
-  const target = event.target;
-  if (!(target instanceof Element)) {
+  const travel = Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY);
+  if (!drag.moved && travel < 4) {
     return;
   }
-  const nodeEl = target.closest("[data-node-id]");
-  if (!nodeEl || !diagram.contains(nodeEl)) {
-    return;
-  }
-  const id = nodeEl.getAttribute("data-node-id");
-  if (!id || !lastLayout) {
-    return;
-  }
-  const svg = nodeEl.closest("svg");
+  drag.moved = true;
+  diagram.classList.add("is-marquee");
+  const svg = diagram.querySelector("svg");
   if (!(svg instanceof SVGSVGElement)) {
     return;
   }
-  const origins = new Map<string, { x: number; y: number; width: number; height: number }>();
-  for (const movedId of idsMovedWith(id)) {
-    const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
-    if (node) {
-      origins.set(movedId, { x: node.x, y: node.y, width: node.width, height: node.height });
-    }
-  }
-  if (!origins.has(id)) {
+  const local = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!local) {
     return;
   }
-  const scale = userPixelsPerUnit(svg);
-  nodeDrag = {
-    id,
+  const rect = normalizeMarquee({ x: drag.startUserX, y: drag.startUserY }, local);
+  setSelections(selectionFromMarquee(lastLayout.nodes, rect, drag.baseSelection, drag.additive), {
+    scroll: false,
+  });
+  paintMarqueeRect(svg, rect);
+}
+
+function finishMarquee(event: PointerEvent): void {
+  const drag = marqueeDrag;
+  if (!drag || event.pointerId !== drag.pointerId) {
+    return;
+  }
+  marqueeDrag = null;
+  diagram.classList.remove("is-marquee");
+  clearMarqueeRect();
+  releaseDiagramPointer(event.pointerId);
+  if (!drag.moved) {
+    // preventDefault on pointerdown swallows the click. A background press
+    // that does not move is still a click: plain click clears, shift-click does not.
+    suppressDiagramClick = true;
+    setSelections(nextSelectionFromClick(selectedItems, null, event.shiftKey));
+    return;
+  }
+  suppressDiagramClick = true;
+  const svg = diagram.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement) || !lastLayout) {
+    setSelections(drag.baseSelection, { scroll: false });
+    return;
+  }
+  const local = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!local) {
+    setSelections(drag.baseSelection, { scroll: false });
+    return;
+  }
+  setSelections(
+    selectionFromMarquee(
+      lastLayout.nodes,
+      normalizeMarquee({ x: drag.startUserX, y: drag.startUserY }, local),
+      drag.baseSelection,
+      drag.additive,
+    ),
+    { scroll: false },
+  );
+}
+
+function cancelMarquee(pointerId: number): void {
+  const drag = marqueeDrag;
+  if (!drag || drag.pointerId !== pointerId) {
+    return;
+  }
+  marqueeDrag = null;
+  diagram.classList.remove("is-marquee");
+  clearMarqueeRect();
+  setSelections(drag.baseSelection, { scroll: false });
+}
+
+diagram.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || nodeDrag || marqueeDrag) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element) || !diagram.contains(target)) {
+    return;
+  }
+  const nodeEl = target.closest("[data-node-id]");
+  const onNode = nodeEl instanceof Element && diagram.contains(nodeEl);
+  if (onNode && nodeEl && lastLayout?.auto === false && !event.shiftKey) {
+    const id = nodeEl.getAttribute("data-node-id");
+    if (!id || !lastLayout) {
+      return;
+    }
+    const svg = nodeEl.closest("svg");
+    if (!(svg instanceof SVGSVGElement)) {
+      return;
+    }
+    const origins = new Map<string, { x: number; y: number; width: number; height: number }>();
+    for (const movedId of groupDragIds(id, selectedElementIds(selectedItems), lastLayout.nodes)) {
+      const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
+      if (node) {
+        origins.set(movedId, { x: node.x, y: node.y, width: node.width, height: node.height });
+      }
+    }
+    if (!origins.has(id)) {
+      return;
+    }
+    const scale = userPixelsPerUnit(svg);
+    nodeDrag = {
+      id,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      moved: false,
+      origins,
+      pixelsPerUserX: scale.x,
+      pixelsPerUserY: scale.y,
+      baseOriginX: svg.viewBox.baseVal.x,
+      baseOriginY: svg.viewBox.baseVal.y,
+      baseScrollLeft: diagram.scrollLeft,
+      baseScrollTop: diagram.scrollTop,
+      alignLock: { x: null, y: null },
+    };
+    try {
+      diagram.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is best-effort; move and up still reach the diagram.
+    }
+    event.preventDefault();
+    return;
+  }
+  if (onNode || target.closest("[data-edge-id], [data-edge-hit-id]")) {
+    return;
+  }
+  const svg = target.closest("svg");
+  if (!(svg instanceof SVGSVGElement) || !diagram.contains(svg) || !lastLayout) {
+    return;
+  }
+  const local = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!local) {
+    return;
+  }
+  marqueeDrag = {
     pointerId: event.pointerId,
     startClientX: event.clientX,
     startClientY: event.clientY,
+    startUserX: local.x,
+    startUserY: local.y,
+    additive: event.shiftKey,
     moved: false,
-    origins,
-    pixelsPerUserX: scale.x,
-    pixelsPerUserY: scale.y,
-    baseOriginX: svg.viewBox.baseVal.x,
-    baseOriginY: svg.viewBox.baseVal.y,
-    baseScrollLeft: diagram.scrollLeft,
-    baseScrollTop: diagram.scrollTop,
-    alignLock: { x: null, y: null },
+    baseSelection: selectedItems.map((item) => ({ kind: item.kind, id: item.id })),
   };
   try {
     diagram.setPointerCapture(event.pointerId);
   } catch {
     // Capture is best-effort; move and up still reach the diagram.
   }
+  // Keep the browser from turning the drag into a native image drag or a scroll,
+  // which cancels the pointer before the marquee can finish.
   event.preventDefault();
 });
 
 diagram.addEventListener("pointermove", (event) => {
+  if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
+    updateMarquee(event);
+    return;
+  }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId || !lastLayout) {
     return;
   }
@@ -1790,10 +2051,15 @@ diagram.addEventListener("pointermove", (event) => {
     );
   }
   growCanvasForDrag(svg, placement.shift);
+  paintSelectionBounds(svg, placement.shift);
   paintAlignGuides(svg, placement.guides);
 });
 
 diagram.addEventListener("pointerup", (event) => {
+  if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
+    finishMarquee(event);
+    return;
+  }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
     return;
   }
@@ -1801,14 +2067,15 @@ diagram.addEventListener("pointerup", (event) => {
   nodeDrag = null;
   diagram.classList.remove("is-dragging");
   clearAlignGuides(diagram.querySelector("svg"));
-  try {
-    if (diagram.hasPointerCapture(event.pointerId)) {
-      diagram.releasePointerCapture(event.pointerId);
-    }
-  } catch {
-    // Pointer capture was not taken.
-  }
+  releaseDiagramPointer(event.pointerId);
   if (!drag.moved) {
+    // pointerdown calls preventDefault so the gesture cannot start a native
+    // drag. That also swallows the click, so a press that does not move still
+    // has to select here.
+    suppressDiagramClick = true;
+    setSelections(
+      nextSelectionFromClick(selectedItems, { kind: "element", id: drag.id }, event.shiftKey),
+    );
     return;
   }
   suppressDiagramClick = true;
@@ -1830,10 +2097,16 @@ diagram.addEventListener("pointerup", (event) => {
       { x: root.x + raw.x, y: root.y + raw.y },
       canvasGridSize,
     );
-    const held =
+    const grabbedOffCell =
       Math.abs(root.x + shift.x - gridPoint.x) > 0.5 || Math.abs(root.y + shift.y - gridPoint.y) > 0.5;
-    for (const movedId of drag.origins.keys()) {
-      if (held) {
+    for (const [movedId, origin] of drag.origins) {
+      const x = origin.x + shift.x;
+      const y = origin.y + shift.y;
+      const lattice = snapProposedOrigin({ x, y }, canvasGridSize);
+      const offLattice = Math.abs(x - lattice.x) > 0.5 || Math.abs(y - lattice.y) > 0.5;
+      // The grabbed box keeps a neighbour-align drop. Every other moved box
+      // keeps the same delta, including one that is already off the lattice.
+      if (grabbedOffCell || offLattice) {
         alignHold.add(movedId);
       } else {
         alignHold.delete(movedId);
@@ -1856,6 +2129,10 @@ diagram.addEventListener("pointerup", (event) => {
 });
 
 diagram.addEventListener("pointercancel", (event) => {
+  if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
+    cancelMarquee(event.pointerId);
+    return;
+  }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
     return;
   }
@@ -1878,7 +2155,7 @@ function zoomDiagramFromWheel(event: WheelEvent): void {
     return;
   }
   event.preventDefault();
-  if (nodeDrag) {
+  if (nodeDrag || marqueeDrag) {
     return;
   }
   const previous = clampCanvasZoom(canvasZoom);
@@ -1971,19 +2248,23 @@ diagram.addEventListener("click", (event) => {
   }
   const svg = target.closest("svg");
   if (!svg || !diagram.contains(svg)) {
-    if (target === diagram) {
+    if (target === diagram && !event.shiftKey) {
       setSelection(null);
     }
     return;
   }
-  setSelection(
-    selectionFromDiagramHit({
-      nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
-      edgeId:
-        target.closest("[data-edge-id]")?.getAttribute("data-edge-id") ??
-        target.closest("[data-edge-hit-id]")?.getAttribute("data-edge-hit-id"),
-      containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
-    }),
+  setSelections(
+    nextSelectionFromClick(
+      selectedItems,
+      selectionFromDiagramHit({
+        nodeId: target.closest("[data-node-id]")?.getAttribute("data-node-id"),
+        edgeId:
+          target.closest("[data-edge-id]")?.getAttribute("data-edge-id") ??
+          target.closest("[data-edge-hit-id]")?.getAttribute("data-edge-hit-id"),
+        containerId: target.closest("[data-container-id]")?.getAttribute("data-container-id"),
+      }),
+      event.shiftKey,
+    ),
   );
 });
 

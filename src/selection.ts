@@ -2,10 +2,13 @@ import { edgeId } from "./layout.js";
 import type { FilteredList } from "./list-model.js";
 import type { RelationshipDecl } from "./parser.js";
 
-/** Single-item diagram/list selection. Multi-select is out of scope. */
+/** One diagram or list item. A selection set is an ordered list of these. */
 export type DiagramSelection =
   | { kind: "element"; id: string }
   | { kind: "relationship"; id: string };
+
+/** User-space rectangle. Width and height are non-negative. */
+export type MarqueeRect = { x: number; y: number; width: number; height: number };
 
 /**
  * Attributes from the closest SVG hit target.
@@ -118,4 +121,106 @@ export function svgHasSelectionTarget(svg: string, selection: DiagramSelection):
     );
   }
   return svg.includes(`data-edge-id="${selection.id}"`);
+}
+
+export function selectionIncludes(
+  items: readonly DiagramSelection[],
+  item: DiagramSelection,
+): boolean {
+  return items.some((candidate) => candidate.kind === item.kind && candidate.id === item.id);
+}
+
+/**
+ * Plain click replaces the set with `hit`, or clears it when the canvas is empty.
+ * Shift-click toggles `hit`. Shift-click on empty canvas leaves the set so a
+ * marquee can extend it instead of clearing.
+ */
+export function nextSelectionFromClick(
+  current: readonly DiagramSelection[],
+  hit: DiagramSelection | null,
+  shiftKey: boolean,
+): DiagramSelection[] {
+  if (shiftKey) {
+    if (!hit) {
+      return [...current];
+    }
+    if (selectionIncludes(current, hit)) {
+      return current.filter((item) => item.kind !== hit.kind || item.id !== hit.id);
+    }
+    return [...current, hit];
+  }
+  return hit ? [hit] : [];
+}
+
+/** Drag box from `start` to `end`, with positive width and height. */
+export function normalizeMarquee(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): MarqueeRect {
+  const x = Math.min(start.x, end.x);
+  const y = Math.min(start.y, end.y);
+  return {
+    x,
+    y,
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  };
+}
+
+export function rectsIntersect(a: MarqueeRect, b: MarqueeRect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/**
+ * Element boxes the marquee meets. Connectors have no box, so they stay out
+ * of a marquee; shift-click still toggles them. `additive` unions with
+ * `current` (shift-marquee). Otherwise the marquee replaces the set.
+ */
+export function selectionFromMarquee(
+  nodes: ReadonlyArray<{ id: string; x: number; y: number; width: number; height: number }>,
+  marquee: MarqueeRect,
+  current: readonly DiagramSelection[] = [],
+  additive = false,
+): DiagramSelection[] {
+  const hit: DiagramSelection[] = [];
+  for (const node of nodes) {
+    if (rectsIntersect(marquee, node)) {
+      hit.push(elementSelection(node.id));
+    }
+  }
+  if (!additive) {
+    return hit;
+  }
+  const next = [...current];
+  for (const item of hit) {
+    if (!selectionIncludes(next, item)) {
+      next.push(item);
+    }
+  }
+  return next;
+}
+
+/** Drop items that are no longer in the filtered list. Order of the rest stays. */
+export function retainSelections(
+  selection: readonly DiagramSelection[],
+  list: FilteredList,
+): DiagramSelection[] {
+  const kept: DiagramSelection[] = [];
+  for (const item of selection) {
+    const next = retainSelection(item, list);
+    if (next) {
+      kept.push(next);
+    }
+  }
+  return kept;
+}
+
+export function selectedElementIds(selection: readonly DiagramSelection[]): string[] {
+  const ids: string[] = [];
+  for (const item of selection) {
+    if (item.kind === "element") {
+      ids.push(item.id);
+    }
+  }
+  return ids;
 }
