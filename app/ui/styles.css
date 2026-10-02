@@ -1049,22 +1049,47 @@ body.dragging {
   border-color: var(--accent);
 }
 
+.inspector-toggle-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.inspector-toggle-icon[hidden] {
+  display: none;
+}
+
+.inspector-toggle-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
 .inspector.is-collapsed .inspector-chrome {
   flex: 1;
   flex-direction: column;
+  align-items: center;
   justify-content: flex-start;
   border-bottom: 0;
   padding: 8px 4px;
+  min-width: 0;
 }
 
 .inspector.is-collapsed .inspector-heading {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   margin-top: 8px;
+  max-width: 100%;
 }
 
 .inspector.is-collapsed .inspector-toggle {
-  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 @media (max-width: 960px) {
