@@ -1,4 +1,4 @@
-import type { PleinModel, PositionDecl, ViewDecl } from "./parser.js";
+import type { PleinModel, PositionDecl, SizeDecl, ViewDecl } from "./parser.js";
 
 /** One element in document order. `keyword` is the canonical camelCase name. */
 export type InspectElement = {
@@ -24,6 +24,14 @@ export type InspectPosition = {
   line: number;
 };
 
+/** One `size` clause. Present even when this view’s auto-layout is on. */
+export type InspectSize = {
+  id: string;
+  width: number;
+  height: number;
+  line: number;
+};
+
 /**
  * One named view. Optional clauses are `null` when the file omits them so
  * every view in the dump has the same keys.
@@ -36,6 +44,7 @@ export type InspectView = {
   excludes: string[];
   autoLayout: string | null;
   positions: InspectPosition[];
+  sizes: InspectSize[];
   nesting: string | null;
   line: number;
 };
@@ -57,6 +66,15 @@ function inspectPosition(position: PositionDecl): InspectPosition {
   };
 }
 
+function inspectSize(size: SizeDecl): InspectSize {
+  return {
+    id: size.id,
+    width: size.width,
+    height: size.height,
+    line: size.line,
+  };
+}
+
 function inspectView(view: ViewDecl): InspectView {
   return {
     name: view.name,
@@ -66,6 +84,7 @@ function inspectView(view: ViewDecl): InspectView {
     excludes: view.excludes,
     autoLayout: view.autoLayout ?? null,
     positions: (view.positions ?? []).map(inspectPosition),
+    sizes: (view.sizes ?? []).map(inspectSize),
     nesting: view.nesting ?? null,
     line: view.line,
   };

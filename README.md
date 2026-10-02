@@ -185,7 +185,7 @@ See [docs/plein-dsl-archimate-4.md](docs/plein-dsl-archimate-4.md) for document 
 
 ### Inspect a model
 
-`plein inspect` loads a `.plein` file with the same check as `plein check` and writes JSON to stdout. The document has `file`, `elements`, `relationships`, and `views`, in source order. Keywords and relationship types are canonical camelCase (`serving` is written as `serves`). Every view has the same keys: `viewpoint`, `title`, `autoLayout`, and `nesting` are `null` when the file omits them, and `positions` is always an array (including when auto-layout is on and those coordinates are not used for drawing). No HTML, SVG, or Mac app is involved.
+`plein inspect` loads a `.plein` file with the same check as `plein check` and writes JSON to stdout. The document has `file`, `elements`, `relationships`, and `views`, in source order. Keywords and relationship types are canonical camelCase (`serving` is written as `serves`). Every view has the same keys: `viewpoint`, `title`, `autoLayout`, and `nesting` are `null` when the file omits them, `positions` and `sizes` are always arrays (including when auto-layout is on and those clauses are not used for drawing). No HTML, SVG, or Mac app is involved.
 
 ```bash
 plein inspect fixtures/valid-basic.plein
@@ -201,7 +201,7 @@ npx plein inspect fixtures/valid-basic.plein > fixtures/golden-inspect-valid-bas
 
 ### Format a model
 
-`plein format` loads a `.plein` file with the same check as `plein check` and writes a canonical layout. Indentation is two spaces. Inside `model`, profile and specialization declarations stay in source order, then elements, then relationships. Value-stream stages stay nested. Inside a view the clause order is `include`, `exclude`, `autoLayout`, `nesting`, `position`. `autoLayout` tokens are mode, grid order, direction, then routing; defaults (`layered`, `kind`, `tb`, `orthogonal`) are omitted. `nesting beside` is omitted. Keywords are kebab-case. Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, not `serves`). A view title is written on the `viewpoint` header. `//` comments are kept. The full key order is [Canonical layout](docs/plein-dsl-archimate-4.md#canonical-layout-plein-format).
+`plein format` loads a `.plein` file with the same check as `plein check` and writes a canonical layout. Indentation is two spaces. Inside `model`, profile and specialization declarations stay in source order, then elements, then relationships. Value-stream stages stay nested. Inside a view the clause order is `include`, `exclude`, `autoLayout`, `nesting`, `position`, `size`. `autoLayout` tokens are mode, grid order, direction, then routing; defaults (`layered`, `kind`, `tb`, `orthogonal`) are omitted. `nesting beside` is omitted. Keywords are kebab-case. Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, not `serves`). A view title is written on the `viewpoint` header. `//` comments are kept. The full key order is [Canonical layout](docs/plein-dsl-archimate-4.md#canonical-layout-plein-format).
 
 ```bash
 plein format fixtures/format-messy.plein

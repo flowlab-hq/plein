@@ -704,6 +704,67 @@ test("unknown element type is a line diagnostic", () => {
   );
 });
 
+test("size clauses store width and height and reject a bad id or span", () => {
+  const source = `model {
+  business-actor "Shipper" as shipper
+}
+views {
+  view story {
+    include shipper
+    autoLayout off
+    position shipper 48 72
+    // wider than the label
+    size shipper 216 80
+  }
+}
+`;
+  const model = checkPlein(source, "sized.plein");
+  assert.deepEqual(
+    model.views[0]!.sizes?.map((size) => [size.id, size.width, size.height]),
+    [["shipper", 216, 80]],
+  );
+  assert.equal(model.views[0]!.sizes?.[0]?.leadingComments?.[0], "wider than the label");
+
+  const duplicate = source.replace("size shipper 216 80", "size shipper 216 80\n    size shipper 100 40");
+  assert.throws(
+    () => checkPlein(duplicate, "duplicate-size.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /duplicate size for 'shipper'/);
+      return true;
+    },
+  );
+
+  const unknown = source.replace("size shipper 216 80", "size missing 100 40");
+  assert.throws(
+    () => checkPlein(unknown, "unknown-size.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /unknown identifier 'missing'/);
+      return true;
+    },
+  );
+
+  const flat = source.replace("size shipper 216 80", "size shipper 0 40");
+  assert.throws(
+    () => checkPlein(flat, "flat-size.plein"),
+    (error: unknown) => {
+      assert.ok(error instanceof ParseError);
+      assert.match(error.message, /size width and height must be positive/);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      checkPlein(
+        `model {\n  specialization size specializes business-actor\n}\n`,
+        "reserved-size.plein",
+      ),
+    /specialization name 'size' is reserved/,
+  );
+});
+
 test("non-flow relationship inside a valueStream body is a diagnostic", () => {
   const source = `model {
   valueStream "Order to cash" as orderToCash {

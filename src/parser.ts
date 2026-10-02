@@ -119,6 +119,19 @@ export type PositionDecl = {
   leadingComments?: string[];
 };
 
+/**
+ * Explicit width and height of one element when auto-layout is off.
+ * Ignored while auto-layout is on. Omitted clauses keep the label-fit box.
+ */
+export type SizeDecl = {
+  id: string;
+  width: number;
+  height: number;
+  line: number;
+  /** `//` comments immediately above this `size` clause, text after `//`. */
+  leadingComments?: string[];
+};
+
 export type ViewDecl = {
   name: string;
   viewpoint?: string;
@@ -132,6 +145,11 @@ export type ViewDecl = {
    * `off` keeps automatic placement and ignores these positions.
    */
   positions?: PositionDecl[];
+  /**
+   * Explicit box size used only when this view’s auto-layout is off.
+   * Declaring `autoLayout` without `off` ignores these sizes, same as `position`.
+   */
+  sizes?: SizeDecl[];
   /**
    * File default for aggregation/composition placement.
    * Omit or `beside` = today’s side-by-side graph. `nested` draws children
@@ -204,6 +222,7 @@ const VIEW_CLAUSES = new Set([
   "title",
   "autoLayout",
   "position",
+  "size",
   "nesting",
   "view",
   "viewpoint",
@@ -259,6 +278,7 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "title",
   "autoLayout",
   "position",
+  "size",
   "nesting",
   "as",
   "of",
@@ -1056,6 +1076,7 @@ class Parser {
       includes: [],
       excludes: [],
       positions: [],
+      sizes: [],
       line: start.line,
       order: this.nextOrder++,
       ...(comments.length > 0 ? { leadingComments: comments } : {}),
@@ -1078,6 +1099,7 @@ class Parser {
       includes: [],
       excludes: [],
       positions: [],
+      sizes: [],
       line: start.line,
       order: this.nextOrder++,
       ...(comments.length > 0 ? { leadingComments: comments } : {}),
@@ -1088,6 +1110,8 @@ class Parser {
   private parseViewBody(view: ViewDecl): ViewDecl {
     const positions = view.positions ?? [];
     view.positions = positions;
+    const sizes = view.sizes ?? [];
+    view.sizes = sizes;
     while (!this.check("}") && !this.check("eof")) {
       const comments = this.drainComments();
       if (this.check("}") || this.check("eof")) {
@@ -1144,6 +1168,36 @@ class Parser {
           id: id.value,
           x,
           y,
+          line: start.line,
+          ...(comments.length > 0 ? { leadingComments: comments } : {}),
+        });
+        continue;
+      }
+      if (this.checkIdent("size")) {
+        const start = this.advance();
+        const id = this.expect("ident", "expected element id after size");
+        const width = this.expectCoordinate("expected width after size");
+        const height = this.expectCoordinate("expected height after size");
+        if (!(width > 0) || !(height > 0)) {
+          throw new ParseError(
+            "size width and height must be positive",
+            this.file,
+            start.line,
+            start.column,
+          );
+        }
+        if (sizes.some((size) => size.id === id.value)) {
+          throw new ParseError(
+            `duplicate size for '${id.value}'`,
+            this.file,
+            id.line,
+            id.column,
+          );
+        }
+        sizes.push({
+          id: id.value,
+          width,
+          height,
           line: start.line,
           ...(comments.length > 0 ? { leadingComments: comments } : {}),
         });
@@ -1509,6 +1563,16 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
           `unknown identifier '${position.id}' in view '${view.name}'`,
           file,
           position.line,
+          1,
+        );
+      }
+    }
+    for (const size of view.sizes ?? []) {
+      if (!seen.has(size.id)) {
+        throw new ParseError(
+          `unknown identifier '${size.id}' in view '${view.name}'`,
+          file,
+          size.line,
           1,
         );
       }

@@ -20,6 +20,8 @@ import {
   isAutoLayoutEnabled,
   LAYOUT_DIRECTIONS,
   LAYOUT_MODES,
+  MIN_NODE_HEIGHT,
+  MIN_NODE_WIDTH,
   NODE_HEIGHT,
   NODE_WIDTH,
   PADDING,
@@ -53,6 +55,14 @@ import {
 } from "../../src/canvas-zoom.ts";
 import { fitCanvasScroll, groupDragIds, manualDragShift } from "../../src/manual-drag.ts";
 import {
+  resizeBoxByEdge,
+  resizeCursorAxis,
+  resizeEdgeAtPoint,
+  EDGE_HIT_SCREEN_PX,
+  type ResizeEdge,
+} from "../../src/element-resize.ts";
+import { TYPE_ICON_INSET_X } from "../../src/label-fit.ts";
+import {
   ALIGN_SNAP_RELEASE_SCREEN_PX,
   ALIGN_SNAP_SCREEN_PX,
   alignDraggedBox,
@@ -70,6 +80,7 @@ import {
   modelSpaceFrame,
   seatLayoutOnGrid,
   snapProposedOrigin,
+  snapToGrid,
 } from "../../src/canvas-grid.ts";
 import {
   ExportError,
@@ -183,10 +194,19 @@ let canvasGridSize: number = DEFAULT_CANVAS_GRID_SIZE;
 const alignHold = new Set<string>();
 /**
  * Frozen top-lefts per view, from turning auto-layout off or from dragging.
+ * `explicitSize` is an edge resize. Width and height without that flag keep a
+ * container stable for the session and are not a `size` clause until resized.
  * Survives Reload so a disabled view does not jump. Cleared when auto-layout
  * is turned back on for that view, or when a different file is opened.
  */
-const manualPositions = new Map<string, Map<string, { x: number; y: number; width?: number; height?: number }>>();
+type SessionPlacement = {
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  explicitSize?: boolean;
+};
+const manualPositions = new Map<string, Map<string, SessionPlacement>>();
 /** Last diagram laid out, so a drag can move from the coordinates on screen. */
 let lastLayout: ViewpointLayout | null = null;
 /** Drop stale ELK results when the user switches views mid-layout. */
@@ -217,6 +237,26 @@ type NodeDrag = {
   alignLock: AlignLock;
 };
 let nodeDrag: NodeDrag | null = null;
+/**
+ * Pointer drag of one edge. Resizes only the element under the pointer.
+ * A multi-selection does not resize together, and this gesture is not a marquee.
+ */
+type ResizeDrag = {
+  id: string;
+  edge: ResizeEdge;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  moved: boolean;
+  origin: { x: number; y: number; width: number; height: number };
+  pixelsPerUserX: number;
+  pixelsPerUserY: number;
+  baseOriginX: number;
+  baseOriginY: number;
+  baseScrollLeft: number;
+  baseScrollTop: number;
+};
+let resizeDrag: ResizeDrag | null = null;
 /**
  * Empty-canvas drag that selects every element box it meets.
  * Shift-marquee unions with the selection captured at pointer-down.
@@ -673,7 +713,7 @@ async function selectAutoLayout(next: "file" | "auto" | "off"): Promise<void> {
       if (seq !== autoSelectSeq) {
         return;
       }
-      const map = new Map<string, { x: number; y: number; width?: number; height?: number }>();
+      const map = new Map<string, SessionPlacement>();
       for (const node of browsed.layout.nodes) {
         map.set(node.id, { x: node.x, y: node.y, width: node.width, height: node.height });
       }
@@ -698,7 +738,12 @@ function viewHasUnsavedPositions(viewName: string): boolean {
   if (!view) {
     return false;
   }
-  return manualPositionsAreDirty(view.autoLayout, view.positions ?? [], manualPositions.get(viewName));
+  return manualPositionsAreDirty(
+    view.autoLayout,
+    view.positions ?? [],
+    manualPositions.get(viewName),
+    view.sizes ?? [],
+  );
 }
 
 function anyUnsavedPositions(): boolean {
@@ -730,13 +775,13 @@ function syncSaveChrome(): void {
       ? "Save writes a .plein file. This model was imported from Open Exchange XML."
       : "Turn Auto layout Off to save positions. On recomputes and does not write the file.";
   } else if (writesInPlace && dirty) {
-    saveButton.title = "Write unsaved manual positions into this .plein (⌘S).";
+    saveButton.title = "Write unsaved positions and sizes into this .plein (⌘S).";
   } else if (writesInPlace) {
-    saveButton.title = "Write the positions on screen into this .plein (⌘S). Auto layout is off.";
+    saveButton.title = "Write the positions and sizes on screen into this .plein (⌘S). Auto layout is off.";
   } else if (dirty) {
-    saveButton.title = "Download this .plein with the unsaved positions (⌘S). Browser preview cannot write the original path.";
+    saveButton.title = "Download this .plein with the unsaved positions and sizes (⌘S). Browser preview cannot write the original path.";
   } else {
-    saveButton.title = "Download this .plein with the positions on screen (⌘S). Browser preview cannot write the original path.";
+    saveButton.title = "Download this .plein with the positions and sizes on screen (⌘S). Browser preview cannot write the original path.";
   }
   if (!loaded) {
     fileLabel.textContent = "No file open";
@@ -746,7 +791,7 @@ function syncSaveChrome(): void {
   }
   fileLabel.textContent = dirty ? `Unsaved — ${loaded.file}` : loaded.file;
   fileLabel.title = dirty
-    ? "Manual positions are not in the file yet. Save writes them."
+    ? "Manual positions and sizes are not in the file yet. Save writes them."
     : loaded.file;
   if (dirty) {
     fileLabel.setAttribute("data-dirty", "true");
@@ -765,6 +810,7 @@ function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
   }
   const session = manualPositions.get(viewName);
   const filePos = new Map((view.positions ?? []).map((position) => [position.id, position]));
+  const fileSizes = new Map((view.sizes ?? []).map((size) => [size.id, size]));
   const live =
     useLive && lastLayout?.viewName === viewName && lastLayout.auto === false
       ? new Map(lastLayout.nodes.map((node) => [node.id, node]))
@@ -774,6 +820,7 @@ function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
     const fromSession = session?.get(element.id);
     const node = live?.get(element.id);
     const fromFile = filePos.get(element.id);
+    const fileSize = fileSizes.get(element.id);
     const point = fromSession
       ? { x: fromSession.x, y: fromSession.y }
       : node
@@ -784,7 +831,18 @@ function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
     if (!point) {
       continue;
     }
-    positions.push({ id: element.id, x: point.x, y: point.y });
+    const explicit =
+      fromSession?.explicitSize && fromSession.width !== undefined && fromSession.height !== undefined
+        ? { width: fromSession.width, height: fromSession.height }
+        : fileSize
+          ? { width: fileSize.width, height: fileSize.height }
+          : null;
+    positions.push({
+      id: element.id,
+      x: point.x,
+      y: point.y,
+      ...(explicit ? { width: explicit.width, height: explicit.height } : {}),
+    });
   }
   return positions;
 }
@@ -880,7 +938,7 @@ function renderAutoLayoutSwitcher(): void {
     {
       id: "file",
       label: "File",
-      title: "Follow autoLayout in the open view. off or manual keeps position clauses; anything else is automatic.",
+      title: "Follow autoLayout in the open view. off or manual keeps position and size clauses; anything else is automatic.",
     },
     {
       id: "auto",
@@ -890,7 +948,7 @@ function renderAutoLayoutSwitcher(): void {
     {
       id: "off",
       label: "Off",
-      title: "Freeze element positions. Save writes them into the .plein. They stay put across Reload.",
+      title: "Freeze element positions. Drag a box to move it, or an edge to resize it. Save writes positions and sizes into the .plein.",
     },
   ];
   autoLayoutSwitcher.replaceChildren(
@@ -1916,6 +1974,110 @@ function holdScrollForExpandedCanvas(svg: SVGSVGElement, scrollLeft: number, scr
  * Scroll follows the origin so the rest of the diagram stays put and the
  * new region can be panned back into view.
  */
+function clearResizeCursor(): void {
+  diagram.classList.remove("is-resize-ew", "is-resize-ns");
+}
+
+function setResizeCursor(axis: "ew" | "ns" | null): void {
+  diagram.classList.toggle("is-resize-ew", axis === "ew");
+  diagram.classList.toggle("is-resize-ns", axis === "ns");
+}
+
+function resizeEdgeUnderPointer(event: PointerEvent): { id: string; edge: ResizeEdge } | null {
+  if (!lastLayout || lastLayout.auto !== false || event.shiftKey) {
+    return null;
+  }
+  const target = event.target;
+  if (!(target instanceof Element) || !diagram.contains(target)) {
+    return null;
+  }
+  const nodeEl = target.closest("[data-node-id]");
+  if (!(nodeEl instanceof Element) || !diagram.contains(nodeEl)) {
+    return null;
+  }
+  const id = nodeEl.getAttribute("data-node-id");
+  const svg = nodeEl.closest("svg");
+  if (!id || !(svg instanceof SVGSVGElement)) {
+    return null;
+  }
+  const node = lastLayout.nodes.find((candidate) => candidate.id === id);
+  const local = svgLocalPoint(svg, event.clientX, event.clientY);
+  if (!node || !local) {
+    return null;
+  }
+  const scale = userPixelsPerUnit(svg);
+  const threshold = userSnapDistance(EDGE_HIT_SCREEN_PX, Math.min(scale.x, scale.y));
+  const edge = resizeEdgeAtPoint(node, local.x, local.y, threshold);
+  if (!edge) {
+    return null;
+  }
+  return { id, edge };
+}
+
+function resizeBoxFromPointer(drag: ResizeDrag, clientX: number, clientY: number): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const raw = manualDragShift(
+    clientX - drag.startClientX,
+    clientY - drag.startClientY,
+    drag.pixelsPerUserX,
+    drag.pixelsPerUserY,
+  );
+  return resizeBoxByEdge({
+    box: drag.origin,
+    edge: drag.edge,
+    deltaX: raw.x,
+    deltaY: raw.y,
+    minWidth: MIN_NODE_WIDTH,
+    minHeight: MIN_NODE_HEIGHT,
+    snapEdge: (coord) => snapToGrid(coord, canvasGridSize),
+  });
+}
+
+function paintResizedNode(
+  svg: SVGSVGElement,
+  id: string,
+  box: { x: number; y: number; width: number; height: number },
+): void {
+  const group = findByAttr(svg, "data-node-id", id);
+  if (!group) {
+    return;
+  }
+  group.setAttribute("transform", `translate(${box.x} ${box.y})`);
+  const rect = group.querySelector(":scope > rect");
+  if (rect) {
+    rect.setAttribute("width", String(box.width));
+    rect.setAttribute("height", String(box.height));
+  }
+  const icon = group.querySelector(":scope > .type-icon");
+  if (icon) {
+    icon.setAttribute("transform", `translate(${box.width - TYPE_ICON_INSET_X} 4)`);
+  }
+}
+
+function growCanvasForBoxes(
+  svg: SVGSVGElement,
+  boxes: Array<{ x: number; y: number; width: number; height: number }>,
+  base: {
+    originX: number;
+    originY: number;
+    scrollLeft: number;
+    scrollTop: number;
+    scaleX: number;
+    scaleY: number;
+  },
+): void {
+  const bounds = contentBounds(boxes, PADDING, PADDING * 2 + NODE_WIDTH, PADDING * 2 + NODE_HEIGHT);
+  rememberModelContent(svg, bounds);
+  paintCanvasGrid(svg);
+  const scrollLeft = Math.max(0, base.scrollLeft + (base.originX - bounds.x) * base.scaleX);
+  const scrollTop = Math.max(0, base.scrollTop + (base.originY - bounds.y) * base.scaleY);
+  holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
+}
+
 function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }): void {
   if (!nodeDrag || !lastLayout) {
     return;
@@ -1932,14 +2094,14 @@ function growCanvasForDrag(svg: SVGSVGElement, shift: { x: number; y: number }):
       height: origin.height,
     };
   });
-  const bounds = contentBounds(boxes, PADDING, PADDING * 2 + NODE_WIDTH, PADDING * 2 + NODE_HEIGHT);
-  const scaleX = nodeDrag.pixelsPerUserX;
-  const scaleY = nodeDrag.pixelsPerUserY;
-  rememberModelContent(svg, bounds);
-  paintCanvasGrid(svg);
-  const scrollLeft = Math.max(0, nodeDrag.baseScrollLeft + (nodeDrag.baseOriginX - bounds.x) * scaleX);
-  const scrollTop = Math.max(0, nodeDrag.baseScrollTop + (nodeDrag.baseOriginY - bounds.y) * scaleY);
-  holdScrollForExpandedCanvas(svg, scrollLeft, scrollTop);
+  growCanvasForBoxes(svg, boxes, {
+    originX: nodeDrag.baseOriginX,
+    originY: nodeDrag.baseOriginY,
+    scrollLeft: nodeDrag.baseScrollLeft,
+    scrollTop: nodeDrag.baseScrollTop,
+    scaleX: nodeDrag.pixelsPerUserX,
+    scaleY: nodeDrag.pixelsPerUserY,
+  });
 }
 
 /**
@@ -2127,8 +2289,89 @@ function cancelMarquee(pointerId: number): void {
   setSelections(drag.baseSelection, { scroll: false });
 }
 
+function updateResizeHover(event: PointerEvent): void {
+  if (nodeDrag || resizeDrag || marqueeDrag || lastLayout?.auto !== false) {
+    clearResizeCursor();
+    return;
+  }
+  const hit = resizeEdgeUnderPointer(event);
+  setResizeCursor(hit ? resizeCursorAxis(hit.edge) : null);
+}
+
+function updateResize(event: PointerEvent): void {
+  const drag = resizeDrag;
+  if (!drag || event.pointerId !== drag.pointerId || !lastLayout) {
+    return;
+  }
+  const travel = Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY);
+  if (!drag.moved && travel < 4) {
+    return;
+  }
+  drag.moved = true;
+  diagram.classList.add("is-resizing");
+  setResizeCursor(resizeCursorAxis(drag.edge));
+  const svg = diagram.querySelector("svg");
+  if (!(svg instanceof SVGSVGElement)) {
+    return;
+  }
+  const box = resizeBoxFromPointer(drag, event.clientX, event.clientY);
+  paintResizedNode(svg, drag.id, box);
+  const boxes = lastLayout.nodes.map((node) =>
+    node.id === drag.id ? box : { x: node.x, y: node.y, width: node.width, height: node.height },
+  );
+  growCanvasForBoxes(svg, boxes, {
+    originX: drag.baseOriginX,
+    originY: drag.baseOriginY,
+    scrollLeft: drag.baseScrollLeft,
+    scrollTop: drag.baseScrollTop,
+    scaleX: drag.pixelsPerUserX,
+    scaleY: drag.pixelsPerUserY,
+  });
+}
+
+function finishResize(event: PointerEvent): void {
+  const drag = resizeDrag;
+  if (!drag || event.pointerId !== drag.pointerId) {
+    return;
+  }
+  resizeDrag = null;
+  diagram.classList.remove("is-resizing");
+  clearResizeCursor();
+  releaseDiagramPointer(event.pointerId);
+  if (!drag.moved) {
+    suppressDiagramClick = true;
+    setSelections(
+      nextSelectionFromClick(selectedItems, { kind: "element", id: drag.id }, event.shiftKey),
+    );
+    return;
+  }
+  suppressDiagramClick = true;
+  const viewName = namedViewForDiagram();
+  if (!viewName) {
+    return;
+  }
+  const box = resizeBoxFromPointer(drag, event.clientX, event.clientY);
+  const session = manualPositions.get(viewName) ?? new Map<string, SessionPlacement>();
+  session.set(drag.id, {
+    x: Math.round(box.x),
+    y: Math.round(box.y),
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+    explicitSize: true,
+  });
+  manualPositions.set(viewName, session);
+  const lattice = snapProposedOrigin({ x: box.x, y: box.y }, canvasGridSize);
+  const offLattice = Math.abs(box.x - lattice.x) > 0.5 || Math.abs(box.y - lattice.y) > 0.5;
+  if (offLattice) {
+    alignHold.add(drag.id);
+  } else {
+    alignHold.delete(drag.id);
+  }
+  void render();
+}
+
 diagram.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || nodeDrag || marqueeDrag) {
+  if (event.button !== 0 || nodeDrag || marqueeDrag || resizeDrag) {
     return;
   }
   const target = event.target;
@@ -2146,6 +2389,36 @@ diagram.addEventListener("pointerdown", (event) => {
     if (!(svg instanceof SVGSVGElement)) {
       return;
     }
+    const edgeHit = resizeEdgeUnderPointer(event);
+    if (edgeHit && edgeHit.id === id) {
+      const node = lastLayout.nodes.find((candidate) => candidate.id === id);
+      if (!node) {
+        return;
+      }
+      const scale = userPixelsPerUnit(svg);
+      resizeDrag = {
+        id,
+        edge: edgeHit.edge,
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        moved: false,
+        origin: { x: node.x, y: node.y, width: node.width, height: node.height },
+        pixelsPerUserX: scale.x,
+        pixelsPerUserY: scale.y,
+        baseOriginX: svg.viewBox.baseVal.x,
+        baseOriginY: svg.viewBox.baseVal.y,
+        baseScrollLeft: diagram.scrollLeft,
+        baseScrollTop: diagram.scrollTop,
+      };
+      try {
+        diagram.setPointerCapture(event.pointerId);
+      } catch {
+        // Capture is best-effort; move and up still reach the diagram.
+      }
+      event.preventDefault();
+      return;
+    }
     const origins = new Map<string, { x: number; y: number; width: number; height: number }>();
     for (const movedId of groupDragIds(id, selectedElementIds(selectedItems), lastLayout.nodes)) {
       const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
@@ -2156,6 +2429,7 @@ diagram.addEventListener("pointerdown", (event) => {
     if (!origins.has(id)) {
       return;
     }
+    clearResizeCursor();
     const scale = userPixelsPerUnit(svg);
     nodeDrag = {
       id,
@@ -2191,6 +2465,7 @@ diagram.addEventListener("pointerdown", (event) => {
   if (!local) {
     return;
   }
+  clearResizeCursor();
   marqueeDrag = {
     pointerId: event.pointerId,
     startClientX: event.clientX,
@@ -2216,7 +2491,12 @@ diagram.addEventListener("pointermove", (event) => {
     updateMarquee(event);
     return;
   }
+  if (resizeDrag && event.pointerId === resizeDrag.pointerId) {
+    updateResize(event);
+    return;
+  }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId || !lastLayout) {
+    updateResizeHover(event);
     return;
   }
   const travel = Math.hypot(event.clientX - nodeDrag.startClientX, event.clientY - nodeDrag.startClientY);
@@ -2246,6 +2526,10 @@ diagram.addEventListener("pointermove", (event) => {
 diagram.addEventListener("pointerup", (event) => {
   if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
     finishMarquee(event);
+    return;
+  }
+  if (resizeDrag && event.pointerId === resizeDrag.pointerId) {
+    finishResize(event);
     return;
   }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
@@ -2301,7 +2585,7 @@ diagram.addEventListener("pointerup", (event) => {
       }
     }
   }
-  const session = manualPositions.get(viewName) ?? new Map<string, { x: number; y: number; width?: number; height?: number }>();
+  const session = manualPositions.get(viewName) ?? new Map<string, SessionPlacement>();
   for (const [movedId, origin] of drag.origins) {
     const existing = session.get(movedId);
     const node = lastLayout.nodes.find((candidate) => candidate.id === movedId);
@@ -2310,6 +2594,7 @@ diagram.addEventListener("pointerup", (event) => {
       y: Math.round(origin.y + shift.y),
       ...(existing?.width !== undefined ? { width: existing.width } : node ? { width: node.width } : {}),
       ...(existing?.height !== undefined ? { height: existing.height } : node ? { height: node.height } : {}),
+      ...(existing?.explicitSize ? { explicitSize: true } : {}),
     });
   }
   manualPositions.set(viewName, session);
@@ -2319,6 +2604,13 @@ diagram.addEventListener("pointerup", (event) => {
 diagram.addEventListener("pointercancel", (event) => {
   if (marqueeDrag && event.pointerId === marqueeDrag.pointerId) {
     cancelMarquee(event.pointerId);
+    return;
+  }
+  if (resizeDrag && event.pointerId === resizeDrag.pointerId) {
+    resizeDrag = null;
+    diagram.classList.remove("is-resizing");
+    clearResizeCursor();
+    void render();
     return;
   }
   if (!nodeDrag || event.pointerId !== nodeDrag.pointerId) {
@@ -2343,7 +2635,7 @@ function zoomDiagramFromWheel(event: WheelEvent): void {
     return;
   }
   event.preventDefault();
-  if (nodeDrag || marqueeDrag) {
+  if (nodeDrag || marqueeDrag || resizeDrag) {
     return;
   }
   const previous = clampCanvasZoom(canvasZoom);

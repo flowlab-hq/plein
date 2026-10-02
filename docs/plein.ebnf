@@ -75,7 +75,7 @@ viewpoint-view = "viewpoint" ident [ string ] "{" view-body "}" ;
 view-body = { view-clause } ;
 
 view-clause = include-clause | exclude-clause | title-clause
-            | auto-layout-clause | position-clause | nesting-clause ;
+            | auto-layout-clause | position-clause | size-clause | nesting-clause ;
 
 include-clause = "include" selector-list ;
 exclude-clause = "exclude" selector-list ;
@@ -107,6 +107,10 @@ auto-layout-direction = "tb" | "bt" | "lr" | "rl"
                       | "bottom-top" | "bottomTop" | "bottom_top" ;
 
 position-clause = "position" ident number number ;
+
+(* Width and height in the same view-space pixels as position.
+   Both numbers must be positive. Applied only when auto-layout is off. *)
+size-clause = "size" ident number number ;
 
 (* A nesting mode is consumed only when the next ident is not a view-clause
    keyword. With no mode token, the clause means nested. *)

@@ -92,6 +92,8 @@ Bidirectional. Click a box or edge on the canvas to highlight the matching left-
 
 **Group move** works with **Auto layout** **Off**, or a view already on manual positions. Dragging one selected box moves every selected box by the same delta, so relative positions stay. The box under the pointer still snaps to the grid and to neighbour centres and edges; the rest of the set keeps its offset from that box. Nested children of a moved container move with it, as they do for a single box. Dragging a box that is not selected moves only that box and its nested children. A move that changes positions marks the file **Unsaved** until **Save**. Auto layout **On** still does not drag boxes.
 
+**Edge resize** uses the same manual placement. Drag the left or right edge to change width, or the top or bottom edge to change height. The opposite edge stays put, so a left or top drag also moves the top-left. The dragged edge snaps to the canvas grid. A corner, the interior, and empty canvas are not resize handles: the interior still moves (including a group move), and empty canvas still starts a marquee. One edge drag resizes that element only. The new size stays for this session. **Save** writes it as `size <id> <width> <height>` next to the `position` clauses. The box will not shrink below 48 by 32. A nested parent still grows to cover its children.
+
 Out of scope: editing properties for the whole set, align/distribute commands, and turning the selection into a nested container.
 
 Assert without opening the app: `./scripts/assert-selection-sync.sh` (or `npm test`).
@@ -150,13 +152,14 @@ Smoke (`npm run app:preview` or `Plein.app`):
 autoLayout off
 position shipper 40 240
 position booking 280 40
+size shipper 216 80
 ```
 
-Coordinates are view-space top-lefts (`position <id> <x> <y>`). Each id in that view is written once. Other clauses, other views that you have not moved, and the rest of the file stay as they were. A group move stores every box that moved.
+Coordinates are view-space top-lefts (`position <id> <x> <y>`). An edge resize adds `size <id> <width> <height>` in the same pixels. Each id in that view is written once. A `size` already in the file is kept when you save a move that did not resize that box. Other clauses, other views that you have not moved, and the rest of the file stay as they were. A group move stores every box that moved. A resize stores that one box.
 
 | Auto layout | Save |
 | --- | --- |
-| **Off** | Enabled. Writes `autoLayout off` and the top-lefts on screen for this view. Also writes any other view that still has unsaved moves. |
+| **Off** | Enabled. Writes `autoLayout off` and the top-lefts on screen for this view, plus a `size` clause for each box you resized. Also writes any other view that still has unsaved moves or resizes. |
 | **File**, and this view is `off` or `manual` | Enabled. Same write. The view is already manual in the file. |
 | **On** | Disabled. Placement is recomputed. `position` clauses are not applied and are not updated. |
 | **File**, and this view is automatic | Disabled. Same as **On** for this view. |

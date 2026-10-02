@@ -3,7 +3,10 @@ import type { ELK, ElkExtendedEdge, ElkNode, ElkPoint } from "elkjs";
 import { elementStyle, layerOf, renderTypeIcon } from "./archimate-style.js";
 import { toKebabCaseKeyword, type ElementKeyword, type RelationshipKeyword } from "./keywords.js";
 import {
+  LABEL_LINE_HEIGHT,
   LABEL_PAD_X,
+  MIN_NODE_HEIGHT,
+  MIN_NODE_WIDTH,
   NODE_HEIGHT,
   NODE_WIDTH,
   TYPE_ICON_INSET_X,
@@ -17,7 +20,7 @@ import { filterModel } from "./list-model.js";
 import type { ElementDecl, PleinModel, RelationshipDecl, ViewDecl } from "./parser.js";
 
 /** Default element box. Short labels stay this size; longer names wrap and may grow. */
-export { NODE_HEIGHT, NODE_WIDTH };
+export { MIN_NODE_HEIGHT, MIN_NODE_WIDTH, NODE_HEIGHT, NODE_WIDTH };
 
 /** Gap along the rank axis (left→right for `lr`, top→bottom for `tb`). */
 export const RANK_GAP = 56;
@@ -207,7 +210,8 @@ export type AutoLayoutSetting = "auto" | "off";
  * A frozen top-left (and optional box size) for one element.
  * Session snapshots from the Mac toolbar may include width and height so a
  * nested container does not resize when auto-layout is turned off.
- * File `position` clauses only set x and y.
+ * File `position` clauses only set x and y. File `size` clauses set width and
+ * height; a session width or height for the same id wins.
  */
 export type ManualPosition = {
   id: string;
@@ -665,6 +669,7 @@ export async function layoutViewpoint(
         nestForest,
         view.positions ?? [],
         options?.manualPositions ?? [],
+        view.sizes ?? [],
       );
 
   // Layered and layers keep node coordinates and only redraw an orthogonal
@@ -850,6 +855,13 @@ function renderNode(node: LayoutNode): string {
 
 function linesForNode(node: LayoutNode): string[] {
   const fitted = fitLeafBox(node.label);
+  if (node.width < fitted.width - 0.5) {
+    const wrapped = wrapLabel(node.label, labelContentWidth(node.width));
+    const bandHeight = node.container ? containerHeaderHeight(node.label) : node.height;
+    const capacity = Math.max(1, Math.floor(bandHeight / LABEL_LINE_HEIGHT));
+    const lines = wrapped.slice(0, capacity);
+    return lines.length > 0 ? lines : wrapped.slice(0, 1);
+  }
   if (node.width <= fitted.width) {
     return fitted.lines;
   }
@@ -1873,6 +1885,14 @@ export function contentBounds(
   };
 }
 
+/** Use an explicit span when it is finite; otherwise the label-fit fallback. */
+function explicitSpan(value: number | undefined, minimum: number, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(minimum, value);
+}
+
 /**
  * Place nodes from saved coordinates. Does not call ELK or the organic/grid
  * packers, so a later model edit cannot reflow boxes that already have a position.
@@ -1886,6 +1906,7 @@ function layoutManual(
   nestForest: Map<string, string[]>,
   filePositions: Array<{ id: string; x: number; y: number }>,
   sessionPositions: ManualPosition[],
+  fileSizes: Array<{ id: string; width: number; height: number }> = [],
 ): PackedLayout {
   if (elements.length === 0) {
     return {
@@ -1897,20 +1918,42 @@ function layoutManual(
   }
 
   const coords = new Map<string, ManualPosition>();
+  const placed = new Set<string>();
   for (const position of filePositions) {
+    placed.add(position.id);
     coords.set(position.id, {
       id: position.id,
       x: position.x,
       y: position.y,
     });
   }
+  for (const size of fileSizes) {
+    const prev = coords.get(size.id);
+    coords.set(size.id, {
+      id: size.id,
+      x: prev?.x ?? 0,
+      y: prev?.y ?? 0,
+      width: size.width,
+      height: size.height,
+    });
+  }
   for (const position of sessionPositions) {
+    placed.add(position.id);
+    const prev = coords.get(position.id);
     coords.set(position.id, {
       id: position.id,
       x: position.x,
       y: position.y,
-      ...(position.width !== undefined ? { width: position.width } : {}),
-      ...(position.height !== undefined ? { height: position.height } : {}),
+      ...(position.width !== undefined
+        ? { width: position.width }
+        : prev?.width !== undefined
+          ? { width: prev.width }
+          : {}),
+      ...(position.height !== undefined
+        ? { height: position.height }
+        : prev?.height !== undefined
+          ? { height: prev.height }
+          : {}),
     });
   }
 
@@ -1920,26 +1963,27 @@ function layoutManual(
     const childIds = nesting === "nested" ? (nestForest.get(element.id) ?? []) : [];
     const parentId = parentOf.get(element.id);
     const box = fitLeafBox(element.label);
-    const minHeight =
-      childIds.length > 0 ? containerHeaderHeight(element.label) : box.height;
+    const minHeight = childIds.length > 0 ? containerHeaderHeight(element.label) : box.height;
+    const widthFloor = MIN_NODE_WIDTH;
+    const heightFloor = childIds.length > 0 ? minHeight : MIN_NODE_HEIGHT;
     return {
       id: element.id,
       label: element.label,
       keyword: element.keyword,
       x: known?.x ?? 0,
       y: known?.y ?? 0,
-      width: Math.max(known?.width ?? box.width, box.width),
-      height: Math.max(known?.height ?? minHeight, minHeight),
+      width: explicitSpan(known?.width, widthFloor, box.width),
+      height: explicitSpan(known?.height, heightFloor, childIds.length > 0 ? minHeight : box.height),
       ...(parentId ? { parentId } : {}),
       ...(childIds.length > 0 ? { container: true } : {}),
     };
   });
 
-  const missing = nodes.filter((node) => !coords.has(node.id));
+  const missing = nodes.filter((node) => !placed.has(node.id));
   if (missing.length > 0) {
-    const placed = nodes.filter((node) => coords.has(node.id));
+    const anchored = nodes.filter((node) => placed.has(node.id));
     const anchorX =
-      placed.length === 0 ? PADDING : Math.max(...placed.map((node) => node.x + node.width)) + RANK_GAP;
+      anchored.length === 0 ? PADDING : Math.max(...anchored.map((node) => node.x + node.width)) + RANK_GAP;
     let cursorY = PADDING;
     for (const node of missing) {
       node.x = anchorX;

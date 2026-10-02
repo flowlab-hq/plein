@@ -23,10 +23,12 @@ const VIEW_KEYS = [
   "excludes",
   "autoLayout",
   "positions",
+  "sizes",
   "nesting",
   "line",
 ];
 const POSITION_KEYS = ["id", "x", "y", "line"];
+const SIZE_KEYS = ["id", "width", "height", "line"];
 
 function runInspect(args: string[]) {
   return spawnSync(process.execPath, [cli, "inspect", ...args], {
@@ -52,8 +54,12 @@ function assertDumpShape(dump: InspectDump): void {
     assert.ok(Array.isArray(view.includes));
     assert.ok(Array.isArray(view.excludes));
     assert.ok(Array.isArray(view.positions));
+    assert.ok(Array.isArray(view.sizes));
     for (const position of view.positions) {
       assert.deepEqual(Object.keys(position), POSITION_KEYS);
+    }
+    for (const size of view.sizes) {
+      assert.deepEqual(Object.keys(size), SIZE_KEYS);
     }
   }
 }

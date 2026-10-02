@@ -11,11 +11,17 @@ export class SaveLayoutError extends Error {
   }
 }
 
-/** One element top-left in view space. The same coordinates as a `position` clause. */
+/**
+ * One element top-left in view space, and an optional explicit box size.
+ * `x` and `y` are the `position` clause. `width` and `height` together are
+ * the `size` clause. Omit both dimensions to leave the label-fit box.
+ */
 export type SavedPosition = {
   id: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
 };
 
 const VIEW_CLAUSES = new Set([
@@ -24,6 +30,7 @@ const VIEW_CLAUSES = new Set([
   "title",
   "autoLayout",
   "position",
+  "size",
   "nesting",
   "view",
   "viewpoint",
@@ -57,14 +64,23 @@ export function sameCoordinate(a: number, b: number): boolean {
 
 /**
  * True when a manual session would not come back from the file.
- * An automatic view ignores `position` clauses, so any session on that view
- * is unsaved. A manual view is unsaved when a session top-left differs from
- * its `position` clause, or has no clause yet.
+ * An automatic view ignores `position` and `size` clauses, so any session on
+ * that view is unsaved. A manual view is unsaved when a session top-left
+ * differs from its `position` clause, or has no clause yet. An explicit
+ * resize (`explicitSize`) is unsaved when it differs from the `size` clause,
+ * or the file has no `size` clause yet.
  */
 export function manualPositionsAreDirty(
   autoLayout: string | undefined,
   filePositions: readonly { id: string; x: number; y: number }[],
-  session: ReadonlyMap<string, { x: number; y: number }> | null | undefined,
+  session:
+    | ReadonlyMap<
+        string,
+        { x: number; y: number; width?: number; height?: number; explicitSize?: boolean }
+      >
+    | null
+    | undefined,
+  fileSizes: readonly { id: string; width: number; height: number }[] = [],
 ): boolean {
   if (!session || session.size === 0) {
     return false;
@@ -73,10 +89,21 @@ export function manualPositionsAreDirty(
     return true;
   }
   const saved = new Map(filePositions.map((position) => [position.id, position]));
+  const sizes = new Map(fileSizes.map((size) => [size.id, size]));
   for (const [id, point] of session) {
     const file = saved.get(id);
     if (!file || !sameCoordinate(file.x, point.x) || !sameCoordinate(file.y, point.y)) {
       return true;
+    }
+    if (point.explicitSize && point.width !== undefined && point.height !== undefined) {
+      const size = sizes.get(id);
+      if (
+        !size ||
+        !sameCoordinate(size.width, point.width) ||
+        !sameCoordinate(size.height, point.height)
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -86,9 +113,10 @@ export function manualPositionsAreDirty(
  * Write manual top-lefts into one or more views.
  *
  * Each update sets that view's `autoLayout` clause to `off` and replaces its
- * `position` clauses. Include, exclude, nesting, titles, comments on other
- * clauses, and every other view stay as they were. A comment that sat on a
- * `position` line is kept when that id is still saved.
+ * `position` clauses. A position that includes width and height also replaces
+ * that id's `size` clause. Include, exclude, nesting, titles, comments on
+ * other clauses, and every other view stay as they were. A comment that sat
+ * on a `position` or `size` line is kept when that id is still saved.
  * The result is run through `checkPlein`. Nothing is returned when that fails.
  */
 export function writeManualPositions(
@@ -130,6 +158,16 @@ function validatePositions(positions: readonly SavedPosition[]): void {
     ids.add(position.id);
     formatCoordinate(position.x);
     formatCoordinate(position.y);
+    if (position.width !== undefined || position.height !== undefined) {
+      if (!(position.width !== undefined && position.height !== undefined)) {
+        throw new SaveLayoutError(`size for '${position.id}' needs both width and height`);
+      }
+      if (!(position.width > 0) || !(position.height > 0)) {
+        throw new SaveLayoutError("size width and height must be positive");
+      }
+      formatCoordinate(position.width);
+      formatCoordinate(position.height);
+    }
   }
 }
 
@@ -162,6 +200,7 @@ function rewriteView(
   }
 
   const comments = new Map<string, string[]>();
+  const sizeComments = new Map<string, string[]>();
   const edits: Edit[] = [];
   let autoCount = 0;
   let keptAuto = false;
@@ -180,14 +219,15 @@ function rewriteView(
     const line = expandLine(source, cut.start, cut.end);
     edits.push({ start: line.start, end: line.end, text: "" });
     if (cut.comments && cut.comments.length > 0) {
-      comments.set(cut.id, cut.comments);
+      const bucket = cut.kind === "size" ? sizeComments : comments;
+      bucket.set(cut.id, cut.comments);
     }
   }
 
   const insertAt = insertionOffset(source, tokens, found.open, found.close, cuts);
   const nl = source.includes("\r\n") ? "\r\n" : "\n";
   const indent = clauseIndent(source, tokens[found.open]!, tokens[found.open + 1], tokens[found.close]!);
-  const lines = renderLines(indent, !keptAuto, positions, comments);
+  const lines = renderLines(indent, !keptAuto, positions, comments, sizeComments);
   if (lines.length > 0) {
     edits.push({ start: insertAt, end: insertAt, text: `${lines.join(nl)}${nl}` });
   }
@@ -195,7 +235,7 @@ function rewriteView(
 }
 
 type LayoutCut = {
-  kind: "auto" | "position";
+  kind: "auto" | "position" | "size";
   start: number;
   end: number;
   id: string;
@@ -245,6 +285,31 @@ function layoutCuts(tokens: PleinToken[], open: number, close: number): LayoutCu
       i += 4;
       continue;
     }
+    if (token.kind === "ident" && token.value === "size") {
+      const idTok = tokens[i + 1];
+      const widthTok = tokens[i + 2];
+      const heightTok = tokens[i + 3];
+      if (
+        !idTok ||
+        idTok.kind !== "ident" ||
+        !widthTok ||
+        widthTok.kind !== "number" ||
+        !heightTok ||
+        heightTok.kind !== "number"
+      ) {
+        throw new SaveLayoutError("could not read a size clause");
+      }
+      cuts.push({
+        kind: "size",
+        start: pending ? pending.start : token.offset,
+        end: tokenEnd(heightTok),
+        id: idTok.value,
+        ...(pending && pending.texts.length > 0 ? { comments: pending.texts } : {}),
+      });
+      pending = null;
+      i += 4;
+      continue;
+    }
     pending = null;
     i += 1;
   }
@@ -284,6 +349,7 @@ function renderLines(
   includeAuto: boolean,
   positions: readonly SavedPosition[],
   comments: ReadonlyMap<string, string[]>,
+  sizeComments: ReadonlyMap<string, string[]>,
 ): string[] {
   const lines: string[] = [];
   if (includeAuto) {
@@ -295,6 +361,17 @@ function renderLines(
     }
     lines.push(
       `${indent}position ${position.id} ${formatCoordinate(position.x)} ${formatCoordinate(position.y)}`,
+    );
+  }
+  for (const position of positions) {
+    if (position.width === undefined || position.height === undefined) {
+      continue;
+    }
+    for (const comment of sizeComments.get(position.id) ?? []) {
+      lines.push(comment.length > 0 ? `${indent}// ${comment}` : `${indent}//`);
+    }
+    lines.push(
+      `${indent}size ${position.id} ${formatCoordinate(position.width)} ${formatCoordinate(position.height)}`,
     );
   }
   return lines;

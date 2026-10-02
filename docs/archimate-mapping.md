@@ -192,7 +192,7 @@ A chain (`premium-customer specializes customer`, `customer specializes business
 | `include` / `exclude` | Which elements and relationships the view shows. | Included element ids become `element` nodes. Relationship patterns are not element nodes. An empty include list is the whole model. |
 | `nesting nested` (alias `inside`, or bare `nesting`) | Diagram notation for Composition and Aggregation: the child is drawn inside the parent. The relationships themselves stay in the model. | A child `element` node is nested in its parent when composition or aggregation joins two included elements. Composition wins. |
 | `nesting beside` and its aliases | The same relationships drawn as edges. This is the default when the clause is absent. | Flat element nodes. |
-| `autoLayout`, `position` | Diagram layout. Not an ArchiMate concept. | Not written. Import drops diagram geometry. |
+| `autoLayout`, `position`, `size` | Diagram layout. Not an ArchiMate concept. `size` is width and height in the same view-space pixels as `position`. | Not written. Import drops diagram geometry. |
 
 `include application-component` selects every Application Component in the model, including elements whose specialized concept is derived from Application Component. `include customer` selects elements that use the specialized concept `customer`. The grammar's selector table is the full rule.
 

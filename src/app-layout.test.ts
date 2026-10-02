@@ -250,6 +250,10 @@ test("Mac UI saves manual positions from the toolbar and the File menu", () => {
   assert.match(ui, /save-positions/);
   assert.match(ui, /key === "s"/);
   assert.match(ui, /groupDragIds/);
+  assert.match(ui, /resizeEdgeAtPoint/);
+  assert.match(ui, /resizeBoxByEdge/);
+  assert.match(css, /ew-resize/);
+  assert.match(css, /ns-resize/);
   assert.match(css, /file-label\[data-dirty="true"\]/);
   assert.match(rust, /"save", "Save"/);
   assert.match(rust, /CmdOrCtrl\+S/);
