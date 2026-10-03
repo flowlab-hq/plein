@@ -177,6 +177,7 @@ const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HT
 const inspector = document.querySelector("#inspector") as HTMLElement;
 const inspectorToggle = document.querySelector("#inspector-toggle") as HTMLButtonElement;
 const inspectorToggleLabel = document.querySelector("#inspector-toggle-label") as HTMLElement;
+const inspectorToggleIcon = document.querySelector("#inspector-toggle-icon") as HTMLElement;
 const inspectorBody = document.querySelector("#inspector-body") as HTMLElement;
 const inspectorEmpty = document.querySelector("#inspector-empty") as HTMLElement;
 const inspectorDetailBox = document.querySelector("#inspector-detail") as HTMLElement;
@@ -1087,8 +1088,15 @@ function syncInspector(): void {
   inspector.classList.toggle("is-collapsed", inspectorCollapsed);
   workspace.classList.toggle("inspector-collapsed", inspectorCollapsed);
   inspectorToggle.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
-  inspectorToggle.title = inspectorCollapsed ? "Expand the inspector" : "Collapse the inspector";
-  inspectorToggleLabel.textContent = inspectorCollapsed ? "Show" : "Hide";
+  const toggleName = inspectorCollapsed ? "Show inspector" : "Collapse the inspector";
+  inspectorToggle.title = toggleName;
+  inspectorToggleLabel.hidden = inspectorCollapsed;
+  inspectorToggleIcon.hidden = !inspectorCollapsed;
+  if (inspectorCollapsed) {
+    inspectorToggle.setAttribute("aria-label", toggleName);
+  } else {
+    inspectorToggle.removeAttribute("aria-label");
+  }
   inspectorBody.hidden = inspectorCollapsed;
 
   const elements = loaded?.ok ? loaded.model.elements : [];

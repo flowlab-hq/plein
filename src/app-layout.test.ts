@@ -375,6 +375,9 @@ test("Mac UI has a collapsible right inspector for element name and notes", () =
   const panel = html.slice(inspectorStart, inspectorEnd);
   assert.match(panel, /id="inspector-toggle"/);
   assert.match(panel, /aria-controls="inspector-body"/);
+  assert.match(panel, /id="inspector-toggle-label">Hide</);
+  assert.match(panel, /id="inspector-toggle-icon"/);
+  assert.match(panel, /aria-hidden="true"/);
   assert.match(panel, /id="inspector-name"/);
   assert.match(panel, /id="inspector-notes"/);
   assert.match(panel, /id="inspector-notes-empty"/);
@@ -392,6 +395,24 @@ test("Mac UI has a collapsible right inspector for element name and notes", () =
   assert.match(ui, /persistInspectorNotes/);
   assert.match(ui, /inspectorDetail/);
   assert.match(ui, /syncInspector/);
+  assert.match(ui, /inspectorToggleLabel\.hidden = inspectorCollapsed/);
+  assert.match(ui, /inspectorToggleIcon\.hidden = !inspectorCollapsed/);
+  assert.match(ui, /setAttribute\("aria-label", toggleName\)/);
+  assert.match(ui, /Show inspector/);
+  assert.equal(
+    /inspectorToggleLabel\.textContent = inspectorCollapsed \? "Show"/.test(ui),
+    false,
+    "collapsed expand control is an icon, not a Show label",
+  );
   assert.match(css, /\.inspector\.is-collapsed/);
   assert.match(css, /\.inspector-body\[hidden\]\s*\{[^}]*display:\s*none/);
+  const collapsedToggle = css.match(/\.inspector\.is-collapsed \.inspector-toggle\s*\{[^}]+\}/);
+  assert.ok(collapsedToggle, "collapsed toggle rule exists");
+  assert.match(collapsedToggle[0]!, /width:\s*28px/);
+  assert.match(collapsedToggle[0]!, /height:\s*28px/);
+  assert.equal(/width:\s*100%/.test(collapsedToggle[0]!), false, "collapsed toggle does not stretch");
+  const toggleIcon = css.match(/\.inspector-toggle-icon\s*\{[^}]+\}/);
+  assert.ok(toggleIcon, "toggle icon rule exists");
+  assert.match(toggleIcon[0]!, /width:\s*16px/);
+  assert.match(toggleIcon[0]!, /height:\s*16px/);
 });
