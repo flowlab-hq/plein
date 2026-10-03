@@ -316,7 +316,7 @@ Direction is optional. The Mac viewer defaults to **ELK Layered** (not organic) 
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
-The Mac chrome previews direction from **Layout → Options** (File / TB / BT / LR / RL) without rewriting the file. **Auto layout** and **Mode** stay on the diagram chrome, one click away, in the same **Layout** group.
+The Mac chrome previews direction from **Layout → Options** (File / TB / BT / LR / RL) without rewriting the file. **Auto layout** and **Mode** open from that same **Layout** menu. The active auto layout and mode stay written on the menu.
 
 ### Turning auto-layout off
 
@@ -340,7 +340,7 @@ viewpoint story "Story" {
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
-The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away. **Save** (File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
+The Mac diagram chrome **Auto layout** choices (File / On / Off) open from the **Layout** menu. The active choice stays on that menu. **Save** (File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
 
 | Choice | Effect |
 | --- | --- |
@@ -378,7 +378,7 @@ viewpoint applicationProcess "Application Process" {
 
 Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
 
-The Mac diagram chrome is one row: **Layout**, **View**, and **Grid**. **Layout** keeps **Auto layout** (File / On / Off), **Mode** (Default / Layered / Layers / Organic / Grid), and **Options** one click away. **Options** in that group holds **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Nesting**. **View** holds optional **Focus**. **Grid** holds **Lines** (show or hide the snap grid) and **Snap spacing**, secondary in that group rather than its own row. Hovering **Lines** or **Snap spacing** says the snap step is how far boxes jump, not the drawn square size; drawn density stays tied to zoom. Those choices are local preview and are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload. **Save** writes that freeze as `autoLayout off` and `position` clauses; **On** does not.
+The Mac diagram chrome is one row of menus: **Layout**, **View**, and **Grid**. The row does not scroll. **Layout** opens **Auto layout** (File / On / Off), **Mode** (Default / Layered / Layers / Organic / Grid), and **Options**; the active auto layout and mode stay on the menu. **Options** in that menu holds **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Nesting**. **View** opens optional **Focus** (Off / On); the current choice stays on the menu. **Grid** opens **Lines** (show or hide the snap grid) and **Snap spacing**; the current lines state and spacing stay on the menu. Hovering **Lines** or **Snap spacing** says the snap step is how far boxes jump, not the drawn square size; drawn density stays tied to zoom. Those choices are local preview and are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload. **Save** writes that freeze as `autoLayout off` and `position` clauses; **On** does not.
 
 ### Layer bands (`autoLayout layers`)
 
@@ -407,7 +407,7 @@ Nested containers are assigned **one** band as a whole: children stay inside the
 
 Within a band, disconnected nodes keep a deterministic kind-then-declaration order (all `business-actor` boxes before `business-process`, and so on) so catalogues stay stable.
 
-The Mac chrome **Mode** control (Default / Layered / Layers / Organic / Grid) sits on the diagram chrome, one click away, and previews a mode without rewriting the file. **Default** follows the open view. It is not a File-menu action. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
+The Mac chrome **Mode** choices (Default / Layered / Layers / Organic / Grid) open from the **Layout** menu and preview a mode without rewriting the file. The active mode stays on that menu. **Default** follows the open view. It is not a File-menu action. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
 
 ### When to use each layout mode
 

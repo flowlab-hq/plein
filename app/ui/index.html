@@ -159,9 +159,12 @@
               role="toolbar"
               aria-label="Layout, view, and grid"
             >
-              <div class="chrome-cluster" role="group" aria-label="Layout">
-                <span class="chrome-cluster-label">Layout</span>
-                <div class="layout-primary">
+              <details id="layout-menu" class="chrome-menu">
+                <summary>
+                  <span class="chrome-menu-label">Layout</span>
+                  <span id="layout-menu-value" class="chrome-menu-value">File · Default</span>
+                </summary>
+                <div class="chrome-menu-panel" role="group" aria-label="Layout">
                   <div class="layout-group">
                     <span class="layout-kicker" title="Auto layout">Auto</span>
                     <div
@@ -182,29 +185,9 @@
                       title="Default follows autoLayout in the .plein (layered, layers, organic, or grid). Other choices override for local preview only. Layered stays the default."
                     ></div>
                   </div>
-                </div>
-                <div class="layout-overflow">
-                  <button
-                    type="button"
-                    id="layout-options"
-                    class="layout-options"
-                    aria-expanded="false"
-                    aria-controls="layout-options-panel"
-                    title="Layout. Direction, routing, and nesting. Local preview only — not written back to the file."
-                  >
-                    <span class="layout-options-label">Options</span>
-                    <span id="layout-options-summary" class="layout-options-summary" hidden></span>
-                    <span class="layout-options-chevron" aria-hidden="true"></span>
-                  </button>
-                  <div
-                    id="layout-options-panel"
-                    class="layout-options-panel"
-                    role="group"
-                    aria-label="Layout"
-                    hidden
-                  >
-                    <section class="chrome-section" aria-label="Layout">
-                      <h3 class="chrome-section-label">Layout</h3>
+                  <div id="layout-options" class="chrome-menu-section">
+                    <h3 class="chrome-menu-heading">Options</h3>
+                    <div id="layout-options-panel" class="chrome-menu-options" role="group" aria-label="Layout options">
                       <div class="layout-group">
                         <span class="layout-kicker">Direction</span>
                         <div
@@ -235,46 +218,56 @@
                           title="File default is source of truth for PRs. Nested/Beside override is local preview only."
                         ></div>
                       </div>
-                    </section>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="chrome-cluster" role="group" aria-label="View">
-                <span class="chrome-cluster-label">View</span>
-                <div class="layout-group">
-                  <span class="layout-kicker">Focus</span>
-                  <span class="chrome-optional">optional</span>
-                  <div
-                    id="focus-switcher"
-                    class="layout-switcher"
-                    role="radiogroup"
-                    aria-label="Focus mode, optional"
-                    title="Optional. On shades the canvas outside the selected element and one hop out. Off leaves every box fully visible. Default is on, so the shade stays as it is until you turn it off."
-                  ></div>
+              </details>
+              <details id="view-menu" class="chrome-menu">
+                <summary>
+                  <span class="chrome-menu-label">View</span>
+                  <span id="view-menu-value" class="chrome-menu-value">Focus On</span>
+                </summary>
+                <div class="chrome-menu-panel" role="group" aria-label="View">
+                  <div class="layout-group">
+                    <span class="layout-kicker">Focus</span>
+                    <span class="chrome-optional">optional</span>
+                    <div
+                      id="focus-switcher"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Focus mode, optional"
+                      title="Optional. On shades the canvas outside the selected element and one hop out. Off leaves every box fully visible. Default is on, so the shade stays as it is until you turn it off."
+                    ></div>
+                  </div>
                 </div>
-              </div>
-              <div class="chrome-cluster" role="group" aria-label="Grid">
-                <span class="chrome-cluster-label">Grid</span>
-                <button
-                  type="button"
-                  id="canvas-grid-toggle"
-                  class="canvas-grid-toggle"
-                  aria-pressed="true"
-                  title="Hide the snap lines. Hiding the lines does not turn snap off. Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom."
-                >
-                  Lines
-                </button>
-                <div class="layout-group chrome-secondary">
-                  <span class="layout-kicker">Spacing</span>
-                  <div
-                    id="canvas-grid-size"
-                    class="layout-switcher"
-                    role="radiogroup"
-                    aria-label="Snap spacing"
-                    title="Snap step: How far boxes jump on snap, in model units. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden. Default is 24."
-                  ></div>
+              </details>
+              <details id="grid-menu" class="chrome-menu">
+                <summary>
+                  <span class="chrome-menu-label">Grid</span>
+                  <span id="grid-menu-value" class="chrome-menu-value">Lines · 24</span>
+                </summary>
+                <div class="chrome-menu-panel" role="group" aria-label="Grid">
+                  <button
+                    type="button"
+                    id="canvas-grid-toggle"
+                    class="canvas-grid-toggle"
+                    aria-pressed="true"
+                    title="Hide the snap lines. Hiding the lines does not turn snap off. Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom."
+                  >
+                    Lines
+                  </button>
+                  <div class="layout-group">
+                    <span class="layout-kicker">Spacing</span>
+                    <div
+                      id="canvas-grid-size"
+                      class="layout-switcher"
+                      role="radiogroup"
+                      aria-label="Snap spacing"
+                      title="Snap step: How far boxes jump on snap, in model units. This does not change how large the drawn squares look — that stays tied to zoom. Dragged boxes still snap when the grid is hidden. Default is 24."
+                    ></div>
+                  </div>
                 </div>
-              </div>
+              </details>
             </div>
           </div>
           <div id="diagram" class="diagram" title="Scroll to pan. ⌘ or Ctrl and scroll to zoom toward the pointer (25%–400%). Shift-click toggles a box or edge. Drag empty canvas to marquee-select. Focus is optional and on by default: selecting one element shades the rest of the canvas so that element, relationships that start from it, and the elements they point to stay fully visible. Turn Focus off under View to leave every box fully visible. Click empty canvas or press Escape to clear the selection and restore the canvas. Auto layout off snaps dragged boxes to the grid and moves a multi-selection together. Drag a left, right, top, or bottom edge to resize that box. Right-click a box to link it to a view. Double-click a linked box, or choose Open from that menu, to switch the canvas to that view."></div>
