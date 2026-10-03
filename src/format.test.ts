@@ -63,6 +63,7 @@ function project(model: PleinModel) {
         target: relationship.target,
         accessType: relationship.accessType ?? null,
         modifier: relationship.modifier ?? null,
+        multiplicity: relationship.multiplicity ?? null,
         container: relationship.container ?? null,
         synthetic: relationship.synthetic ?? false,
       }))

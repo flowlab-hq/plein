@@ -45,6 +45,7 @@ GOLDEN=(
   fixtures/valid-view-link.plein
   fixtures/valid-notes.plein
   fixtures/valid-relationship-modifiers.plein
+  fixtures/valid-relationship-multiplicity.plein
   fixtures/samples/value-stream-demo.plein
   fixtures/samples/research-data.plein
   fixtures/open-exchange/booking.plein
@@ -64,6 +65,7 @@ EXPECTED_FAIL=(
   fixtures/invalid-view-link.plein
   fixtures/invalid-access-type.plein
   fixtures/invalid-influence-modifier.plein
+  fixtures/invalid-multiplicity.plein
 )
 
 fail() {

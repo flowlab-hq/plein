@@ -279,9 +279,13 @@ Plein supports these eleven relationship types:
 
 An access relationship may name the Open Exchange access type. An influence relationship may name the strength. The values are the exchange enumerations (`Access`, `Read`, `Write`, `ReadWrite`, and `+`, `++`, `-`, `--`, or `0` through `10`). `plein check` rejects anything else. The Mac canvas draws that value on the edge.
 
+Any relationship may also name one multiplicity. The value is `*`, a whole number, or a range such as `0..1` or `1..*`. `plein check` rejects anything else. Leaving the clause off is the same relationship as before. The Mac canvas draws that value on the edge. This is one label, not a UML association editor: no roles, navigability, or end names.
+
 ```plein
 booking -> order: access accessType Write
 risk -> onTime: influence modifier "-"
+shipper -> clerk: association multiplicity "1..*"
+shipper -> order: association
 ```
 
 Not every type may connect every pair of elements. `plein check` accepts a relationship only when the source type, the relationship, and the target type are an allowed ArchiMate pair. The table is [the relationship matrix](relationship-matrix.md) (`src/relationship-matrix-data.ts`). A specialization or profile hook is checked as its catalogue type. A `value-stream-stage` is a value stream, so `capability` `serving` a stage, `application-component` `realization` of a `capability`, and `flow` from stage to stage are allowed. An invalid pair fails with a line diagnostic that names the three parts, for example `invalid relationship 'realization' from 'application-component' to 'business-object'`.
@@ -584,7 +588,7 @@ An element is one line, keys in this order:
 
 Catalogue keywords are kebab-case (`business-actor`, not `businessActor`). A specialization used as the keyword keeps its declared spelling. `hook <name>` is only the form that attaches a hook to a catalogue keyword. `links view <view>` is the canvas link, written after the hook when both are present. `notes "<text>"` is written last. An empty notes string is omitted. A nested stage stays `value-stream-stage` inside its value stream, and `flow` / `triggering` between those stages stay in that body. The composition implied by nesting is not written out again as a relationship.
 
-Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, `composition`, `flow`, and the rest of the [relationships table](#relationships)). An infix verb (`shipper serves booking`) is rewritten to that arrow form. A specialization parent that is a catalogue keyword is kebab-case.
+Relationships are `id -> id: <type>` with the language-reference spellings (`serving`, `composition`, `flow`, and the rest of the [relationships table](#relationships)). An infix verb (`shipper serves booking`) is rewritten to that arrow form. An access `accessType` or an influence `modifier` stays on that line. A multiplicity is written last, as a string: `shipper -> clerk: association multiplicity "1..*"`. A specialization parent that is a catalogue keyword is kebab-case.
 
 ### View clause order
 
@@ -735,7 +739,7 @@ That sample follows the same patterns as the golden fixtures: `plein {`, kebab-c
 
 `plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. `plein export-open-exchange` writes that same subset back to XML. The Mac app’s **File → Import Open Exchange XML…** uses that same importer, and **File → Export…** → **Open Exchange** uses that same exporter. The mapping, the representative fixture, and the gaps are [Open Exchange import and export](open-exchange-import.md). HTML/SVG export is a different command (`plein export`).
 
-Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, diagram membership as viewpoints, an access `accessType`, and an influence `modifier`. Documentation, properties, and extra languages are comments, not first-class syntax. Export does not read those comments. `accessType` and `modifier` are clauses on the relationship line, and export writes them back.
+Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, diagram membership as viewpoints, an access `accessType`, an influence `modifier`, and an optional relationship `multiplicity`. Documentation, properties, and extra languages are comments, not first-class syntax. Export does not read those comments. `accessType` and `modifier` are clauses on the relationship line, and export writes them back. `multiplicity` is a clause on the relationship line and a Mac edge label. The exchange schema has no multiplicity attribute, so export does not write it and import does not read it.
 
 Not imported, and not written on export: diagram geometry and styles, organization folders, junctions, and `value-stream-stage` reconstruction (a `ValueStream` stays one element; composition stays a relationship). Round-trip of the booking fixture keeps elements, relationships, and views; the known text deltas are in that doc.
 
@@ -745,7 +749,7 @@ A validator should follow the [grammar](grammar.md) for what parses, then check,
 
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
-3. Each relationship uses one of the eleven supported types and has exactly one source and target. An access relationship may carry `accessType` (`Access`, `Read`, `Write`, or `ReadWrite`). An influence relationship may carry `modifier` (`+`, `++`, `-`, `--`, or `0` through `10`). Any other value fails at `file:line:column`.
+3. Each relationship uses one of the eleven supported types and has exactly one source and target. An access relationship may carry `accessType` (`Access`, `Read`, `Write`, or `ReadWrite`). An influence relationship may carry `modifier` (`+`, `++`, `-`, `--`, or `0` through `10`). Any relationship may carry `multiplicity` (`*`, a whole number, or a range such as `0..1` or `1..*`). Any other value fails at `file:line:column`.
 4. The source type, relationship, and target type are an allowed pair in the [relationship matrix](relationship-matrix.md). Specializations and profile hooks are checked as their catalogue type. `value-stream-stage` is a value stream. An invalid pair fails with `invalid relationship '<relationship>' from '<source-type>' to '<target-type>'` at `file:line:column`.
 5. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`, including hooks inside `profile <name> { ... }`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`. `hook <name>` is accepted only for a specialization declared in a profile; an undeclared hook is `undeclared profile hook '…'`.
 6. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.

@@ -4,6 +4,7 @@
  * `importOpenExchange` reads the documented subset into `.plein`.
  * `exportOpenExchange` writes that same subset back out. Access `accessType`
  * and influence `modifier` are typed relationship clauses and round-trip.
+ * Relationship `multiplicity` is not an exchange attribute, so it is not written.
  * Other comment breadcrumbs from import are not an exchange format — see
  * docs/open-exchange-import.md for the round-trip deltas.
  */

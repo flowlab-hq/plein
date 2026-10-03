@@ -915,3 +915,113 @@ test("accessType and modifier stay relationship sources when they are not clause
     true,
   );
 });
+
+const MULTIPLICITY_MODEL = `model {
+  business-actor "Shipper" as shipper
+  business-role "Booking clerk" as clerk
+  business-object "Freight order" as order
+  business-service "Booking service" as booking
+`;
+
+test("a relationship multiplicity is optional and formats to a quoted clause", () => {
+  const source = `${MULTIPLICITY_MODEL}
+  shipper -> clerk: association multiplicity "1..*"
+  shipper -> order: association
+  shipper association clerk multiplicity 0..1
+  shipper -> booking: serving multiplicity *
+  shipper -> order: access multiplicity 1
+}
+`;
+  const model = checkPlein(source, "multiplicity.plein");
+  assert.equal(model.relationships[0]?.multiplicity, "1..*");
+  assert.equal(model.relationships[1]?.multiplicity, undefined);
+  assert.equal(model.relationships[2]?.multiplicity, "0..1");
+  assert.equal(model.relationships[3]?.multiplicity, "*");
+  assert.equal(model.relationships[4]?.multiplicity, "1");
+  assert.equal(model.relationships[1]?.type, "associatedWith");
+
+  const formatted = formatPleinSource(source, "multiplicity.plein");
+  assert.match(formatted, /shipper -> clerk: association multiplicity "1\.\.\*"/);
+  assert.match(formatted, /shipper -> order: association\n/);
+  assert.match(formatted, /shipper -> clerk: association multiplicity "0\.\.1"/);
+  assert.match(formatted, /shipper -> booking: serving multiplicity "\*"/);
+  assert.match(formatted, /shipper -> order: access multiplicity "1"/);
+  assert.doesNotMatch(formatted, /multiplicity 1\b|multiplicity \*|multiplicity 0\.\.1/);
+
+  const plain = checkPlein(readFixture("valid-basic.plein"), "fixtures/valid-basic.plein");
+  assert.equal(plain.relationships.every((relationship) => relationship.multiplicity === undefined), true);
+});
+
+test("plein check rejects a multiplicity that is not a bound or a range", () => {
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association multiplicity "many"\n}\n`,
+        "bad-multiplicity.plein",
+      ),
+    /bad-multiplicity\.plein:\d+:\d+: unknown multiplicity 'many' \(expected \*, a whole number, or a range such as 0\.\.1 or 1\.\.\*\)/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association multiplicity 2..1\n}\n`,
+        "reversed-multiplicity.plein",
+      ),
+    /unknown multiplicity '2\.\.1'/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association multiplicity "01"\n}\n`,
+        "leading-zero.plein",
+      ),
+    /unknown multiplicity '01'/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association multiplicity "1" multiplicity "*"\n}\n`,
+        "duplicate-multiplicity.plein",
+      ),
+    /duplicate multiplicity clause/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association multiplicity\n}\n`,
+        "bare-multiplicity.plein",
+      ),
+    /expected a multiplicity after 'multiplicity'/,
+  );
+});
+
+test("multiplicity stays a relationship source or an element keyword when it is not a clause", () => {
+  const source = `${MULTIPLICITY_MODEL}
+  multiplicity -> clerk: association
+  shipper -> clerk: association
+}
+`;
+  const model = checkPlein(
+    source.replace(
+      "business-actor \"Shipper\" as shipper",
+      "business-actor \"Shipper\" as shipper\n  business-actor \"Multiplicity\" as multiplicity",
+    ),
+    "multiplicity-source.plein",
+  );
+  const typed = model.relationships.find((relationship) => relationship.source === "shipper");
+  assert.equal(typed?.multiplicity, undefined);
+  assert.equal(
+    model.relationships.some(
+      (relationship) => relationship.source === "multiplicity" && relationship.type === "associatedWith",
+    ),
+    true,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MULTIPLICITY_MODEL}\n  shipper -> clerk: association\n  multiplicity "Desk" as desk\n}\n`,
+        "multiplicity-element.plein",
+      ),
+    /unknown keyword 'multiplicity' \(undeclared specialization\)/,
+  );
+});

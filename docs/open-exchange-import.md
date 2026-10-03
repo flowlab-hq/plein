@@ -112,6 +112,8 @@ All eleven Plein relationship types. Direction is unchanged: Open Exchange `sour
 
 `accessType` and the influence `modifier` are typed clauses on the relationship line, not comments. Import writes `access accessType Write` and `influence modifier "-"`. Export writes the Open Exchange attributes back (`accessType="Write"`, `modifier="-"`). `plein check` accepts `Access`, `Read`, `Write`, and `ReadWrite`, and influence strengths `+`, `++`, `-`, `--`, and `0` through `10`. Any other value fails the import because the generated `.plein` fails `plein check`. A relationship `name` or `documentation` is still a comment. Relationship identifiers are not kept — `.plein` relationships have no ids.
 
+Relationship `multiplicity` is not an exchange attribute. The 3.1 schema gives Access `accessType`, Influence `modifier`, and Association `isDirected`. It does not give a relationship a multiplicity. Import does not read one, and export does not invent an attribute or a property for the `.plein` clause. The clause stays in the text model and on the Mac edge.
+
 A relationship with a missing endpoint, an unknown type, or the same id on both ends fails the import.
 
 ### Views
@@ -195,6 +197,7 @@ Other deltas:
 - `*`, a type keyword, and `exclude` become an explicit id list. Relationship selectors are not written.
 - An element id that is a keyword or a view clause (`node`, `include`, …) is rewritten on import (`xe-node`). Export writes the `.plein` id as-is.
 - A `value-stream-stage` is already a `value-stream` element plus `composition` in the parser. Export writes `ValueStream` and `Composition`. It does not invent stage bodies.
+- A relationship `multiplicity` clause. The 3.1 schema has no multiplicity attribute, so export leaves it out and the next import does not bring it back. The Mac edge label still shows the clause from the `.plein` file.
 
 ### Dropped on import
 

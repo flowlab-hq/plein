@@ -18,7 +18,7 @@ import {
 } from "./label-fit.js";
 import { filterModel } from "./list-model.js";
 import {
-  relationshipModifierLabel,
+  relationshipEdgeLabel,
   type ElementDecl,
   type PleinModel,
   type RelationshipDecl,
@@ -278,8 +278,8 @@ export type LayoutEdge = {
   /** True when containment already shows this composedOf/aggregates edge. */
   impliedByNest?: boolean;
   /**
-   * Typed access type or influence strength, drawn on the edge.
-   * Absent for every other relationship and when the clause was omitted.
+   * Typed access type, influence strength, or multiplicity, drawn on the edge.
+   * Absent when the relationship has none of those clauses.
    */
   label?: string;
 };
@@ -711,7 +711,7 @@ export async function layoutViewpoint(
       throw new Error(`layout missing endpoint for ${edgeId(rel.source, rel.target, rel.type)}`);
     }
     const id = edgeId(rel.source, rel.target, rel.type);
-    const label = relationshipModifierLabel(rel);
+    const label = relationshipEdgeLabel(rel);
     const impliedByNest = Boolean(
       NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source,
     );
@@ -954,7 +954,7 @@ ${shaft}${tip}${label}
     </g>`;
 }
 
-/** Access type or influence strength, centered on the drawn shaft. */
+/** Access type, influence strength, or multiplicity, centered on the drawn shaft. */
 const EDGE_LABEL_FONT = 13;
 const EDGE_LABEL_HEIGHT = 18;
 

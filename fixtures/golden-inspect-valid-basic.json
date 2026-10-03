@@ -41,7 +41,8 @@
       "target": "booking",
       "line": 8,
       "accessType": null,
-      "modifier": null
+      "modifier": null,
+      "multiplicity": null
     },
     {
       "type": "accesses",
@@ -49,7 +50,8 @@
       "target": "order",
       "line": 9,
       "accessType": null,
-      "modifier": null
+      "modifier": null,
+      "multiplicity": null
     },
     {
       "type": "serves",
@@ -57,7 +59,8 @@
       "target": "rates",
       "line": 10,
       "accessType": null,
-      "modifier": null
+      "modifier": null,
+      "multiplicity": null
     },
     {
       "type": "accesses",
@@ -65,7 +68,8 @@
       "target": "order",
       "line": 11,
       "accessType": null,
-      "modifier": null
+      "modifier": null,
+      "multiplicity": null
     }
   ],
   "views": [

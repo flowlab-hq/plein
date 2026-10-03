@@ -170,6 +170,9 @@ Access and Influence carry one optional modifier each. The clause sits on the re
 | --- | --- | --- | --- |
 | Access | `accessType <type>` | `accessType` | `Access`, `Read`, `Write`, `ReadWrite` |
 | Influence | `modifier "<strength>"` | `modifier` | `+`, `++`, `-`, `--`, `0` through `10` |
+| Any | `multiplicity "<value>"` | — | `*`, a whole number, or a range such as `0..1` or `1..*` |
+
+The exchange schema has no multiplicity attribute. `multiplicity` stays in the `.plein` file and on the Mac edge. Export does not write it, and import does not read it.
 
 The Specialization relationship connects two elements (`acme -> carrier: specialization`). A specialization declaration connects two concepts. The next section is that second construct.
 

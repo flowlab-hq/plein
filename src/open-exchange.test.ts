@@ -588,3 +588,22 @@ test("plein export-open-exchange writes XML and leaves plein export alone", () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("Open Exchange export does not invent an attribute for relationship multiplicity", () => {
+  const file = "fixtures/valid-relationship-multiplicity.plein";
+  const model = checkPlein(readFileSync(join(repoRoot, file), "utf8"), file);
+  assert.equal(model.relationships[0]?.multiplicity, "1..*");
+  assert.equal(model.relationships[1]?.multiplicity, undefined);
+
+  const exported = exportOpenExchange(model, { file });
+  assert.match(exported.xml, /source="shipper" target="clerk" xsi:type="Association"\/>/);
+  assert.doesNotMatch(exported.xml, /multiplicity=/);
+
+  const again = importOpenExchange(exported.xml, "round-trip.xml");
+  assert.doesNotMatch(again.source, /multiplicity "/);
+  const roundTrip = checkPlein(again.source, "multiplicity.xml");
+  assert.equal(
+    roundTrip.relationships.every((relationship) => relationship.multiplicity === undefined),
+    true,
+  );
+});

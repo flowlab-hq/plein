@@ -1,0 +1,7 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-role "Booking clerk" as clerk
+    shipper -> clerk: association multiplicity "many"
+  }
+}

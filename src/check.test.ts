@@ -191,6 +191,24 @@ test("plein check exits 0 on fixtures/valid-relationship-modifiers.plein", () =>
   assert.match(result.stdout, /2 views/);
 });
 
+test("plein check exits 0 on fixtures/valid-relationship-multiplicity.plein", () => {
+  const result = runCheck("fixtures/valid-relationship-multiplicity.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-relationship-multiplicity\.plein/);
+  assert.match(result.stdout, /3 elements/);
+  assert.match(result.stdout, /2 relationships/);
+  assert.match(result.stdout, /1 views/);
+});
+
+test("plein check rejects an invalid multiplicity", () => {
+  const result = runCheck("fixtures/invalid-multiplicity.plein");
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /invalid-multiplicity\.plein:\d+:\d+: unknown multiplicity 'many' \(expected \*, a whole number, or a range such as 0\.\.1 or 1\.\.\*\)/,
+  );
+});
+
 test("plein check rejects an invalid access type and an invalid influence modifier", () => {
   const access = runCheck("fixtures/invalid-access-type.plein");
   assert.notEqual(access.status, 0);

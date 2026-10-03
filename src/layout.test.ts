@@ -3306,6 +3306,16 @@ function assertNodeChromeUnchanged(svg: string, node: LayoutNode): void {
   );
 }
 
+test("renderViewpointSvg draws a multiplicity on the edge and leaves an unlabeled edge blank", async () => {
+  const file = "fixtures/valid-relationship-multiplicity.plein";
+  const model = checkPlein(readFileSync(join(repoRoot, file), "utf8"), file);
+  const svg = renderViewpointSvg(await layoutViewpoint(model, "booking"));
+
+  assertEdgeModifierLabel(svg, "shipper->clerk:associatedWith", "1..*");
+  assert.equal(svg.includes('data-edge-label="1..*"'), true);
+  assert.doesNotMatch(edgeGroup(svg, "shipper->order:associatedWith"), /data-edge-label/);
+});
+
 test("renderViewpointSvg draws the typed modifier on Access and Influence edges", async () => {
   const file = "fixtures/valid-relationship-modifiers.plein";
   const model = checkPlein(readFileSync(join(repoRoot, file), "utf8"), file);

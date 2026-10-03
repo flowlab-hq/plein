@@ -4,6 +4,7 @@ export {
   INFLUENCE_MODIFIERS,
   parsePlein,
   ParseError,
+  relationshipEdgeLabel,
   relationshipModifierLabel,
   relationshipModifierSource,
   type AccessType,

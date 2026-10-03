@@ -22,6 +22,8 @@ export type InspectRelationship = {
   accessType: string | null;
   /** Influence strength, or `null` when the relationship is not a typed influence. */
   modifier: string | null;
+  /** Multiplicity, or `null` when the clause is omitted. */
+  multiplicity: string | null;
 };
 
 /** One `position` clause. Present even when this view’s auto-layout is on. */
@@ -117,6 +119,7 @@ export function inspectModel(model: PleinModel, file: string): InspectDump {
       line: relationship.line,
       accessType: relationship.accessType ?? null,
       modifier: relationship.modifier ?? null,
+      multiplicity: relationship.multiplicity ?? null,
     })),
     views: model.views.map(inspectView),
   };

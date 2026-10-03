@@ -1,0 +1,20 @@
+plein {
+  model {
+    business-actor "Shipper" as shipper
+    business-role "Booking clerk" as clerk
+    business-object "Freight order" as order
+
+    shipper -> clerk: association multiplicity "1..*"
+    shipper -> order: association
+  }
+
+  views {
+    viewpoint booking "Booking" {
+      include shipper, clerk, order
+      autoLayout off
+      position shipper 48 72
+      position clerk 340 72
+      position order 340 240
+    }
+  }
+}

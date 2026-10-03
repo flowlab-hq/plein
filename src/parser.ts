@@ -129,6 +129,11 @@ export type RelationshipDecl = {
    * One of `+`, `++`, `-`, `--`, or `0` through `10`. Absent when the clause is omitted.
    */
   modifier?: string;
+  /**
+   * Optional multiplicity on any relationship.
+   * `*`, a whole number, or a range such as `0..1` or `1..*`. Absent when the clause is omitted.
+   */
+  multiplicity?: string;
 };
 
 /**
@@ -168,9 +173,9 @@ export type InfluenceModifier = (typeof INFLUENCE_MODIFIERS)[number];
 const ACCESS_TYPE_SET = new Set<string>(ACCESS_TYPES);
 const INFLUENCE_MODIFIER_SET = new Set<string>(INFLUENCE_MODIFIERS);
 
-/** Canonical relationship-line suffix for a typed access type or influence strength. */
+/** Canonical relationship-line suffix for a typed modifier and an optional multiplicity. */
 export function relationshipModifierSource(
-  relationship: Pick<RelationshipDecl, "accessType" | "modifier">,
+  relationship: Pick<RelationshipDecl, "accessType" | "modifier" | "multiplicity">,
 ): string {
   const parts: string[] = [];
   if (relationship.accessType) {
@@ -178,6 +183,9 @@ export function relationshipModifierSource(
   }
   if (relationship.modifier !== undefined) {
     parts.push(`modifier "${relationship.modifier}"`);
+  }
+  if (relationship.multiplicity !== undefined) {
+    parts.push(`multiplicity "${relationship.multiplicity}"`);
   }
   return parts.length > 0 ? ` ${parts.join(" ")}` : "";
 }
@@ -187,6 +195,47 @@ export function relationshipModifierLabel(
   relationship: Pick<RelationshipDecl, "accessType" | "modifier">,
 ): string | undefined {
   return relationship.accessType ?? relationship.modifier;
+}
+
+/** Text drawn on a relationship edge: the typed modifier, the multiplicity, or both. */
+export function relationshipEdgeLabel(
+  relationship: Pick<RelationshipDecl, "accessType" | "modifier" | "multiplicity">,
+): string | undefined {
+  const typed = relationshipModifierLabel(relationship);
+  if (relationship.multiplicity === undefined) {
+    return typed;
+  }
+  return typed === undefined ? relationship.multiplicity : `${typed} ${relationship.multiplicity}`;
+}
+
+/**
+ * A multiplicity `plein check` accepts.
+ * `*`, a whole number without a leading zero (`0`, `1`, `12`), or
+ * `lower..upper` / `lower..*` with `lower` <= `upper`.
+ */
+export function isRelationshipMultiplicity(value: string): boolean {
+  if (value === "*") {
+    return true;
+  }
+  const match = /^(0|[1-9]\d*)(?:\.\.(\*|(?:0|[1-9]\d*)))?$/.exec(value);
+  if (!match) {
+    return false;
+  }
+  const upper = match[2];
+  if (upper === undefined || upper === "*") {
+    return true;
+  }
+  return compareWholeNumbers(match[1]!, upper) <= 0;
+}
+
+function compareWholeNumbers(left: string, right: string): number {
+  if (left.length !== right.length) {
+    return left.length < right.length ? -1 : 1;
+  }
+  if (left === right) {
+    return 0;
+  }
+  return left < right ? -1 : 1;
 }
 
 /** Top-left of one element when auto-layout is off. Ignored while auto-layout is on. */
@@ -369,6 +418,7 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "notes",
   "accessType",
   "modifier",
+  "multiplicity",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -1186,23 +1236,26 @@ class Parser {
       ...(comments.length > 0 ? { leadingComments: comments } : {}),
       ...(modifiers.accessType !== undefined ? { accessType: modifiers.accessType } : {}),
       ...(modifiers.modifier !== undefined ? { modifier: modifiers.modifier } : {}),
+      ...(modifiers.multiplicity !== undefined ? { multiplicity: modifiers.multiplicity } : {}),
     });
   }
 
   /**
-   * Optional `accessType` or `modifier` clause after the relationship type.
+   * Optional `accessType`, `modifier`, or `multiplicity` clause after the type.
    * `accessType` is the clause only when the next token is an identifier that
    * is not a relationship spelling, so `accessType -> order: access` stays a
-   * source. `modifier` is the clause only when the next token is a strength
-   * and a string is not followed by `as`, so `modifier "Label" as id` stays
-   * an element.
+   * source. `modifier` and `multiplicity` are clauses only when the next token
+   * is a value and a string is not followed by `as`, so `modifier "Label" as id`
+   * stays an element.
    */
   private takeRelationshipModifiers(type: RelationshipKeyword): {
     accessType?: string;
     modifier?: string;
+    multiplicity?: string;
   } {
     const accessType = this.takeAccessTypeClause(type);
     const modifier = this.takeInfluenceModifierClause(type);
+    const multiplicity = this.takeMultiplicityClause();
     if (accessType !== undefined && this.startsAccessTypeClause()) {
       const token = this.peek();
       throw new ParseError("duplicate accessType clause", this.file, token.line, token.column);
@@ -1211,9 +1264,14 @@ class Parser {
       const token = this.peek();
       throw new ParseError("duplicate modifier clause", this.file, token.line, token.column);
     }
+    if (multiplicity !== undefined && this.startsMultiplicityClause()) {
+      const token = this.peek();
+      throw new ParseError("duplicate multiplicity clause", this.file, token.line, token.column);
+    }
     return {
       ...(accessType !== undefined ? { accessType } : {}),
       ...(modifier !== undefined ? { modifier } : {}),
+      ...(multiplicity !== undefined ? { multiplicity } : {}),
     };
   }
 
@@ -1306,6 +1364,75 @@ class Parser {
       token.line,
       token.column,
     );
+  }
+
+  /**
+   * `multiplicity` is a clause when a value follows it.
+   * `multiplicity -> clerk: association` stays a relationship source.
+   * `multiplicity "Label" as id` stays an element.
+   */
+  private startsMultiplicityClause(): boolean {
+    if (!this.checkIdent("multiplicity")) {
+      return false;
+    }
+    const next = this.tokens[this.index + 1];
+    if (!next || next.kind === "->" || (next.kind === "ident" && isRelationshipKeyword(next.value))) {
+      return false;
+    }
+    if (next.kind === "string") {
+      const after = this.tokens[this.index + 2];
+      return !(after?.kind === "ident" && after.value === "as");
+    }
+    return true;
+  }
+
+  private takeMultiplicityClause(): string | undefined {
+    if (!this.startsMultiplicityClause()) {
+      return undefined;
+    }
+    this.advance();
+    return this.readMultiplicity();
+  }
+
+  /** A quoted value, a number, `*`, or `bound..bound`. Check accepts the value set. */
+  private readMultiplicity(): string {
+    const token = this.peek();
+    if (token.kind === "string") {
+      this.advance();
+      return token.value;
+    }
+    if (token.kind === "number" || (token.kind === "ident" && token.value === "*")) {
+      this.advance();
+      return this.finishMultiplicity(token.value);
+    }
+    throw new ParseError(
+      "expected a multiplicity after 'multiplicity'",
+      this.file,
+      token.line,
+      token.column,
+    );
+  }
+
+  /** Append `..` and an upper bound when those tokens are present. */
+  private finishMultiplicity(lower: string): string {
+    const dot = this.peek();
+    const second = this.tokens[this.index + 1];
+    if (!(dot.kind === "other" && dot.value === "." && second?.kind === "other" && second.value === ".")) {
+      return lower;
+    }
+    const upper = this.tokens[this.index + 2];
+    if (!upper || (upper.kind !== "number" && !(upper.kind === "ident" && upper.value === "*"))) {
+      throw new ParseError(
+        "expected a number or '*' after '..' in a multiplicity",
+        this.file,
+        second.line,
+        second.column,
+      );
+    }
+    this.advance();
+    this.advance();
+    this.advance();
+    return `${lower}..${upper.value}`;
   }
 
   private parseViews(): void {
@@ -1812,6 +1939,14 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
     if (rel.modifier !== undefined && !INFLUENCE_MODIFIER_SET.has(rel.modifier)) {
       throw new ParseError(
         `unknown influence modifier '${rel.modifier}' (expected +, ++, -, --, or 0 through 10)`,
+        file,
+        rel.line,
+        rel.column,
+      );
+    }
+    if (rel.multiplicity !== undefined && !isRelationshipMultiplicity(rel.multiplicity)) {
+      throw new ParseError(
+        `unknown multiplicity '${rel.multiplicity}' (expected *, a whole number, or a range such as 0..1 or 1..*)`,
         file,
         rel.line,
         rel.column,
