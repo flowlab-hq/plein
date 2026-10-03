@@ -14,7 +14,7 @@ const goldenPath = join(repoRoot, "fixtures", "golden-inspect-valid-basic.json")
 
 const DUMP_KEYS = ["file", "elements", "relationships", "views"];
 const ELEMENT_KEYS = ["keyword", "label", "id", "line", "linksView", "notes"];
-const RELATIONSHIP_KEYS = ["type", "source", "target", "line"];
+const RELATIONSHIP_KEYS = ["type", "source", "target", "line", "accessType", "modifier"];
 const VIEW_KEYS = [
   "name",
   "viewpoint",

@@ -162,7 +162,14 @@ The matrix letter is the cell encoding in [`src/relationship-matrix-data.ts`](..
 | Specialization | `specialization` | `specializes` | `Specialization` | `s` |
 | Association | `association` | `associatedWith` | `Association` | `o` |
 
-Junctions (And, Or) are not relationships and not elements in `.plein`. Import skips them. Access type and influence strength are not syntax.
+Junctions (And, Or) are not relationships and not elements in `.plein`. Import skips them.
+
+Access and Influence carry one optional modifier each. The clause sits on the relationship line. `plein check` accepts only the Open Exchange enumerations below. The Mac renderer draws that value on the edge.
+
+| Relationship | Clause | Open Exchange attribute | Values |
+| --- | --- | --- | --- |
+| Access | `accessType <type>` | `accessType` | `Access`, `Read`, `Write`, `ReadWrite` |
+| Influence | `modifier "<strength>"` | `modifier` | `+`, `++`, `-`, `--`, `0` through `10` |
 
 The Specialization relationship connects two elements (`acme -> carrier: specialization`). A specialization declaration connects two concepts. The next section is that second construct.
 

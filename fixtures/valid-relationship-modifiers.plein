@@ -1,0 +1,36 @@
+plein {
+  model {
+    business-service "Booking service" as booking
+    business-object "Freight order" as order
+    business-object "Contract" as contract
+    business-object "Representation" as representation
+    data-object "Rate card" as card
+    assessment "Late risk" as risk
+    goal "On-time delivery" as onTime
+    goal "Strong effect" as strong
+    goal "Scored" as scored
+
+    booking -> order: access accessType Write
+    booking -> contract: access accessType Read
+    booking -> representation: access accessType ReadWrite
+    booking -> card: access accessType Access
+    risk -> onTime: influence modifier "-"
+    risk -> strong: influence modifier "++"
+    risk -> scored: influence modifier "10"
+  }
+
+  views {
+    viewpoint access "Access" {
+      include booking, order
+      autoLayout off
+      position booking 48 72
+      position order 340 72
+    }
+    viewpoint influence "Influence" {
+      include risk, onTime
+      autoLayout off
+      position risk 48 72
+      position onTime 340 72
+    }
+  }
+}

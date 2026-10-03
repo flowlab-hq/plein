@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { checkPlein } from "./parser.js";
 import {
   LAYOUT_ENGINE,
   NEST_HEADER_HEIGHT,
@@ -3303,4 +3304,47 @@ function assertNodeChromeUnchanged(svg: string, node: LayoutNode): void {
     ),
     node.id,
   );
+}
+
+test("renderViewpointSvg draws the typed modifier on Access and Influence edges", async () => {
+  const file = "fixtures/valid-relationship-modifiers.plein";
+  const model = checkPlein(readFileSync(join(repoRoot, file), "utf8"), file);
+  const access = renderViewpointSvg(await layoutViewpoint(model, "access"));
+  const influence = renderViewpointSvg(await layoutViewpoint(model, "influence"));
+
+  assertEdgeModifierLabel(access, "booking->order:accesses", "Write");
+  assertEdgeModifierLabel(influence, "risk->onTime:influences", "-");
+  assert.doesNotMatch(access, /data-edge-label="Read"|data-edge-label="\+\+"/);
+  assert.equal(access.includes('data-edge-label="Write"'), true);
+  assert.equal(influence.includes('data-edge-label="-"'), true);
+});
+
+function assertEdgeModifierLabel(svg: string, edgeId: string, label: string): void {
+  const group = edgeGroup(svg, edgeId);
+  const text = new RegExp(
+    `<text data-edge-label="${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" x="([^"]+)" y="([^"]+)"[^>]*>${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</text>`,
+  ).exec(group);
+  assert.ok(text, `${edgeId} label ${label}`);
+  const point = { x: Number(text[1]), y: Number(text[2]) };
+  const points = renderedPolyline(svg, edgeId);
+  let best = Number.POSITIVE_INFINITY;
+  for (let index = 1; index < points.length; index += 1) {
+    best = Math.min(best, distanceToSegment(point, points[index - 1]!, points[index]!));
+  }
+  assert.ok(best < 1, `${edgeId} label sits on the shaft (${best})`);
+}
+
+function distanceToSegment(
+  point: { x: number; y: number },
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) {
+    return Math.hypot(point.x - from.x, point.y - from.y);
+  }
+  const t = Math.min(1, Math.max(0, ((point.x - from.x) * dx + (point.y - from.y) * dy) / (length * length)));
+  return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
 }

@@ -1,0 +1,7 @@
+plein {
+  model {
+    business-service "Booking service" as booking
+    business-object "Freight order" as order
+    booking -> order: access accessType Delete
+  }
+}

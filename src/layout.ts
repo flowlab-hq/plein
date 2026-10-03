@@ -17,7 +17,13 @@ import {
   wrapLabel,
 } from "./label-fit.js";
 import { filterModel } from "./list-model.js";
-import type { ElementDecl, PleinModel, RelationshipDecl, ViewDecl } from "./parser.js";
+import {
+  relationshipModifierLabel,
+  type ElementDecl,
+  type PleinModel,
+  type RelationshipDecl,
+  type ViewDecl,
+} from "./parser.js";
 
 /** Default element box. Short labels stay this size; longer names wrap and may grow. */
 export { MIN_NODE_HEIGHT, MIN_NODE_WIDTH, NODE_HEIGHT, NODE_WIDTH };
@@ -271,6 +277,11 @@ export type LayoutEdge = {
   points?: Array<{ x: number; y: number }>;
   /** True when containment already shows this composedOf/aggregates edge. */
   impliedByNest?: boolean;
+  /**
+   * Typed access type or influence strength, drawn on the edge.
+   * Absent for every other relationship and when the clause was omitted.
+   */
+  label?: string;
 };
 
 /**
@@ -700,6 +711,7 @@ export async function layoutViewpoint(
       throw new Error(`layout missing endpoint for ${edgeId(rel.source, rel.target, rel.type)}`);
     }
     const id = edgeId(rel.source, rel.target, rel.type);
+    const label = relationshipModifierLabel(rel);
     const impliedByNest = Boolean(
       NEST_TYPES.has(rel.type) && parentOf.get(rel.target) === rel.source,
     );
@@ -716,6 +728,7 @@ export async function layoutViewpoint(
       target: rel.target,
       type: rel.type,
       impliedByNest,
+      ...(label ? { label } : {}),
       ...anchors,
     };
   });
@@ -935,9 +948,47 @@ function renderEdge(
   const tip = terminal
     ? `\n      <line x1="${formatCoord(terminal.from.x)}" y1="${formatCoord(terminal.from.y)}" x2="${formatCoord(terminal.to.x)}" y2="${formatCoord(terminal.to.y)}" ${EDGE_STROKE_ATTRS} marker-start="none" marker-mid="none" marker-end="url(#${markerId})" />`
     : "";
+  const label = edge.label ? `\n      ${renderEdgeLabel(points, edge.label)}` : "";
   return `    <g data-edge-id="${escapeXml(edge.id)}">
-${shaft}${tip}
+${shaft}${tip}${label}
     </g>`;
+}
+
+/** Access type or influence strength, centered on the drawn shaft. */
+const EDGE_LABEL_FONT = 13;
+const EDGE_LABEL_HEIGHT = 18;
+
+function renderEdgeLabel(points: ElkPoint[], label: string): string {
+  const mid = polylineMidpoint(points);
+  const width = edgeLabelWidth(label);
+  const x = mid.x - width / 2;
+  const y = mid.y - EDGE_LABEL_HEIGHT / 2;
+  const text = escapeXml(label);
+  return `<rect x="${formatCoord(x)}" y="${formatCoord(y)}" width="${formatCoord(width)}" height="${EDGE_LABEL_HEIGHT}" rx="4" fill="#ffffff" stroke="#d2d2d7" stroke-width="1" pointer-events="none" /><text data-edge-label="${text}" x="${formatCoord(mid.x)}" y="${formatCoord(mid.y)}" text-anchor="middle" dominant-baseline="middle" fill="#1d1d1f" font-size="${EDGE_LABEL_FONT}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" pointer-events="none">${text}</text>`;
+}
+
+function edgeLabelWidth(label: string): number {
+  return 10 + label.length * 8;
+}
+
+function polylineMidpoint(points: ElkPoint[]): ElkPoint {
+  const total = polylineLength(points);
+  const first = points[0];
+  if (!first || points.length === 1 || total <= 0) {
+    return first ?? { x: 0, y: 0 };
+  }
+  let remaining = total / 2;
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!;
+    const to = points[index]!;
+    const span = Math.hypot(to.x - from.x, to.y - from.y);
+    if (remaining <= span || index === points.length - 1) {
+      const t = span <= 0 ? 0 : Math.min(1, remaining / span);
+      return lerp(from, to, t);
+    }
+    remaining -= span;
+  }
+  return points[points.length - 1] ?? first;
 }
 
 /** Final non-degenerate segment. The marker line is only these two points. */

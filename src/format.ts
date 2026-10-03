@@ -7,7 +7,16 @@ import {
   parseNestingMode,
 } from "./layout.js";
 import { resolveElementKeyword, toKebabCaseKeyword, type RelationshipKeyword } from "./keywords.js";
-import { checkPlein, type ElementDecl, type PleinModel, type ProfileDecl, type RelationshipDecl, type SpecializationDecl, type ViewDecl } from "./parser.js";
+import {
+  checkPlein,
+  relationshipModifierSource,
+  type ElementDecl,
+  type PleinModel,
+  type ProfileDecl,
+  type RelationshipDecl,
+  type SpecializationDecl,
+  type ViewDecl,
+} from "./parser.js";
 
 /**
  * `plein format` could not emit a `.plein` string the parser can read back.
@@ -297,7 +306,9 @@ function bodyStatements(parentId: string, model: PleinModel): BodyStatement[] {
 function writeRelationship(lines: string[], relationship: RelationshipDecl, indent: string): void {
   pushComments(lines, relationship.leadingComments, indent);
   const spelling = RELATIONSHIP_SPELLING[relationship.type];
-  lines.push(`${indent}${relationship.source} -> ${relationship.target}: ${spelling}`);
+  lines.push(
+    `${indent}${relationship.source} -> ${relationship.target}: ${spelling}${relationshipModifierSource(relationship)}`,
+  );
 }
 
 function writeViews(lines: string[], model: PleinModel): void {

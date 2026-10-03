@@ -110,7 +110,7 @@ All eleven Plein relationship types. Direction is unchanged: Open Exchange `sour
 | `Specialization` | `specialization` |
 | `Association` | `association` |
 
-`accessType` and the influence `modifier` are comments (`// accessType: Write`, `// modifier: -`), not typed fields. A relationship `name` or `documentation` is also a comment. Relationship identifiers are not kept — `.plein` relationships have no ids.
+`accessType` and the influence `modifier` are typed clauses on the relationship line, not comments. Import writes `access accessType Write` and `influence modifier "-"`. Export writes the Open Exchange attributes back (`accessType="Write"`, `modifier="-"`). `plein check` accepts `Access`, `Read`, `Write`, and `ReadWrite`, and influence strengths `+`, `++`, `-`, `--`, and `0` through `10`. Any other value fails the import because the generated `.plein` fails `plein check`. A relationship `name` or `documentation` is still a comment. Relationship identifiers are not kept — `.plein` relationships have no ids.
 
 A relationship with a missing endpoint, an unknown type, or the same id on both ends fails the import.
 
@@ -133,7 +133,6 @@ Import keeps some dropped fields as `//` comments so a reviewer can see them:
 - `documentation`
 - property values (`// property Owner: NordFreight`), using the `propertyDefinitions` name when the file has one
 - names in languages that were not chosen for the label
-- `accessType` and influence `modifier`
 - the ArchiMate viewpoint name
 - an identifier that had to be rewritten
 
@@ -158,13 +157,13 @@ plein check fixtures/open-exchange/booking.roundtrip.plein
 
 `npm test` asserts those diffs and that the parsed models match. `npm run check:fixtures` asserts both `.plein` files still pass `plein check`.
 
-The XML includes, on purpose, things the subset drops: an `AndJunction` and the relationships that touch it, a diagram label, a visual container, coordinates, fill colours, a bendpoint, and an organization folder. It also includes a property, documentation, a Dutch name beside the English label, `accessType="Write"`, an influence `modifier`, and one element node nested inside another.
+The XML includes, on purpose, things the subset drops: an `AndJunction` and the relationships that touch it, a diagram label, a visual container, coordinates, fill colours, a bendpoint, and an organization folder. It also includes a property, documentation, a Dutch name beside the English label, and one element node nested inside another. `accessType="Write"` and the influence `modifier="-"` are kept: import writes them as clauses, and export writes the attributes again.
 
 ## Known gaps
 
 ### Round-trip deltas
 
-Import → export → import keeps the parsed model for the booking fixture: element keyword, label, and id; relationship type and endpoints; viewpoint name, title, include list, and `nesting nested`. It does not reproduce `booking.plein` byte for byte, and it does not reproduce `booking.xml`.
+Import → export → import keeps the parsed model for the booking fixture: element keyword, label, and id; relationship type, endpoints, `accessType`, and influence `modifier`; viewpoint name, title, include list, and `nesting nested`. It does not reproduce `booking.plein` byte for byte, and it does not reproduce `booking.xml`.
 
 Lost because `.plein` never stored them (import dropped them, export cannot put them back):
 
@@ -176,7 +175,6 @@ Lost because `.plein` never stored them (import dropped them, export cannot put 
 - Documentation (comments only).
 - The ArchiMate viewpoint kind (`Application Cooperation`, `Strategy`).
 - Names in languages other than the chosen label.
-- `accessType` and influence `modifier`.
 - Relationship identifiers, profiles, metadata, and non-diagram views.
 
 Lost because export does not parse `//` comments:
@@ -208,7 +206,6 @@ Other deltas:
 - The ArchiMate viewpoint kind, other than the comment above.
 - `Junction`, `AndJunction`, and `OrJunction`, plus any relationship that references one. The import summary counts them.
 - Diagram-only labels, notes, and visual containers.
-- `accessType` and influence `modifier` as typed data.
 - Relationship identifiers.
 - Profiles, specializations, and stereotypes in the exchange file. The base `xsi:type` is imported when it is a catalogue type. A custom type is an error, not a skip. In-file concept specializations and profile hooks (`profile <name> { specialization … }`, see [the language reference](plein-dsl-archimate-4.md#profile-and-organization-extension-hooks)) are markup only. Export writes the catalogue `xsi:type` and does not emit a profile.
 - Metadata and Dublin Core.
