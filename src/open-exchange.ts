@@ -2,8 +2,9 @@
  * Open Group ArchiMate Model Exchange File Format (3.1 namespace).
  *
  * `importOpenExchange` reads the documented subset into `.plein`.
- * `exportOpenExchange` writes that same subset back out. Comment
- * breadcrumbs from import are not an exchange format — see
+ * `exportOpenExchange` writes that same subset back out. Access `accessType`
+ * and influence `modifier` are typed relationship clauses and round-trip.
+ * Other comment breadcrumbs from import are not an exchange format — see
  * docs/open-exchange-import.md for the round-trip deltas.
  */
 
@@ -16,7 +17,14 @@ import {
   type ElementKeyword,
   type RelationshipKeyword,
 } from "./keywords.js";
-import { checkPlein, ParseError, type PleinModel, type RelationshipDecl, type ViewDecl } from "./parser.js";
+import {
+  checkPlein,
+  ParseError,
+  relationshipModifierSource,
+  type PleinModel,
+  type RelationshipDecl,
+  type ViewDecl,
+} from "./parser.js";
 import {
   attribute,
   directText,
@@ -123,6 +131,8 @@ type ImportedRelationship = {
   source: string;
   target: string;
   spelling: string;
+  accessType?: string;
+  modifier?: string;
   comments: string[];
 };
 
@@ -255,15 +265,16 @@ export function importOpenExchange(xml: string, file = "input.xml"): ImportedPle
         ...relLabel.extras,
         ...documentationComments(relationship),
       ];
-      const accessType = attribute(relationship, "accessType");
-      if (accessType) {
-        comments.push(`// accessType: ${oneLine(accessType)}`);
-      }
-      const modifier = attribute(relationship, "modifier");
-      if (modifier) {
-        comments.push(`// modifier: ${oneLine(modifier)}`);
-      }
-      relationships.push({ source: sourceId, target: targetId, spelling, comments });
+      const accessType = typedAccessType(file, relationship);
+      const modifier = typedInfluenceModifier(file, relationship);
+      relationships.push({
+        source: sourceId,
+        target: targetId,
+        spelling,
+        ...(accessType ? { accessType } : {}),
+        ...(modifier ? { modifier } : {}),
+        comments,
+      });
     }
   }
 
@@ -430,8 +441,10 @@ type DiagramNode = {
 
 /**
  * Write the documented Open Exchange subset for a checked `.plein` model.
- * Diagram geometry, styles, junctions, properties, and import-comment
- * breadcrumbs are not written — `.plein` does not store them as fields.
+ * Access `accessType` and influence `modifier` are written when the
+ * relationship clause set them. Diagram geometry, styles, junctions,
+ * properties, and import-comment breadcrumbs are not written — `.plein`
+ * does not store them as fields.
  */
 export function exportOpenExchange(
   model: PleinModel,
@@ -466,9 +479,19 @@ export function exportOpenExchange(
     lines.push("  <relationships>");
     model.relationships.forEach((relationship, index) => {
       const id = relationshipIds[index]!;
-      lines.push(
-        `    <relationship identifier="${escapeXml(id)}" source="${escapeXml(relationship.source)}" target="${escapeXml(relationship.target)}" xsi:type="${RELATIONSHIP_XML_TYPE[relationship.type]}"/>`,
-      );
+      const attrs = [
+        `identifier="${escapeXml(id)}"`,
+        `source="${escapeXml(relationship.source)}"`,
+        `target="${escapeXml(relationship.target)}"`,
+        `xsi:type="${RELATIONSHIP_XML_TYPE[relationship.type]}"`,
+      ];
+      if (relationship.accessType) {
+        attrs.push(`accessType="${escapeXml(relationship.accessType)}"`);
+      }
+      if (relationship.modifier) {
+        attrs.push(`modifier="${escapeXml(relationship.modifier)}"`);
+      }
+      lines.push(`    <relationship ${attrs.join(" ")}/>`);
     });
     lines.push("  </relationships>");
   }
@@ -526,7 +549,7 @@ export function formatOpenExchangeExportReport(
   const dest = output ? ` -> ${output}` : "";
   return [
     `exported ${file}${dest} (${report.elements} elements, ${report.relationships} relationships, ${report.views} views)`,
-    "note: documentation, properties, alternate names, accessType, influence modifiers, and ArchiMate viewpoint kinds are not exported",
+    "note: documentation, properties, alternate names, and ArchiMate viewpoint kinds are not exported",
     "note: diagram geometry, styles, junctions, and organization folders are not in .plein",
   ].join("\n");
 }
@@ -762,7 +785,7 @@ function renderPlein(input: {
   }
   for (const relationship of input.relationships) {
     lines.push(
-      `    ${relationship.source} -> ${relationship.target}: ${relationship.spelling}`,
+      `    ${relationship.source} -> ${relationship.target}: ${relationship.spelling}${relationshipModifierSource(relationship)}`,
     );
     for (const comment of relationship.comments) {
       lines.push(`    ${comment}`);
@@ -1103,6 +1126,48 @@ function collapse(text: string): string {
 
 function oneLine(text: string): string {
   return text.replace(/[\r\n]+/g, " ").trim();
+}
+
+/**
+ * `accessType` is a typed clause when the attribute is present.
+ * A value that is not one identifier cannot be written as the clause, so
+ * import fails here. Enum membership is `plein check` on the generated file.
+ */
+function typedAccessType(file: string, relationship: XmlElement): string | undefined {
+  const raw = attribute(relationship, "accessType");
+  if (!raw) {
+    return undefined;
+  }
+  const value = oneLine(raw);
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(value)) {
+    throw fail(
+      file,
+      relationship,
+      `unknown access type '${value}' (expected Access, Read, Write, or ReadWrite)`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Influence `modifier` is a typed clause when the attribute is present.
+ * A double quote cannot be written in a `.plein` string. Enum membership
+ * is `plein check` on the generated file.
+ */
+function typedInfluenceModifier(file: string, relationship: XmlElement): string | undefined {
+  const raw = attribute(relationship, "modifier");
+  if (!raw) {
+    return undefined;
+  }
+  const value = oneLine(raw);
+  if (value.includes('"')) {
+    throw fail(
+      file,
+      relationship,
+      `unknown influence modifier '${value}' (expected +, ++, -, --, or 0 through 10)`,
+    );
+  }
+  return value;
 }
 
 function pascalType(keyword: string): string {

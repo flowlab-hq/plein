@@ -174,11 +174,13 @@ const directionSwitcher = document.querySelector("#direction-switcher") as HTMLE
 const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 const focusSwitcher = document.querySelector("#focus-switcher") as HTMLElement;
-const layoutControls = document.querySelector(".layout-controls") as HTMLElement;
-const layoutOverflow = document.querySelector(".layout-overflow") as HTMLElement;
-const layoutOptionsButton = document.querySelector("#layout-options") as HTMLButtonElement;
-const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HTMLElement;
-const layoutOptionsSummary = document.querySelector("#layout-options-summary") as HTMLElement;
+const layoutMenu = document.querySelector("#layout-menu") as HTMLDetailsElement;
+const layoutMenuValue = document.querySelector("#layout-menu-value") as HTMLElement;
+const viewMenu = document.querySelector("#view-menu") as HTMLDetailsElement;
+const viewMenuValue = document.querySelector("#view-menu-value") as HTMLElement;
+const gridMenu = document.querySelector("#grid-menu") as HTMLDetailsElement;
+const gridMenuValue = document.querySelector("#grid-menu-value") as HTMLElement;
+const chromeMenus = [layoutMenu, viewMenu, gridMenu];
 const canvasGridToggle = document.querySelector("#canvas-grid-toggle") as HTMLButtonElement;
 const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HTMLElement;
 const inspector = document.querySelector("#inspector") as HTMLElement;
@@ -1408,6 +1410,7 @@ function renderFocusSwitcher(): void {
       radioButton(choice.id === focusMode, choice.label, choice.title, () => {
         focusMode = choice.id;
         renderFocusSwitcher();
+        syncViewMenu();
         const svg = diagram.querySelector("svg");
         paintCanvasFocus(svg instanceof SVGSVGElement ? svg : null);
       }),
@@ -1453,57 +1456,76 @@ function secondaryLayoutSummary(): string {
   return parts.join(" · ");
 }
 
-function layoutOptionsOpen(): boolean {
-  return layoutOptionsButton.getAttribute("aria-expanded") === "true";
+function autoLayoutChoiceLabel(id: "file" | "auto" | "off"): string {
+  if (id === "auto") {
+    return "On";
+  }
+  if (id === "off") {
+    return "Off";
+  }
+  return "File";
 }
 
-/** Keep Options on screen. The chrome row scrolls, so the panel is fixed, not clipped by it. */
-function placeLayoutOptionsPanel(): void {
-  const anchor = layoutOptionsButton.getBoundingClientRect();
-  const width = layoutOptionsPanel.offsetWidth;
-  const height = layoutOptionsPanel.offsetHeight;
-  const margin = 8;
-  let left = anchor.right - width;
-  if (left < margin) {
-    left = margin;
-  }
-  if (left + width > window.innerWidth - margin) {
-    left = Math.max(margin, window.innerWidth - margin - width);
-  }
-  let top = anchor.bottom + 6;
-  if (top + height > window.innerHeight - margin && anchor.top - 6 - height > margin) {
-    top = anchor.top - 6 - height;
-  }
-  layoutOptionsPanel.style.top = `${Math.round(top)}px`;
-  layoutOptionsPanel.style.left = `${Math.round(left)}px`;
+function modeChoiceLabel(id: "file" | LayoutMode): string {
+  return id === "file" ? "Default" : layoutModeLabel(id);
 }
 
-function setLayoutOptionsOpen(open: boolean): void {
-  layoutOptionsButton.setAttribute("aria-expanded", open ? "true" : "false");
-  layoutOptionsPanel.hidden = !open;
-  if (open) {
-    placeLayoutOptionsPanel();
+function setMenuSummary(menu: HTMLDetailsElement, value: HTMLElement, text: string, detail: string): void {
+  value.textContent = text;
+  value.title = detail;
+  const summary = menu.querySelector("summary");
+  if (summary instanceof HTMLElement) {
+    summary.title = detail;
   }
 }
 
-function syncLayoutOptionsButton(): void {
-  const summary = secondaryLayoutSummary();
-  layoutOptionsSummary.textContent = summary;
-  layoutOptionsSummary.hidden = summary.length === 0;
-  layoutOptionsButton.classList.toggle("is-active", summary.length > 0);
+/** Active auto layout and mode stay on the Layout menu. Option overrides append when set. */
+function syncLayoutMenu(): void {
+  const auto = autoLayoutChoiceLabel(autoLayoutOverride);
+  const mode = modeChoiceLabel(modeOverride);
+  const options = secondaryLayoutSummary();
+  const text = options.length > 0 ? `${auto} · ${mode} · ${options}` : `${auto} · ${mode}`;
   const detail =
-    summary.length > 0
-      ? `Layout options. Direction, routing, and nesting. Current preview: ${summary}.`
-      : "Layout options. Direction, routing, and nesting. File follows the open view.";
-  layoutOptionsButton.setAttribute("aria-label", detail);
-  layoutOptionsButton.title =
-    summary.length > 0
-      ? `Layout. Direction, routing, and nesting (${summary}). Local preview only.`
-      : "Layout. Direction, routing, and nesting. Local preview only — not written back to the file.";
+    options.length > 0
+      ? `Layout. Auto ${auto}, mode ${mode}. Options: ${options}. Local preview only.`
+      : `Layout. Auto ${auto}, mode ${mode}. Options follow the open view.`;
+  setMenuSummary(layoutMenu, layoutMenuValue, text, detail);
+}
+
+function syncViewMenu(): void {
+  const on = focusMode === "on";
+  const text = on ? "Focus On" : "Focus Off";
+  const detail = on
+    ? "Optional, and the default. On shades the canvas outside the selected element and one hop out."
+    : "Optional. Off leaves every box fully visible. Selection highlighting stays.";
+  setMenuSummary(viewMenu, viewMenuValue, text, detail);
+}
+
+function closeChromeMenus(except?: HTMLDetailsElement): void {
+  for (const menu of chromeMenus) {
+    if (menu !== except && menu.open) {
+      menu.open = false;
+    }
+  }
 }
 
 const SNAP_STEP_HOVER =
   "Snap step: How far boxes jump on snap. This does not change how large the drawn squares look — that stays tied to zoom.";
+
+function syncGridMenu(): void {
+  const lines = canvasGridVisible ? "Lines" : "Hidden";
+  const text = `${lines} · ${canvasGridSize}`;
+  const detail = canvasGridVisible
+    ? `Grid lines on. Snap spacing ${canvasGridSize}. ${SNAP_STEP_HOVER}`
+    : `Grid lines hidden. Snap stays on. Snap spacing ${canvasGridSize}. ${SNAP_STEP_HOVER}`;
+  setMenuSummary(gridMenu, gridMenuValue, text, detail);
+}
+
+function syncChromeMenus(): void {
+  syncLayoutMenu();
+  syncViewMenu();
+  syncGridMenu();
+}
 
 function syncCanvasGridToggle(): void {
   canvasGridToggle.setAttribute("aria-pressed", canvasGridVisible ? "true" : "false");
@@ -1511,6 +1533,7 @@ function syncCanvasGridToggle(): void {
   canvasGridToggle.title = canvasGridVisible
     ? `Hide the snap lines. Hiding the lines does not turn snap off. ${SNAP_STEP_HOVER}`
     : `Show the snap lines. Snap stays on while the lines are hidden. ${SNAP_STEP_HOVER}`;
+  syncGridMenu();
 }
 
 function renderCanvasGridSizeSwitcher(): void {
@@ -1526,7 +1549,7 @@ function renderCanvasGridSizeSwitcher(): void {
           canvasGridSize = size;
           alignHold.clear();
           renderCanvasGridSizeSwitcher();
-          syncLayoutOptionsButton();
+          syncGridMenu();
           void render();
         },
       ),
@@ -1739,7 +1762,7 @@ async function renderDiagram(seq: number): Promise<void> {
   renderFocusSwitcher();
   renderCanvasGridSizeSwitcher();
   syncCanvasGridToggle();
-  syncLayoutOptionsButton();
+  syncChromeMenus();
   if (!loaded?.ok) {
     setCurrentViewChrome("Viewpoint", null);
     diagram.replaceChildren();
@@ -2293,45 +2316,24 @@ canvasGridToggle.addEventListener("click", () => {
   }
 });
 
-layoutControls.addEventListener("scroll", () => {
-  if (layoutOptionsOpen()) {
-    setLayoutOptionsOpen(false);
-  }
-});
-
-window.addEventListener("resize", () => {
-  if (layoutOptionsOpen()) {
-    placeLayoutOptionsPanel();
-  }
-});
-
-layoutOptionsButton.addEventListener("click", () => {
-  const next = !layoutOptionsOpen();
-  setLayoutOptionsOpen(next);
-  if (!next) {
-    return;
-  }
-  const selected = layoutOptionsPanel.querySelector('[aria-checked="true"]');
-  if (selected instanceof HTMLElement) {
-    selected.focus();
-  }
-});
+for (const menu of chromeMenus) {
+  menu.addEventListener("toggle", () => {
+    if (menu.open) {
+      closeChromeMenus(menu);
+    }
+  });
+}
 
 document.addEventListener("pointerdown", (event) => {
+  const target = event.target;
   if (fileMenu.open) {
-    const target = event.target;
     if (!(target instanceof Node) || !fileMenu.contains(target)) {
       closeFileMenu();
     }
   }
-  if (!layoutOptionsOpen()) {
-    return;
+  if (!(target instanceof Node) || !chromeMenus.some((menu) => menu.contains(target))) {
+    closeChromeMenus();
   }
-  const target = event.target;
-  if (target instanceof Node && layoutOverflow.contains(target)) {
-    return;
-  }
-  setLayoutOptionsOpen(false);
 });
 
 window.addEventListener("keydown", (event) => {
@@ -2346,10 +2348,14 @@ window.addEventListener("keydown", (event) => {
       closeFileMenu();
       return;
     }
-    if (layoutOptionsOpen()) {
+    const openChrome = chromeMenus.find((menu) => menu.open);
+    if (openChrome) {
       event.preventDefault();
-      setLayoutOptionsOpen(false);
-      layoutOptionsButton.focus();
+      const summary = openChrome.querySelector("summary");
+      closeChromeMenus();
+      if (summary instanceof HTMLElement) {
+        summary.focus();
+      }
       return;
     }
     if (!canvasMenu.hidden) {

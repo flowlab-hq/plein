@@ -23,12 +23,12 @@ plein {
 
     id-rollout -> id-planning: realization
     id-qtc -> id-book: composition
-    id-risk -> id-ontime: influence
+    id-risk -> id-ontime: influence modifier "-"
     id-booking -> id-shipper: serving
     id-clerk -> id-booking: assignment
     id-booking -> id-placed: triggering
     id-rates -> id-cloud: flow
-    id-booking -> id-order: access
+    id-booking -> id-order: access accessType Write
     id-rates -> id-booking: realization
     id-rates -> id-ratecard: access
     id-cloud -> id-rates: realization

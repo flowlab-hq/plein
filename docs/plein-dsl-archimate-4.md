@@ -277,6 +277,13 @@ Plein supports these eleven relationship types:
 | `specialization` | the source is a specialization of the target |
 | `association` | a generic association between the source and target |
 
+An access relationship may name the Open Exchange access type. An influence relationship may name the strength. The values are the exchange enumerations (`Access`, `Read`, `Write`, `ReadWrite`, and `+`, `++`, `-`, `--`, or `0` through `10`). `plein check` rejects anything else. The Mac canvas draws that value on the edge.
+
+```plein
+booking -> order: access accessType Write
+risk -> onTime: influence modifier "-"
+```
+
 Not every type may connect every pair of elements. `plein check` accepts a relationship only when the source type, the relationship, and the target type are an allowed ArchiMate pair. The table is [the relationship matrix](relationship-matrix.md) (`src/relationship-matrix-data.ts`). A specialization or profile hook is checked as its catalogue type. A `value-stream-stage` is a value stream, so `capability` `serving` a stage, `application-component` `realization` of a `capability`, and `flow` from stage to stage are allowed. An invalid pair fails with a line diagnostic that names the three parts, for example `invalid relationship 'realization' from 'application-component' to 'business-object'`.
 
 ## Views and membership
@@ -316,7 +323,7 @@ Direction is optional. The Mac viewer defaults to **ELK Layered** (not organic) 
 
 Existing shorthand still works: `left-right` / `horizontal` → `lr`; `top-bottom` / `vertical` → `tb`; `bottom-top` → `bt`; `right-left` → `rl`. Unknown tokens are a parse error.
 
-The Mac chrome previews direction from **Layout → Options** (File / TB / BT / LR / RL) without rewriting the file. **Auto layout** and **Mode** stay on the diagram chrome, one click away, in the same **Layout** group.
+The Mac chrome previews direction from **Layout → Options** (File / TB / BT / LR / RL) without rewriting the file. **Auto layout** and **Mode** open from that same **Layout** menu. The active auto layout and mode stay written on the menu.
 
 ### Turning auto-layout off
 
@@ -340,7 +347,7 @@ viewpoint story "Story" {
 
 An element in the view with no `position` stays out of the way: it is stacked in a column to the right of the placed nodes and does not move the ones that have coordinates. With `nesting nested`, a parent’s top-left stays where `position` put it and the box grows to cover its children.
 
-The Mac diagram chrome **Auto layout** control (File / On / Off) is one click away. **Save** (File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
+The Mac diagram chrome **Auto layout** choices (File / On / Off) open from the **Layout** menu. The active choice stays on that menu. **Save** (File → Save, or ⌘S) is what writes the freeze into the file. Direction, routing, nesting, mode, and snap spacing stay local preview and are not written.
 
 | Choice | Effect |
 | --- | --- |
@@ -378,7 +385,7 @@ viewpoint applicationProcess "Application Process" {
 
 Orthogonal routing removes diagonal crossings on typical cooperation and process graphs: each connector is a horizontal and vertical polyline. Polyline routing is the explicit alternative when a straight (possibly diagonal) segment is preferred. Cross-band arrows in `autoLayout layers` follow the same choice.
 
-The Mac diagram chrome is one row: **Layout**, **View**, and **Grid**. **Layout** keeps **Auto layout** (File / On / Off), **Mode** (Default / Layered / Layers / Organic / Grid), and **Options** one click away. **Options** in that group holds **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Nesting**. **View** holds optional **Focus**. **Grid** holds **Lines** (show or hide the snap grid) and **Snap spacing**, secondary in that group rather than its own row. Hovering **Lines** or **Snap spacing** says the snap step is how far boxes jump, not the drawn square size; drawn density stays tied to zoom. Those choices are local preview and are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload. **Save** writes that freeze as `autoLayout off` and `position` clauses; **On** does not.
+The Mac diagram chrome is one row of menus: **Layout**, **View**, and **Grid**. The row does not scroll. **Layout** opens **Auto layout** (File / On / Off), **Mode** (Default / Layered / Layers / Organic / Grid), and **Options**; the active auto layout and mode stay on the menu. **Options** in that menu holds **Direction** (File / TB / BT / LR / RL), **Routing** (File / Orthogonal / Polyline), and **Nesting**. **View** opens optional **Focus** (Off / On); the current choice stays on the menu. **Grid** opens **Lines** (show or hide the snap grid) and **Snap spacing**; the current lines state and spacing stay on the menu. Hovering **Lines** or **Snap spacing** says the snap step is how far boxes jump, not the drawn square size; drawn density stays tied to zoom. Those choices are local preview and are not written back; the `.plein` clause is the source of truth for pull requests. Direction (`tb|bt|lr|rl`) and layer-band mode are unchanged by the routing token. Nested aggregation/composition stays a compound graph (children inside the parent), not a flattened rank. **On** recomputes node placement for the selected mode (layered, layers, organic, or grid) and ignores `position` clauses. **Off** keeps the frozen top-lefts across Reload. **Save** writes that freeze as `autoLayout off` and `position` clauses; **On** does not.
 
 ### Layer bands (`autoLayout layers`)
 
@@ -407,7 +414,7 @@ Nested containers are assigned **one** band as a whole: children stay inside the
 
 Within a band, disconnected nodes keep a deterministic kind-then-declaration order (all `business-actor` boxes before `business-process`, and so on) so catalogues stay stable.
 
-The Mac chrome **Mode** control (Default / Layered / Layers / Organic / Grid) sits on the diagram chrome, one click away, and previews a mode without rewriting the file. **Default** follows the open view. It is not a File-menu action. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
+The Mac chrome **Mode** choices (Default / Layered / Layers / Organic / Grid) open from the **Layout** menu and preview a mode without rewriting the file. The active mode stays on that menu. **Default** follows the open view. It is not a File-menu action. `layered` is the explicit name for today’s edge-ranked ELK layout and remains the default when the clause has no mode token. `autoLayout layers` does not replace that mode, and neither does `organic` or `grid`.
 
 ### When to use each layout mode
 
@@ -728,7 +735,7 @@ That sample follows the same patterns as the golden fixtures: `plein {`, kebab-c
 
 `plein import` reads an Open Exchange XML file (ArchiMate Model Exchange File Format 3.1) into this document shape. `plein export-open-exchange` writes that same subset back to XML. The Mac app’s **File → Import Open Exchange XML…** uses that same importer, and **File → Export…** → **Open Exchange** uses that same exporter. The mapping, the representative fixture, and the gaps are [Open Exchange import and export](open-exchange-import.md). HTML/SVG export is a different command (`plein export`).
 
-Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, and diagram membership as viewpoints. Documentation, properties, extra languages, `accessType`, and influence modifiers are comments, not first-class syntax. Export does not read those comments.
+Supported: every element keyword in this reference (plus `grouping` and `location`), all eleven relationship types, diagram membership as viewpoints, an access `accessType`, and an influence `modifier`. Documentation, properties, and extra languages are comments, not first-class syntax. Export does not read those comments. `accessType` and `modifier` are clauses on the relationship line, and export writes them back.
 
 Not imported, and not written on export: diagram geometry and styles, organization folders, junctions, and `value-stream-stage` reconstruction (a `ValueStream` stays one element; composition stays a relationship). Round-trip of the booking fixture keeps elements, relationships, and views; the known text deltas are in that doc.
 
@@ -738,7 +745,7 @@ A validator should follow the [grammar](grammar.md) for what parses, then check,
 
 1. The document parses and has no duplicate identifiers.
 2. Every relationship endpoint and every `include`/`exclude` reference resolves.
-3. Each relationship uses one of the eleven supported types and has exactly one source and target.
+3. Each relationship uses one of the eleven supported types and has exactly one source and target. An access relationship may carry `accessType` (`Access`, `Read`, `Write`, or `ReadWrite`). An influence relationship may carry `modifier` (`+`, `++`, `-`, `--`, or `0` through `10`). Any other value fails at `file:line:column`.
 4. The source type, relationship, and target type are an allowed pair in the [relationship matrix](relationship-matrix.md). Specializations and profile hooks are checked as their catalogue type. `value-stream-stage` is a value stream. An invalid pair fails with `invalid relationship '<relationship>' from '<source-type>' to '<target-type>'` at `file:line:column`.
 5. Element keywords are valid ArchiMate 4 concepts, or specializations declared earlier in the model (`specialization <name> specializes <catalogue-type>`, including hooks inside `profile <name> { ... }`). Labeled elements use `keyword "Label" as id`, and IDs follow the identifier rules. An undeclared name is `unknown keyword '…' (undeclared specialization)`. `hook <name>` is accepted only for a specialization declared in a profile; an undeclared hook is `undeclared profile hook '…'`.
 6. Each view has a unique name (the identifier after `view` or `viewpoint`); conflicting membership is resolved with `exclude` precedence.

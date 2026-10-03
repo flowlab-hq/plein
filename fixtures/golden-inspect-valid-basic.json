@@ -39,25 +39,33 @@
       "type": "serves",
       "source": "shipper",
       "target": "booking",
-      "line": 8
+      "line": 8,
+      "accessType": null,
+      "modifier": null
     },
     {
       "type": "accesses",
       "source": "booking",
       "target": "order",
-      "line": 9
+      "line": 9,
+      "accessType": null,
+      "modifier": null
     },
     {
       "type": "serves",
       "source": "booking",
       "target": "rates",
-      "line": 10
+      "line": 10,
+      "accessType": null,
+      "modifier": null
     },
     {
       "type": "accesses",
       "source": "rates",
       "target": "order",
-      "line": 11
+      "line": 11,
+      "accessType": null,
+      "modifier": null
     }
   ],
   "views": [

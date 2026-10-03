@@ -306,6 +306,9 @@ button:disabled {
   flex-shrink: 0;
   margin-bottom: 8px;
   min-width: 0;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
 }
 
 .current-view {
@@ -321,40 +324,127 @@ button:disabled {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0;
+  justify-content: flex-end;
+  gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
   margin-left: auto;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  overflow: visible;
 }
 
-.chrome-cluster {
-  display: flex;
-  flex-wrap: nowrap;
+.chrome-menu {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.chrome-menu > summary {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px 6px;
-  flex: 0 0 auto;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.chrome-cluster + .chrome-cluster {
-  padding-left: 8px;
-  border-left: 1px solid var(--line);
+.chrome-menu > summary::-webkit-details-marker {
+  display: none;
 }
 
-.chrome-cluster-label,
-.chrome-section-label {
+.chrome-menu > summary::after {
+  content: "";
   flex: 0 0 auto;
-  margin: 0;
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.7;
+}
+
+.chrome-menu > summary:hover,
+.chrome-menu > summary:focus-visible,
+.chrome-menu[open] > summary {
+  border-color: var(--accent);
+}
+
+.chrome-menu-label {
+  flex: 0 0 auto;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
-  white-space: nowrap;
+}
+
+.chrome-menu-value {
+  min-width: 0;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: #0b57d0;
+}
+
+.chrome-menu-panel {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(29, 29, 31, 0.12);
+}
+
+.chrome-menu-section,
+.chrome-menu-options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chrome-menu-heading {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chrome-menu-panel .layout-group {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.chrome-menu-panel .layout-switcher {
+  flex-wrap: wrap;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .chrome-optional {
@@ -369,38 +459,6 @@ button:disabled {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.chrome-section {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-}
-
-.layout-primary {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px 6px;
-  flex: 0 0 auto;
-}
-
-/* Spacing sits inside Grid. It is not its own chrome row. */
-.chrome-secondary {
-  gap: 4px;
-}
-
-.chrome-secondary .layout-kicker {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-
-.chrome-secondary .layout-switcher button {
-  padding: 2px 6px;
-  font-size: 11px;
 }
 
 .layout-group {
@@ -486,92 +544,6 @@ button:disabled {
   color: #0b57d0;
 }
 
-.layout-overflow {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
-  max-width: 100%;
-}
-
-.layout-options {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  padding: 4px 10px;
-  font-size: 12px;
-  background: var(--panel);
-  white-space: nowrap;
-}
-
-.layout-options[aria-expanded="true"],
-.layout-options.is-active {
-  background: #e8f1ff;
-  border-color: #0b57d0;
-  color: #0b57d0;
-}
-
-.layout-options-label,
-.layout-options-chevron {
-  flex: 0 0 auto;
-}
-
-.layout-options-summary {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.layout-options-summary[hidden] {
-  display: none;
-}
-
-.layout-options-summary:not([hidden])::before {
-  content: "·";
-  margin-right: 6px;
-  color: var(--muted);
-}
-
-.layout-options.is-active .layout-options-summary:not([hidden])::before,
-.layout-options[aria-expanded="true"] .layout-options-summary:not([hidden])::before {
-  color: inherit;
-  opacity: 0.7;
-}
-
-.layout-options-chevron {
-  width: 0;
-  height: 0;
-  border-left: 3.5px solid transparent;
-  border-right: 3.5px solid transparent;
-  border-top: 4px solid currentColor;
-  opacity: 0.75;
-}
-
-.layout-options-panel {
-  position: fixed;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  width: max-content;
-  max-width: min(24rem, calc(100vw - 2rem));
-  padding: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(29, 29, 31, 0.12);
-}
-
-.layout-options-panel[hidden] {
-  display: none;
-}
-
-.layout-options-panel .layout-group {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
 
 .diagram {
   flex: 1;

@@ -74,7 +74,7 @@ A model statement starts with an identifier. Classify it in this order. The same
 
 `specialization serves booking` is infix (step 2 does not match, because `serves` is a relationship spelling). `specialization customer specializes business-actor` is a declaration. `profile -> role: assignment` is an arrow relationship whose source identifier is `profile`.
 
-There is no property list, influence modifier, or access type on an element or a relationship. An element may carry one [`notes`](#element) string. Open Exchange documentation and properties stay comments. See [Open Exchange import and export](open-exchange-import.md).
+There is no property list on an element or a relationship. An element may carry one [`notes`](#element) string. An access relationship may carry one [`accessType`](#relationship) and an influence relationship may carry one strength [`modifier`](#relationship). Open Exchange documentation and properties stay comments. See [Open Exchange import and export](open-exchange-import.md).
 
 ## Element
 
@@ -155,7 +155,7 @@ A declared name is rejected when:
 | The same name is declared twice | `duplicate specialization '<name>'` |
 | The parent is unknown | `specialization '<name>' specializes unknown keyword '<parent>'` |
 
-Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`, `links`, `notes`.
+Reserved words: `plein`, `model`, `views`, `styles`, `view`, `viewpoint`, `include`, `exclude`, `title`, `autoLayout`, `position`, `size`, `nesting`, `as`, `of`, `profile`, `organization`, `hook`, `links`, `notes`, `accessType`, `modifier`.
 
 ## Profile
 
@@ -179,6 +179,25 @@ infix-relationship = ident relationship-type ident
 ```
 
 Both forms parse. `plein format` writes the arrow form with the file spelling: `shipper -> booking: serving`.
+
+An access relationship may take one `accessType` clause. An influence relationship may take one `modifier` clause. No other relationship type accepts either clause.
+
+```
+arrow-relationship = ident "->" ident ":" relationship-type [ relationship-modifier ]
+infix-relationship = ident relationship-type ident [ relationship-modifier ]
+relationship-modifier = access-type-clause | influence-modifier-clause
+access-type-clause = "accessType" access-type
+access-type = "Access" | "Read" | "Write" | "ReadWrite"
+influence-modifier-clause = "modifier" influence-strength
+```
+
+`accessType` starts the clause only when the next token is an identifier that is not a relationship spelling. `accessType -> order: access` stays a relationship whose source identifier is `accessType`. The value is the Open Exchange `AccessTypeEnum`: `Access`, `Read`, `Write`, or `ReadWrite`. `plein check` rejects any other word with `unknown access type '<value>' (expected Access, Read, Write, or ReadWrite)`. `accessType` on a relationship that is not access fails with `accessType is only valid on an access relationship`. A second clause fails with `duplicate accessType clause`.
+
+`modifier` starts the clause only when the next token is a strength and, when that token is a string, the token after it is not `as`. `modifier -> goal: association` stays a relationship source. `modifier "Label" as id` stays an element. The strength is the Open Exchange `InfluenceStrengthEnum`: `+`, `++`, `-`, `--`, or an integer `0` through `10`. Write it as a string (`modifier "-"`), as a number token (`modifier 10`), or as `+` / `++` / `-` / `--`. `plein format` writes the string. `plein check` rejects any other value with `unknown influence modifier '<value>' (expected +, ++, -, --, or 0 through 10)`. `modifier` on a relationship that is not influence fails with `modifier is only valid on an influence relationship`. A second clause fails with `duplicate modifier clause`.
+
+The schema's influence modifier is a union of that enumeration and any string. Plein keeps the enumeration. A strength outside it fails `plein check`. Omitting the clause leaves the field unset. The exchange default `Access` is not invented when `accessType` is absent.
+
+`plein format` writes the clause on the relationship line: `booking -> order: access accessType Write` and `risk -> onTime: influence modifier "-"`. `plein inspect` writes `accessType` and `modifier`, or `null` when the clause is absent. The Mac renderer (`renderViewpointSvg`) draws that same text on the edge.
 
 `relationship-type` is one of these eleven pairs. The file spelling is the language-reference name. The stored keyword is what the parser and `plein inspect` keep. Both are accepted after `:` and as the infix verb.
 

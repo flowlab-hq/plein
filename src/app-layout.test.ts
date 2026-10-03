@@ -111,7 +111,8 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
 
   const chrome = html.indexOf('class="diagram-chrome"');
   const controls = html.indexOf('class="layout-controls"');
-  const layoutCluster = html.indexOf('class="chrome-cluster" role="group" aria-label="Layout"');
+  const layoutMenu = html.indexOf('<details id="layout-menu"');
+  const layoutValue = html.indexOf('id="layout-menu-value"');
   const autoLayout = html.indexOf('id="auto-layout-switcher"');
   const mode = html.indexOf('id="mode-switcher"');
   const options = html.indexOf('id="layout-options"');
@@ -119,72 +120,87 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   const direction = html.indexOf('id="direction-switcher"');
   const routing = html.indexOf('id="routing-switcher"');
   const nesting = html.indexOf('id="nesting-switcher"');
-  const viewCluster = html.indexOf('class="chrome-cluster" role="group" aria-label="View"');
+  const viewMenu = html.indexOf('<details id="view-menu"');
+  const viewValue = html.indexOf('id="view-menu-value"');
   const focus = html.indexOf('id="focus-switcher"');
-  const gridCluster = html.indexOf('class="chrome-cluster" role="group" aria-label="Grid"');
+  const gridMenu = html.indexOf('<details id="grid-menu"');
+  const gridValue = html.indexOf('id="grid-menu-value"');
   const gridToggle = html.indexOf('id="canvas-grid-toggle"');
   const spacing = html.indexOf('id="canvas-grid-size"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(chrome, -1);
-  assert.notEqual(layoutCluster, -1, "layout grouping is present");
+  assert.notEqual(layoutMenu, -1, "layout menu is present");
   assert.notEqual(autoLayout, -1, "auto-layout switcher is present");
   assert.notEqual(mode, -1, "mode switcher is present");
-  assert.notEqual(options, -1, "layout options disclosure is present");
+  assert.notEqual(options, -1, "layout options section is present");
   assert.notEqual(optionsPanel, -1, "layout options panel is present");
   assert.notEqual(direction, -1, "direction switcher is present");
   assert.notEqual(routing, -1, "routing switcher is present");
   assert.notEqual(nesting, -1, "nesting switcher remains");
-  assert.notEqual(viewCluster, -1, "view grouping is present");
+  assert.notEqual(viewMenu, -1, "view menu is present");
   assert.notEqual(focus, -1, "focus mode switcher is present");
-  assert.notEqual(gridCluster, -1, "grid grouping is present");
+  assert.notEqual(gridMenu, -1, "grid menu is present");
   assert.ok(
-    chrome < layoutCluster &&
-      layoutCluster < autoLayout &&
+    chrome < controls &&
+      controls < layoutMenu &&
+      layoutMenu < layoutValue &&
+      layoutValue < autoLayout &&
       autoLayout < mode &&
       mode < options &&
       options < optionsPanel &&
       optionsPanel < direction &&
       direction < routing &&
       routing < nesting &&
-      nesting < viewCluster &&
-      viewCluster < focus &&
-      focus < gridCluster &&
-      gridCluster < gridToggle &&
+      nesting < viewMenu &&
+      viewMenu < viewValue &&
+      viewValue < focus &&
+      focus < gridMenu &&
+      gridMenu < gridValue &&
+      gridValue < gridToggle &&
       gridToggle < spacing &&
       spacing < canvas,
-    "one chrome row groups Layout, then View, then Grid",
+    "one chrome row is Layout, then View, then Grid menus",
   );
-  const layoutGroup = html.slice(layoutCluster, viewCluster);
+  const layoutGroup = html.slice(layoutMenu, viewMenu);
+  assert.match(layoutGroup, /<summary>/);
+  assert.match(layoutGroup, /class="chrome-menu-label">Layout</);
+  assert.match(layoutGroup, /id="layout-menu-value"[^>]*>File · Default</);
   assert.match(layoutGroup, /id="auto-layout-switcher"/);
   assert.match(layoutGroup, /id="mode-switcher"/);
   assert.match(layoutGroup, /id="direction-switcher"/);
   assert.match(layoutGroup, /id="routing-switcher"/);
   assert.match(layoutGroup, /id="nesting-switcher"/);
-  assert.match(layoutGroup, /class="chrome-section-label">Layout</);
-  const panel = html.slice(optionsPanel, viewCluster);
+  assert.match(layoutGroup, /class="chrome-menu-heading">Options</);
+  assert.equal(layoutGroup.includes(" open"), false, "layout menu starts closed");
+  const panel = html.slice(optionsPanel, viewMenu);
   assert.match(panel, /id="direction-switcher"/);
   assert.match(panel, /id="routing-switcher"/);
   assert.match(panel, /id="nesting-switcher"/);
-  assert.equal(panel.includes('id="auto-layout-switcher"'), false, "auto layout stays one click away");
-  assert.equal(panel.includes('id="mode-switcher"'), false, "mode stays one click away");
-  assert.equal(panel.includes('id="focus-switcher"'), false, "focus stays visible under View");
+  assert.equal(panel.includes('id="auto-layout-switcher"'), false, "auto layout is its own group in the Layout menu");
+  assert.equal(panel.includes('id="mode-switcher"'), false, "mode is its own group in the Layout menu");
+  assert.equal(panel.includes('id="focus-switcher"'), false, "focus stays in the View menu");
   assert.equal(panel.includes('id="canvas-grid-size"'), false, "snap spacing sits in Grid, not in Layout options");
-  const viewGroup = html.slice(viewCluster, gridCluster);
-  assert.match(viewGroup, /class="chrome-cluster-label">View</);
+  const viewGroup = html.slice(viewMenu, gridMenu);
+  assert.match(viewGroup, /class="chrome-menu-label">View</);
+  assert.match(viewGroup, /id="view-menu-value"[^>]*>Focus On</);
   assert.match(viewGroup, /id="focus-switcher"/);
+  assert.equal(viewGroup.includes(" open"), false, "view menu starts closed");
   assert.equal(viewGroup.includes('id="canvas-grid-toggle"'), false, "grid visibility is not a View control");
   assert.equal(viewGroup.includes('id="canvas-grid-size"'), false, "spacing is not a View control");
-  const gridGroup = html.slice(gridCluster, canvas);
-  assert.match(gridGroup, /class="chrome-cluster-label">Grid</);
+  const gridGroup = html.slice(gridMenu, canvas);
+  assert.match(gridGroup, /class="chrome-menu-label">Grid</);
+  assert.match(gridGroup, /id="grid-menu-value"[^>]*>Lines · 24</);
   assert.match(gridGroup, /id="canvas-grid-toggle"/);
-  assert.match(gridGroup, /class="layout-group chrome-secondary"/);
   assert.match(gridGroup, /id="canvas-grid-size"/);
+  assert.equal(gridGroup.includes(" open"), false, "grid menu starts closed");
+  assert.equal(html.includes('class="chrome-cluster"'), false, "layout and view are not a chip row");
   assert.equal(html.includes('aria-label="Viewing"'), false, "Viewing is not a chrome group");
   assert.equal(html.includes(">Viewing<"), false);
   const diagramChrome = html.slice(chrome, canvas);
   assert.equal((diagramChrome.match(/role="toolbar"/g) ?? []).length, 1, "one toolbar, not a ribbon");
   assert.equal(diagramChrome.includes('role="tab"'), false, "chrome has no ribbon tabs");
   assert.equal(diagramChrome.includes("current-view-kicker"), false, "view name does not reuse the View group label");
+  assert.equal((diagramChrome.match(/<details id="(?:layout|view|grid)-menu"/g) ?? []).length, 3);
   const modeFn = ui.slice(ui.indexOf("function renderModeSwitcher"), ui.indexOf("function renderDirectionSwitcher"));
   assert.match(modeFn, /label:\s*"Default"/);
   assert.equal(/\blabel:\s*"File"/.test(modeFn), false, "Mode does not use File as a chrome label");
@@ -193,13 +209,12 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.match(ui, /renderFocusSwitcher/);
   assert.match(html, /chrome-optional">optional</);
   assert.match(html, /aria-label="Focus mode, optional"/);
-  assert.match(html, /class="layout-primary"/);
   assert.match(html, /aria-label="Auto layout"/);
   assert.match(html, /aria-label="Layout mode"/);
   assert.match(html, /aria-label="Layout direction"/);
   assert.match(html, /aria-label="Edge routing"/);
-  assert.match(html, /aria-controls="layout-options-panel"/);
   assert.match(html, /class="layout-controls"/);
+  assert.equal(html.includes('aria-controls="layout-options-panel"'), false, "options live in the Layout menu");
   assert.equal(html.includes('class="view-switcher"'), false);
 
   assert.match(ui, /autoLayoutOverride/);
@@ -215,9 +230,14 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.match(ui, /renderModeSwitcher/);
   assert.match(ui, /renderDirectionSwitcher/);
   assert.match(ui, /renderRoutingSwitcher/);
-  assert.match(ui, /syncLayoutOptionsButton/);
-  assert.match(ui, /setLayoutOptionsOpen/);
+  assert.match(ui, /syncLayoutMenu/);
+  assert.match(ui, /syncViewMenu/);
+  assert.match(ui, /syncGridMenu/);
+  assert.match(ui, /layoutMenuValue\.textContent|setMenuSummary\(layoutMenu, layoutMenuValue/);
+  assert.match(ui, /closeChromeMenus/);
   assert.match(ui, /pointerdown/);
+  assert.equal(ui.includes("placeLayoutOptionsPanel"), false, "the chrome row no longer scrolls a fixed options panel");
+  assert.equal(ui.includes("syncLayoutOptionsButton"), false);
   assert.match(css, /data-manual-layout/);
 
   const openSource = ui.slice(ui.indexOf("function openSource"), ui.indexOf("function applyReload"));
@@ -230,25 +250,23 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   );
   assert.match(css, /\.layout-controls\s*\{/);
   assert.match(css, /\.layout-switcher\s*,/);
-  assert.match(css, /\.layout-options-panel\s*\{/);
-  assert.match(css, /\.layout-options-panel\[hidden\]\s*\{[^}]*display:\s*none/);
-  assert.match(css, /\.layout-primary\s*\{/);
-  assert.match(css, /\.chrome-cluster\s*\{/);
-  assert.match(css, /\.chrome-cluster \+ \.chrome-cluster\s*\{/);
-  assert.match(css, /\.chrome-secondary\s*\{/);
+  assert.match(css, /\.chrome-menu\s*\{/);
+  assert.match(css, /\.chrome-menu-panel\s*\{/);
+  assert.match(css, /\.chrome-menu-value\s*\{/);
   const diagramChromeCss = css.match(/\.diagram-chrome\s*\{[^}]+\}/);
   assert.ok(diagramChromeCss, "diagram-chrome rule exists");
   assert.match(diagramChromeCss[0]!, /flex-wrap:\s*nowrap/);
   const layoutControlsCss = css.match(/\.layout-controls\s*\{[^}]+\}/);
   assert.ok(layoutControlsCss);
   assert.match(layoutControlsCss[0]!, /flex-wrap:\s*nowrap/);
-  assert.match(layoutControlsCss[0]!, /overflow-x:\s*auto/);
-  assert.match(css, /\.layout-options-panel\s*\{[^}]*position:\s*fixed/);
-  assert.match(ui, /function placeLayoutOptionsPanel/);
-  const clusterCss = css.match(/\.chrome-cluster\s*\{[^}]+\}/);
-  assert.ok(clusterCss);
-  assert.match(clusterCss[0]!, /flex-wrap:\s*nowrap/);
-  assert.ok(controls < layoutCluster, "groups live in the single layout toolbar");
+  assert.match(layoutControlsCss[0]!, /overflow:\s*visible/);
+  assert.equal(/overflow-x:\s*auto/.test(layoutControlsCss[0]!), false, "controls do not scroll horizontally");
+  assert.equal(/scrollbar-width/.test(layoutControlsCss[0]!), false, "no scrollbar painted on the controls");
+  const menuPanelCss = css.match(/\.chrome-menu-panel\s*\{[^}]+\}/);
+  assert.ok(menuPanelCss);
+  assert.match(menuPanelCss[0]!, /position:\s*absolute/);
+  assert.equal(/position:\s*fixed/.test(menuPanelCss[0]!), false);
+  assert.ok(controls < layoutMenu, "menus live in the single layout toolbar");
 });
 
 test("Mac UI switches named views from the left sidebar only", () => {

@@ -18,6 +18,10 @@ export type InspectRelationship = {
   source: string;
   target: string;
   line: number;
+  /** Access type, or `null` when the relationship is not a typed access. */
+  accessType: string | null;
+  /** Influence strength, or `null` when the relationship is not a typed influence. */
+  modifier: string | null;
 };
 
 /** One `position` clause. Present even when this view’s auto-layout is on. */
@@ -111,6 +115,8 @@ export function inspectModel(model: PleinModel, file: string): InspectDump {
       source: relationship.source,
       target: relationship.target,
       line: relationship.line,
+      accessType: relationship.accessType ?? null,
+      modifier: relationship.modifier ?? null,
     })),
     views: model.views.map(inspectView),
   };
