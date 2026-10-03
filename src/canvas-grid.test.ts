@@ -320,22 +320,22 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   const toggle = html.indexOf('id="canvas-grid-toggle"');
   const options = html.indexOf('id="layout-options"');
   const nesting = html.indexOf('id="nesting-switcher"');
-  const view = html.indexOf('class="chrome-cluster" role="group" aria-label="View"');
+  const view = html.indexOf('<details id="view-menu"');
   const focus = html.indexOf('id="focus-switcher"');
-  const grid = html.indexOf('class="chrome-cluster" role="group" aria-label="Grid"');
+  const grid = html.indexOf('<details id="grid-menu"');
   const size = html.indexOf('id="canvas-grid-size"');
   const canvas = html.indexOf('id="diagram" class="diagram"');
   assert.notEqual(toggle, -1, "grid visibility toggle is present");
-  assert.notEqual(grid, -1, "grid grouping is present");
-  assert.ok(options < toggle, "grid toggle stays on the chrome, in Grid after Layout");
+  assert.notEqual(grid, -1, "grid menu is present");
+  assert.ok(options < toggle, "grid toggle stays in the Grid menu, after Layout");
   assert.ok(
     view < focus && focus < grid && grid < toggle && toggle < size && size < canvas,
-    "focus stays under View; grid visibility and snap spacing sit together under Grid",
+    "focus stays in the View menu; grid visibility and snap spacing sit together in the Grid menu",
   );
   assert.ok(nesting < view, "nesting stays in the layout menu, before View");
   const gridGroup = html.slice(grid, canvas);
+  assert.match(gridGroup, /id="grid-menu-value"/);
   assert.match(gridGroup, /id="canvas-grid-toggle"/);
-  assert.match(gridGroup, /class="layout-group chrome-secondary"/);
   assert.match(gridGroup, /id="canvas-grid-size"/);
   assert.equal(html.slice(view, grid).includes('id="canvas-grid-size"'), false, "spacing is not a peer of View");
   assert.match(html, /id="canvas-grid-toggle"[^>]*aria-pressed="true"/);
