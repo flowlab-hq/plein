@@ -49,11 +49,18 @@
               Export…
               <kbd>⇧⌘E</kbd>
             </button>
+            <button
+              type="button"
+              id="reload-button"
+              role="menuitem"
+              disabled
+              title="Re-read the open .plein and redraw the diagram (⌘R)"
+            >
+              Reload
+              <kbd>⌘R</kbd>
+            </button>
           </div>
         </details>
-        <button type="button" id="reload-button" disabled title="Re-read the open .plein and redraw the diagram (⌘R)">
-          Reload
-        </button>
         <input
           id="file-input"
           type="file"
@@ -66,7 +73,17 @@
           accept=".xml,text/xml,application/xml"
           hidden
         />
-        <p id="file-label" class="file-label">No file open</p>
+        <div class="document-title">
+          <p id="file-label" class="file-label" tabindex="-1">No file open</p>
+          <span
+            id="unsaved-dot"
+            class="unsaved-dot"
+            hidden
+            role="status"
+            aria-label="Unsaved"
+            title="Unsaved positions and sizes. Save writes them."
+          ></span>
+        </div>
       </header>
 
       <div id="error" class="error" hidden role="alert">

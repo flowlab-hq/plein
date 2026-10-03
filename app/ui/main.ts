@@ -140,6 +140,7 @@ const exportButton = document.querySelector("#export-button") as HTMLButtonEleme
 const fileInput = document.querySelector("#file-input") as HTMLInputElement;
 const importInput = document.querySelector("#import-input") as HTMLInputElement;
 const fileLabel = document.querySelector("#file-label") as HTMLElement;
+const unsavedDot = document.querySelector("#unsaved-dot") as HTMLElement;
 const errorBox = document.querySelector("#error") as HTMLElement;
 const errorLead = document.querySelector("#error-lead") as HTMLElement;
 const errorDetail = document.querySelector("#error-detail") as HTMLElement;
@@ -885,17 +886,23 @@ function syncSaveChrome(): void {
     fileLabel.textContent = "No file open";
     fileLabel.removeAttribute("title");
     delete fileLabel.dataset.dirty;
+    unsavedDot.hidden = true;
     return;
   }
-  fileLabel.textContent = dirty ? `Unsaved — ${loaded.file}` : loaded.file;
-  fileLabel.title = dirty
-    ? "Manual positions and sizes are not in the file yet. Save writes them."
-    : loaded.file;
+  fileLabel.textContent = documentName(loaded.file);
+  fileLabel.title = loaded.file;
   if (dirty) {
     fileLabel.setAttribute("data-dirty", "true");
   } else {
     fileLabel.removeAttribute("data-dirty");
   }
+  unsavedDot.hidden = !dirty;
+}
+
+/** Basename for the title bar. The full path stays on the tooltip. */
+function documentName(file: string): string {
+  const base = file.split(/[/\\]/).pop()?.trim();
+  return base ? base : file;
 }
 
 function positionsToWrite(viewName: string, useLive: boolean): SavedPosition[] {
@@ -1996,6 +2003,7 @@ async function openPath(path: string): Promise<void> {
 }
 
 async function reloadOpen(): Promise<void> {
+  closeFileMenu();
   if (!loaded && !openExchangeFile) {
     return;
   }
@@ -3444,7 +3452,7 @@ function closeExportDialog(restoreFocus = true): void {
   delete exportDialog.dataset.viewName;
   if (restoreFocus) {
     if (fileMenu.hidden) {
-      reloadButton.focus();
+      fileLabel.focus();
     } else {
       fileMenu.querySelector("summary")?.focus();
     }

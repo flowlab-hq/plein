@@ -169,7 +169,7 @@ Coordinates are view-space top-lefts (`position <id> <x> <y>`). An edge resize a
 | **On** | Disabled. Placement is recomputed. `position` clauses are not applied and are not updated. |
 | **File**, and this view is automatic | Disabled. Same as **On** for this view. |
 
-Turning **On** discards unsaved moves. Turning **Off** on a view the file still lays out automatically marks the file unsaved, because that freeze is not in the file yet. A drag or a group move does the same. The toolbar file name reads **Unsaved —** until **Save**. **Save** clears it and returns **Auto layout** to **File**, so the open view follows the clauses just written.
+Turning **On** discards unsaved moves. Turning **Off** on a view the file still lays out automatically marks the file unsaved, because that freeze is not in the file yet. A drag or a group move does the same. The title bar shows the file’s short name, and a small dot marks those unsaved positions until **Save**. **Save** clears the dot and returns **Auto layout** to **File**, so the open view follows the clauses just written.
 
 **Reload** re-reads the file and keeps an unsaved freeze on screen. It does not write. Quit and reopen uses only what **Save** wrote.
 
@@ -183,7 +183,7 @@ Edit the open `.plein` in any text editor, save, then reload. The app re-reads t
 
 In the Mac app:
 
-1. **Reload** in the toolbar, or **File → Reload**, or **⌘R**.
+1. **File → Reload**, or **⌘R**.
 2. The diagram, switcher, and lists update from the saved file.
 3. If the current named viewpoint still exists, it stays selected. If you deleted that view, Plein falls back to the first remaining named view.
 4. A **new** `view` / `viewpoint` block in the markup appears in the switcher after reload. Click it to draw that view — no app rebuild.

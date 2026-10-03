@@ -84,8 +84,17 @@ button:disabled {
   cursor: default;
 }
 
+.document-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
 .file-label {
   margin: 0;
+  min-width: 0;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -94,7 +103,18 @@ button:disabled {
 
 .file-label[data-dirty="true"] {
   color: var(--ink);
-  font-weight: 600;
+}
+
+.unsaved-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c47b12;
+}
+
+.unsaved-dot[hidden] {
+  display: none;
 }
 
 #save-button.is-dirty:not(:disabled) {

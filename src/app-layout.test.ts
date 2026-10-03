@@ -339,19 +339,20 @@ test("Open, Save, Import, and Export live in the File menu, not the toolbar chro
   assert.match(fileMenu, /id="import-button"/);
   assert.match(fileMenu, /Import Open Exchange XML…/);
   assert.match(fileMenu, /id="export-button"/);
+  assert.match(fileMenu, /id="reload-button"/);
   assert.ok(
     fileMenu.indexOf('id="open-button"') < fileMenu.indexOf('id="save-button"') &&
       fileMenu.indexOf('id="save-button"') < fileMenu.indexOf('id="import-button"') &&
-      fileMenu.indexOf('id="import-button"') < fileMenu.indexOf('id="export-button"'),
+      fileMenu.indexOf('id="import-button"') < fileMenu.indexOf('id="export-button"') &&
+      fileMenu.indexOf('id="export-button"') < fileMenu.indexOf('id="reload-button"'),
     "File menu order matches the native menu",
   );
 
   const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
   const chrome = toolbar.replace(fileMenu, "");
-  for (const id of ["open-button", "save-button", "import-button", "export-button"]) {
+  for (const id of ["open-button", "save-button", "import-button", "export-button", "reload-button"]) {
     assert.equal(chrome.includes(`id="${id}"`), false, `${id} is not a toolbar button`);
   }
-  assert.match(chrome, /id="reload-button"/, "Reload stays in the toolbar");
 
   assert.match(ui, /function useInAppFileMenu/);
   assert.match(ui, /if \(!tauri\(\)\) \{\s*fileMenu\.hidden = false;\s*\}/);
@@ -363,6 +364,7 @@ test("Open, Save, Import, and Export live in the File menu, not the toolbar chro
   assert.match(ui, /listen\("save-positions"/);
   assert.match(ui, /listen\("import-open-exchange"/);
   assert.match(ui, /listen\("export-view"/);
+  assert.match(ui, /listen\("reload-file"/);
 
   assert.match(rust, /"open", "Open…"/);
   assert.match(rust, /CmdOrCtrl\+O/);
@@ -372,7 +374,43 @@ test("Open, Save, Import, and Export live in the File menu, not the toolbar chro
   assert.match(rust, /CmdOrCtrl\+Shift\+I/);
   assert.match(rust, /"export", "Export…"/);
   assert.match(rust, /CmdOrCtrl\+Shift\+E/);
+  assert.match(rust, /"reload", "Reload"/);
+  assert.match(rust, /CmdOrCtrl\+R/);
   assert.match(rust, /Submenu::with_items\(\s*app,\s*"File"/);
+});
+
+test("title bar shows a short name and a dirty dot, not the path or Unsaved label", () => {
+  const html = readFileSync(join(repoRoot, "app/ui/index.html"), "utf8");
+  const ui = readFileSync(join(repoRoot, "app/ui/main.ts"), "utf8");
+  const css = readFileSync(join(repoRoot, "app/ui/styles.css"), "utf8");
+
+  const menuStart = html.indexOf('<details id="file-menu"');
+  const fileMenu = html.slice(menuStart, html.indexOf("</details>", menuStart));
+  const toolbar = html.slice(html.indexOf('<header class="toolbar">'), html.indexOf("</header>"));
+  const chrome = toolbar.replace(fileMenu, "");
+  assert.match(chrome, /id="file-label"/);
+  assert.match(chrome, /id="unsaved-dot"/);
+  assert.match(chrome, /aria-label="Unsaved"/);
+  assert.equal(chrome.includes("Unsaved —"), false);
+  assert.equal(fileMenu.includes('id="reload-button"'), true);
+
+  const sync = ui.slice(ui.indexOf("function syncSaveChrome"), ui.indexOf("function documentName"));
+  assert.match(sync, /documentName\(loaded\.file\)/);
+  assert.match(sync, /fileLabel\.title = loaded\.file/);
+  assert.match(sync, /unsavedDot\.hidden = !dirty/);
+  assert.equal(sync.includes("Unsaved —"), false);
+  assert.equal(sync.includes("fileLabel.textContent = loaded.file"), false);
+  assert.match(ui, /function documentName\(file: string\)/);
+  assert.match(ui, /file\.split\(\/\[\/\\\\\]\/\)/);
+
+  assert.match(css, /\.unsaved-dot\s*\{/);
+  assert.match(css, /border-radius:\s*50%/);
+  assert.match(css, /\.unsaved-dot\[hidden\]\s*\{[^}]*display:\s*none/);
+  assert.equal(
+    /file-label\[data-dirty="true"\]\s*\{[^}]*font-weight:\s*600/.test(css),
+    false,
+    "dirty state is not a heavy header label",
+  );
 });
 
 test("Mac UI saves manual positions from the File menu", () => {
