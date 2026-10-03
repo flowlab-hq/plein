@@ -58,12 +58,12 @@
   <relationships>
     <relationship identifier="id-rel-1" source="id-rollout" target="id-planning" xsi:type="Realization"/>
     <relationship identifier="id-rel-2" source="id-qtc" target="id-book" xsi:type="Composition"/>
-    <relationship identifier="id-rel-3" source="id-risk" target="id-ontime" xsi:type="Influence"/>
+    <relationship identifier="id-rel-3" source="id-risk" target="id-ontime" xsi:type="Influence" modifier="-"/>
     <relationship identifier="id-rel-4" source="id-booking" target="id-shipper" xsi:type="Serving"/>
     <relationship identifier="id-rel-5" source="id-clerk" target="id-booking" xsi:type="Assignment"/>
     <relationship identifier="id-rel-6" source="id-booking" target="id-placed" xsi:type="Triggering"/>
     <relationship identifier="id-rel-7" source="id-rates" target="id-cloud" xsi:type="Flow"/>
-    <relationship identifier="id-rel-8" source="id-booking" target="id-order" xsi:type="Access"/>
+    <relationship identifier="id-rel-8" source="id-booking" target="id-order" xsi:type="Access" accessType="Write"/>
     <relationship identifier="id-rel-9" source="id-rates" target="id-booking" xsi:type="Realization"/>
     <relationship identifier="id-rel-10" source="id-rates" target="id-ratecard" xsi:type="Access"/>
     <relationship identifier="id-rel-11" source="id-cloud" target="id-rates" xsi:type="Realization"/>

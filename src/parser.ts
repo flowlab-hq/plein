@@ -119,7 +119,75 @@ export type RelationshipDecl = {
   order?: number;
   /** `//` comments immediately above this relationship, text after `//`. */
   leadingComments?: string[];
+  /**
+   * Open Exchange `accessType` on an `accesses` relationship.
+   * One of `Access`, `Read`, `Write`, `ReadWrite`. Absent when the clause is omitted.
+   */
+  accessType?: string;
+  /**
+   * Open Exchange influence `modifier` (the strength) on an `influences` relationship.
+   * One of `+`, `++`, `-`, `--`, or `0` through `10`. Absent when the clause is omitted.
+   */
+  modifier?: string;
 };
+
+/**
+ * ArchiMate Model Exchange `AccessTypeEnum` (3.1).
+ * The schema default when the attribute is omitted is `Access`; Plein stores
+ * a type only when the clause or the attribute is present.
+ */
+export const ACCESS_TYPES = ["Access", "Read", "Write", "ReadWrite"] as const;
+
+export type AccessType = (typeof ACCESS_TYPES)[number];
+
+/**
+ * ArchiMate Model Exchange `InfluenceStrengthEnum` (3.1).
+ * The schema calls these suggestions and also allows any string. Plein checks
+ * this closed set so an invalid strength fails `plein check`.
+ */
+export const INFLUENCE_MODIFIERS = [
+  "+",
+  "++",
+  "-",
+  "--",
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+] as const;
+
+export type InfluenceModifier = (typeof INFLUENCE_MODIFIERS)[number];
+
+const ACCESS_TYPE_SET = new Set<string>(ACCESS_TYPES);
+const INFLUENCE_MODIFIER_SET = new Set<string>(INFLUENCE_MODIFIERS);
+
+/** Canonical relationship-line suffix for a typed access type or influence strength. */
+export function relationshipModifierSource(
+  relationship: Pick<RelationshipDecl, "accessType" | "modifier">,
+): string {
+  const parts: string[] = [];
+  if (relationship.accessType) {
+    parts.push(`accessType ${relationship.accessType}`);
+  }
+  if (relationship.modifier !== undefined) {
+    parts.push(`modifier "${relationship.modifier}"`);
+  }
+  return parts.length > 0 ? ` ${parts.join(" ")}` : "";
+}
+
+/** Text drawn on an Access or Influence edge. The typed value itself. */
+export function relationshipModifierLabel(
+  relationship: Pick<RelationshipDecl, "accessType" | "modifier">,
+): string | undefined {
+  return relationship.accessType ?? relationship.modifier;
+}
 
 /** Top-left of one element when auto-layout is off. Ignored while auto-layout is on. */
 export type PositionDecl = {
@@ -299,6 +367,8 @@ const RESERVED_SPECIALIZATION_NAMES = new Set([
   "hook",
   "links",
   "notes",
+  "accessType",
+  "modifier",
 ]);
 
 function isDigit(ch: string): boolean {
@@ -1096,6 +1166,7 @@ class Parser {
     options: { valueStreamBody: boolean; parentId?: string },
     comments: string[],
   ): void {
+    const modifiers = this.takeRelationshipModifiers(type);
     if (options.valueStreamBody && !isValueStreamStageLink(type)) {
       throw new ParseError(
         `value stream stages may only use flowsTo or triggers (got '${type}')`,
@@ -1113,7 +1184,128 @@ class Parser {
       order: this.nextOrder++,
       ...(options.valueStreamBody && options.parentId ? { container: options.parentId } : {}),
       ...(comments.length > 0 ? { leadingComments: comments } : {}),
+      ...(modifiers.accessType !== undefined ? { accessType: modifiers.accessType } : {}),
+      ...(modifiers.modifier !== undefined ? { modifier: modifiers.modifier } : {}),
     });
+  }
+
+  /**
+   * Optional `accessType` or `modifier` clause after the relationship type.
+   * `accessType` is the clause only when the next token is an identifier that
+   * is not a relationship spelling, so `accessType -> order: access` stays a
+   * source. `modifier` is the clause only when the next token is a strength
+   * and a string is not followed by `as`, so `modifier "Label" as id` stays
+   * an element.
+   */
+  private takeRelationshipModifiers(type: RelationshipKeyword): {
+    accessType?: string;
+    modifier?: string;
+  } {
+    const accessType = this.takeAccessTypeClause(type);
+    const modifier = this.takeInfluenceModifierClause(type);
+    if (accessType !== undefined && this.startsAccessTypeClause()) {
+      const token = this.peek();
+      throw new ParseError("duplicate accessType clause", this.file, token.line, token.column);
+    }
+    if (modifier !== undefined && this.startsInfluenceModifierClause()) {
+      const token = this.peek();
+      throw new ParseError("duplicate modifier clause", this.file, token.line, token.column);
+    }
+    return {
+      ...(accessType !== undefined ? { accessType } : {}),
+      ...(modifier !== undefined ? { modifier } : {}),
+    };
+  }
+
+  private startsAccessTypeClause(): boolean {
+    if (!this.checkIdent("accessType")) {
+      return false;
+    }
+    const next = this.tokens[this.index + 1];
+    if (!next || next.kind !== "ident") {
+      return false;
+    }
+    return !isRelationshipKeyword(next.value);
+  }
+
+  private takeAccessTypeClause(type: RelationshipKeyword): string | undefined {
+    if (!this.checkIdent("accessType")) {
+      return undefined;
+    }
+    const next = this.tokens[this.index + 1];
+    if (next?.kind === "->" || (next?.kind === "ident" && isRelationshipKeyword(next.value))) {
+      return undefined;
+    }
+    const token = this.peek();
+    if (type !== "accesses") {
+      throw new ParseError(
+        "accessType is only valid on an access relationship",
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    this.advance();
+    const value = this.expect("ident", "expected access type after 'accessType'");
+    return value.value;
+  }
+
+  private startsInfluenceModifierClause(): boolean {
+    if (!this.checkIdent("modifier")) {
+      return false;
+    }
+    const next = this.tokens[this.index + 1];
+    if (!next || next.kind === "->" || (next.kind === "ident" && isRelationshipKeyword(next.value))) {
+      return false;
+    }
+    if (next.kind === "string") {
+      const after = this.tokens[this.index + 2];
+      return !(after?.kind === "ident" && after.value === "as");
+    }
+    if (next.kind === "number") {
+      return true;
+    }
+    return next.kind === "other" && (next.value === "+" || next.value === "-");
+  }
+
+  private takeInfluenceModifierClause(type: RelationshipKeyword): string | undefined {
+    if (!this.startsInfluenceModifierClause()) {
+      return undefined;
+    }
+    const token = this.peek();
+    if (type !== "influences") {
+      throw new ParseError(
+        "modifier is only valid on an influence relationship",
+        this.file,
+        token.line,
+        token.column,
+      );
+    }
+    this.advance();
+    return this.readInfluenceStrength();
+  }
+
+  /** A quoted strength, an integer token, or a run of `+` or `-`. */
+  private readInfluenceStrength(): string {
+    const token = this.peek();
+    if (token.kind === "string" || token.kind === "number") {
+      this.advance();
+      return token.value;
+    }
+    if (token.kind === "other" && (token.value === "+" || token.value === "-")) {
+      const sign = token.value;
+      let value = "";
+      while (this.peek().kind === "other" && this.peek().value === sign) {
+        value += this.advance().value;
+      }
+      return value;
+    }
+    throw new ParseError(
+      "expected an influence modifier after 'modifier'",
+      this.file,
+      token.line,
+      token.column,
+    );
   }
 
   private parseViews(): void {
@@ -1604,6 +1796,22 @@ export function checkPlein(source: string, file = "input.plein"): PleinModel {
     if (!isRelationshipAllowed(sourceElement.keyword, rel.type, targetElement.keyword)) {
       throw new ParseError(
         invalidRelationshipMessage(sourceElement.keyword, rel.type, targetElement.keyword),
+        file,
+        rel.line,
+        rel.column,
+      );
+    }
+    if (rel.accessType !== undefined && !ACCESS_TYPE_SET.has(rel.accessType)) {
+      throw new ParseError(
+        `unknown access type '${rel.accessType}' (expected Access, Read, Write, or ReadWrite)`,
+        file,
+        rel.line,
+        rel.column,
+      );
+    }
+    if (rel.modifier !== undefined && !INFLUENCE_MODIFIER_SET.has(rel.modifier)) {
+      throw new ParseError(
+        `unknown influence modifier '${rel.modifier}' (expected +, ++, -, --, or 0 through 10)`,
         file,
         rel.line,
         rel.column,

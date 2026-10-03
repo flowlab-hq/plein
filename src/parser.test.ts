@@ -4,8 +4,9 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { formatPleinSource } from "./format.js";
 import { languageReferenceElementKeywords, resolveElementKeyword } from "./keywords.js";
-import { checkPlein, ParseError, parsePlein } from "./parser.js";
+import { ACCESS_TYPES, checkPlein, INFLUENCE_MODIFIERS, ParseError, parsePlein } from "./parser.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -784,5 +785,133 @@ test("non-flow relationship inside a valueStream body is a diagnostic", () => {
       );
       return true;
     },
+  );
+});
+
+const MODIFIER_MODEL = `model {
+  business-service "Booking service" as booking
+  business-object "Freight order" as order
+  business-object "Contract" as contract
+  business-object "Representation" as representation
+  data-object "Rate card" as card
+  assessment "Late risk" as risk
+  goal "On-time delivery" as onTime
+  goal "Strong effect" as strong
+  goal "Scored" as scored
+  business-actor "Modifier" as modifier
+`;
+
+test("plein check accepts every access type and influence strength", () => {
+  const lines = [
+    `booking -> order: access accessType Write`,
+    `booking -> contract: access accessType Read`,
+    `booking -> representation: access accessType ReadWrite`,
+    `booking -> card: access accessType Access`,
+  ];
+  for (const modifier of INFLUENCE_MODIFIERS) {
+    const target = modifier === "-" ? "onTime" : modifier === "++" ? "strong" : "scored";
+    if (modifier !== "-" && modifier !== "++" && modifier !== "10") {
+      continue;
+    }
+    lines.push(`risk -> ${target}: influence modifier "${modifier}"`);
+  }
+  const model = checkPlein(`${MODIFIER_MODEL}\n  ${lines.join("\n  ")}\n}\n`, "modifiers.plein");
+  assert.deepEqual(
+    model.relationships.filter((relationship) => relationship.type === "accesses").map((relationship) => relationship.accessType),
+    ["Write", "Read", "ReadWrite", "Access"],
+  );
+  assert.deepEqual(
+    ACCESS_TYPES.map((accessType) => accessType),
+    ["Access", "Read", "Write", "ReadWrite"],
+  );
+  for (const modifier of INFLUENCE_MODIFIERS) {
+    const source = `${MODIFIER_MODEL}
+  risk -> onTime: influence modifier "${modifier}"
+}
+`;
+    const checked = checkPlein(source, "strength.plein");
+    assert.equal(checked.relationships[0]?.modifier, modifier);
+  }
+});
+
+test("unquoted influence strengths parse and format to a quoted modifier", () => {
+  const source = `${MODIFIER_MODEL}
+  risk -> onTime: influence modifier -
+  risk -> strong: influence modifier ++
+  risk -> scored: influence modifier 10
+  booking -> order: access accessType Write
+}
+`;
+  const model = checkPlein(source, "unquoted.plein");
+  assert.equal(model.relationships[0]?.modifier, "-");
+  assert.equal(model.relationships[1]?.modifier, "++");
+  assert.equal(model.relationships[2]?.modifier, "10");
+  const formatted = formatPleinSource(source, "unquoted.plein");
+  assert.match(formatted, /risk -> onTime: influence modifier "-"/);
+  assert.match(formatted, /risk -> strong: influence modifier "\+\+"/);
+  assert.match(formatted, /risk -> scored: influence modifier "10"/);
+  assert.match(formatted, /booking -> order: access accessType Write/);
+  assert.equal(formatPleinSource(formatted, "unquoted.plein"), formatted);
+});
+
+test("plein check rejects an unknown access type and an unknown influence modifier", () => {
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MODIFIER_MODEL}\n  booking -> order: access accessType Delete\n}\n`,
+        "bad-access.plein",
+      ),
+    /bad-access\.plein:\d+:\d+: unknown access type 'Delete' \(expected Access, Read, Write, or ReadWrite\)/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MODIFIER_MODEL}\n  risk -> onTime: influence modifier "high"\n}\n`,
+        "bad-influence.plein",
+      ),
+    /bad-influence\.plein:\d+:\d+: unknown influence modifier 'high' \(expected \+, \+\+, -, --, or 0 through 10\)/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MODIFIER_MODEL}\n  booking -> order: serving accessType Write\n}\n`,
+        "serving-access.plein",
+      ),
+    /accessType is only valid on an access relationship/,
+  );
+  assert.throws(
+    () =>
+      checkPlein(
+        `${MODIFIER_MODEL}\n  booking -> order: access modifier "-"\n}\n`,
+        "access-modifier.plein",
+      ),
+    /modifier is only valid on an influence relationship/,
+  );
+});
+
+test("accessType and modifier stay relationship sources when they are not clauses", () => {
+  const source = `${MODIFIER_MODEL}
+  booking -> order: access
+  modifier -> booking: association
+  accessType -> booking: serving
+}
+`;
+  const model = checkPlein(
+    source.replace(
+      "business-actor \"Modifier\" as modifier",
+      "business-actor \"Modifier\" as modifier\n  business-actor \"Access type\" as accessType",
+    ),
+    "sources.plein",
+  );
+  const access = model.relationships.find((relationship) => relationship.source === "booking");
+  assert.equal(access?.accessType, undefined);
+  assert.equal(access?.modifier, undefined);
+  assert.equal(
+    model.relationships.some((relationship) => relationship.source === "modifier" && relationship.type === "associatedWith"),
+    true,
+  );
+  assert.equal(
+    model.relationships.some((relationship) => relationship.source === "accessType" && relationship.type === "serves"),
+    true,
   );
 });

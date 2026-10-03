@@ -182,6 +182,30 @@ test("plein check exits 0 on fixtures/valid-notes.plein", () => {
   assert.match(result.stdout, /3 elements/);
 });
 
+test("plein check exits 0 on fixtures/valid-relationship-modifiers.plein", () => {
+  const result = runCheck("fixtures/valid-relationship-modifiers.plein");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^ok fixtures\/valid-relationship-modifiers\.plein/);
+  assert.match(result.stdout, /9 elements/);
+  assert.match(result.stdout, /7 relationships/);
+  assert.match(result.stdout, /2 views/);
+});
+
+test("plein check rejects an invalid access type and an invalid influence modifier", () => {
+  const access = runCheck("fixtures/invalid-access-type.plein");
+  assert.notEqual(access.status, 0);
+  assert.match(
+    access.stderr,
+    /invalid-access-type\.plein:\d+:\d+: unknown access type 'Delete' \(expected Access, Read, Write, or ReadWrite\)/,
+  );
+  const influence = runCheck("fixtures/invalid-influence-modifier.plein");
+  assert.notEqual(influence.status, 0);
+  assert.match(
+    influence.stderr,
+    /invalid-influence-modifier\.plein:\d+:\d+: unknown influence modifier 'high' \(expected \+, \+\+, -, --, or 0 through 10\)/,
+  );
+});
+
 test("plein check exits non-zero on an invalid relationship pair with line and types", () => {
   const result = runCheck("fixtures/invalid-relationship.plein");
   assert.notEqual(result.status, 0);

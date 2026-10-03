@@ -71,10 +71,23 @@ stage-decl = stage-keyword string "as" ident [ hook ] [ view-link ] [ notes-clau
 stage-keyword = "value-stream-stage" | "valueStreamStage" ;
 
 (* Arrow form and infix form. Inside a value-stream body the type must
-   resolve to flowsTo or triggers. *)
+   resolve to flowsTo or triggers.
+   accessType is only legal on access. modifier is only legal on influence.
+   accessType starts the clause only when the next ident is not a
+   relationship spelling, so "accessType -> order: access" stays a source.
+   modifier starts the clause only when the next token is a strength and a
+   string is not followed by "as", so modifier "Label" as id stays an element.
+   Canonical influence strength is a string. A number, or one or two "+" or
+   "-" characters, is accepted and format writes the string.
+   See grammar.md for the value sets plein check accepts. *)
 relationship = arrow-relationship | infix-relationship ;
-arrow-relationship = ident "->" ident ":" relationship-type ;
-infix-relationship = ident relationship-type ident ;
+arrow-relationship = ident "->" ident ":" relationship-type [ relationship-modifier ] ;
+infix-relationship = ident relationship-type ident [ relationship-modifier ] ;
+relationship-modifier = access-type-clause | influence-modifier-clause ;
+access-type-clause = "accessType" access-type ;
+access-type = "Access" | "Read" | "Write" | "ReadWrite" ;
+influence-modifier-clause = "modifier" influence-strength ;
+influence-strength = string | number | "+" | "++" | "-" | "--" ;
 
 view-decl = named-view | viewpoint-view ;
 named-view = "view" ident "{" view-body "}" ;

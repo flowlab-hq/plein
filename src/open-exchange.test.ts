@@ -30,7 +30,13 @@ const fixtureRoundTrip = join(repoRoot, "fixtures", "open-exchange", "booking.ro
 function exchangeShape(model: PleinModel) {
   return {
     elements: model.elements.map(({ keyword, label, id }) => ({ keyword, label, id })),
-    relationships: model.relationships.map(({ type, source, target }) => ({ type, source, target })),
+    relationships: model.relationships.map(({ type, source, target, accessType, modifier }) => ({
+      type,
+      source,
+      target,
+      accessType: accessType ?? null,
+      modifier: modifier ?? null,
+    })),
     views: model.views.map(({ name, viewpoint, title, includes, excludes, autoLayout, nesting }) => ({
       name,
       viewpoint,
@@ -161,8 +167,24 @@ test("booking fixture imports the documented subset", () => {
   assert.match(imported.source, /\/\/ name \(nl\): Verlader/);
   assert.match(imported.source, /\/\/ property Owner: NordFreight/);
   assert.match(imported.source, /\/\/ documentation: Stages from quote through cash collection\./);
-  assert.match(imported.source, /\/\/ accessType: Write/);
-  assert.match(imported.source, /\/\/ modifier: -/);
+  assert.match(imported.source, /id-booking -> id-order: access accessType Write/);
+  assert.match(imported.source, /id-risk -> id-ontime: influence modifier "-"/);
+  assert.equal(
+    model.relationships.find((relationship) => relationship.source === "id-booking" && relationship.target === "id-order")
+      ?.accessType,
+    "Write",
+  );
+  assert.equal(
+    model.relationships.find((relationship) => relationship.source === "id-risk" && relationship.target === "id-ontime")
+      ?.modifier,
+    "-",
+  );
+  assert.equal(
+    model.relationships.find((relationship) => relationship.source === "id-rates" && relationship.target === "id-ratecard")
+      ?.accessType,
+    undefined,
+  );
+  assert.doesNotMatch(imported.source, /\/\/ accessType:|\/\/ modifier:/);
   assert.match(imported.source, /business-actor "Shipper & Co" as id-shipper/);
 
   const context = model.views[0];
@@ -383,13 +405,30 @@ test("booking fixture exports the S5a subset and round-trips the model", () => {
     exported.xml,
     /<node identifier="id-node-\d+" xsi:type="Element" elementRef="id-qtc">\s*<node identifier="id-node-\d+" xsi:type="Element" elementRef="id-book"\/>/,
   );
-  assert.doesNotMatch(exported.xml, /AndJunction|accessType|modifier=|propertyDefinition|documentation|organizations|fillColor|bendpoint|Verlader|Application Cooperation/);
+  assert.match(exported.xml, /xsi:type="Influence" modifier="-"/);
+  assert.match(exported.xml, /xsi:type="Access" accessType="Write"/);
+  assert.match(exported.xml, /source="id-rates" target="id-ratecard" xsi:type="Access"\/>/);
+  assert.doesNotMatch(exported.xml, /AndJunction|propertyDefinition|documentation|organizations|fillColor|bendpoint|Verlader|Application Cooperation/);
 
   const again = importOpenExchange(exported.xml, "fixtures/open-exchange/booking.export.xml");
   assert.equal(again.source, readFileSync(fixtureRoundTrip, "utf8"));
   assert.deepEqual(exchangeShape(checkPlein(again.source, fixtureRoundTrip)), exchangeShape(model));
   assert.match(again.source, /Imported from Open Exchange "booking" \(model-booking\)/);
-  assert.doesNotMatch(again.source, /accessType|modifier:|property Owner|Verlader|Application Cooperation|documentation:/);
+  assert.match(again.source, /id-booking -> id-order: access accessType Write/);
+  assert.match(again.source, /id-risk -> id-ontime: influence modifier "-"/);
+  assert.equal(
+    exchangeShape(checkPlein(again.source, fixtureRoundTrip)).relationships.find(
+      (relationship) => relationship.source === "id-booking" && relationship.target === "id-order",
+    )?.accessType,
+    "Write",
+  );
+  assert.equal(
+    exchangeShape(checkPlein(again.source, fixtureRoundTrip)).relationships.find(
+      (relationship) => relationship.source === "id-risk" && relationship.target === "id-ontime",
+    )?.modifier,
+    "-",
+  );
+  assert.doesNotMatch(again.source, /\/\/ accessType:|\/\/ modifier:|property Owner|Verlader|Application Cooperation|documentation:/);
   assert.match(again.source, /nesting nested/);
   assert.match(again.source, /include id-qtc, id-book, id-planning/);
 

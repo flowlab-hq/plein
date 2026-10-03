@@ -1,0 +1,7 @@
+plein {
+  model {
+    assessment "Late risk" as risk
+    goal "On-time delivery" as onTime
+    risk -> onTime: influence modifier "high"
+  }
+}
