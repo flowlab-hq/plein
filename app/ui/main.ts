@@ -169,6 +169,7 @@ const directionSwitcher = document.querySelector("#direction-switcher") as HTMLE
 const routingSwitcher = document.querySelector("#routing-switcher") as HTMLElement;
 const nestingSwitcher = document.querySelector("#nesting-switcher") as HTMLElement;
 const focusSwitcher = document.querySelector("#focus-switcher") as HTMLElement;
+const layoutControls = document.querySelector(".layout-controls") as HTMLElement;
 const layoutOverflow = document.querySelector(".layout-overflow") as HTMLElement;
 const layoutOptionsButton = document.querySelector("#layout-options") as HTMLButtonElement;
 const layoutOptionsPanel = document.querySelector("#layout-options-panel") as HTMLElement;
@@ -178,6 +179,7 @@ const canvasGridSizeSwitcher = document.querySelector("#canvas-grid-size") as HT
 const inspector = document.querySelector("#inspector") as HTMLElement;
 const inspectorToggle = document.querySelector("#inspector-toggle") as HTMLButtonElement;
 const inspectorToggleLabel = document.querySelector("#inspector-toggle-label") as HTMLElement;
+const inspectorToggleIcon = document.querySelector("#inspector-toggle-icon") as HTMLElement;
 const inspectorBody = document.querySelector("#inspector-body") as HTMLElement;
 const inspectorEmpty = document.querySelector("#inspector-empty") as HTMLElement;
 const inspectorDetailBox = document.querySelector("#inspector-detail") as HTMLElement;
@@ -225,7 +227,7 @@ let autoLayoutOverride: "file" | "auto" | "off" = "file";
  * Canvas snap grid. Visibility only draws the lines. Snap stays on either
  * way: `gridSnapForDrag` is always passed to `alignDraggedBox`, which runs
  * grid snap first and then neighbour-align only within threshold.
- * `canvasGridSize` is snap spacing (Viewing, default 24). Drawn lines stay
+ * `canvasGridSize` is snap spacing inside Grid (default 24). Drawn lines stay
  * on `DRAWN_CANVAS_GRID_PITCH` until the user zooms. Neither is written to the file.
  * `alignHold` keeps a top-left that neighbour-align pulled off the lattice.
  */
@@ -1094,8 +1096,15 @@ function syncInspector(): void {
   inspector.classList.toggle("is-collapsed", inspectorCollapsed);
   workspace.classList.toggle("inspector-collapsed", inspectorCollapsed);
   inspectorToggle.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
-  inspectorToggle.title = inspectorCollapsed ? "Expand the inspector" : "Collapse the inspector";
-  inspectorToggleLabel.textContent = inspectorCollapsed ? "Show" : "Hide";
+  const toggleName = inspectorCollapsed ? "Show inspector" : "Collapse the inspector";
+  inspectorToggle.title = toggleName;
+  inspectorToggleLabel.hidden = inspectorCollapsed;
+  inspectorToggleIcon.hidden = !inspectorCollapsed;
+  if (inspectorCollapsed) {
+    inspectorToggle.setAttribute("aria-label", toggleName);
+  } else {
+    inspectorToggle.removeAttribute("aria-label");
+  }
   inspectorBody.hidden = inspectorCollapsed;
 
   const elements = loaded?.ok ? loaded.model.elements : [];
@@ -1175,7 +1184,12 @@ function renderAutoLayoutSwitcher(): void {
 
 function renderModeSwitcher(): void {
   const choices: Array<{ id: "file" | LayoutMode; label: string; title: string }> = [
-    { id: "file", label: "File", title: "Use autoLayout from the open view" },
+    {
+      id: "file",
+      label: "Default",
+      title:
+        "Use the mode from the open view (autoLayout). Layered, Layers, Organic, and Grid override it for local preview only.",
+    },
     ...LAYOUT_MODES.map((mode) => ({
       id: mode,
       label: layoutModeLabel(mode),
@@ -1280,7 +1294,7 @@ function renderNestingSwitcher(): void {
   );
 }
 
-/** Direction, routing, and nesting stay in Layout → Options. Snap spacing is on Viewing. */
+/** Direction, routing, and nesting stay in Layout → Options. Snap spacing sits inside Grid. */
 function secondaryLayoutSummary(): string {
   const parts: string[] = [];
   if (directionOverride !== "file") {
@@ -1299,9 +1313,33 @@ function layoutOptionsOpen(): boolean {
   return layoutOptionsButton.getAttribute("aria-expanded") === "true";
 }
 
+/** Keep Options on screen. The chrome row scrolls, so the panel is fixed, not clipped by it. */
+function placeLayoutOptionsPanel(): void {
+  const anchor = layoutOptionsButton.getBoundingClientRect();
+  const width = layoutOptionsPanel.offsetWidth;
+  const height = layoutOptionsPanel.offsetHeight;
+  const margin = 8;
+  let left = anchor.right - width;
+  if (left < margin) {
+    left = margin;
+  }
+  if (left + width > window.innerWidth - margin) {
+    left = Math.max(margin, window.innerWidth - margin - width);
+  }
+  let top = anchor.bottom + 6;
+  if (top + height > window.innerHeight - margin && anchor.top - 6 - height > margin) {
+    top = anchor.top - 6 - height;
+  }
+  layoutOptionsPanel.style.top = `${Math.round(top)}px`;
+  layoutOptionsPanel.style.left = `${Math.round(left)}px`;
+}
+
 function setLayoutOptionsOpen(open: boolean): void {
   layoutOptionsButton.setAttribute("aria-expanded", open ? "true" : "false");
   layoutOptionsPanel.hidden = !open;
+  if (open) {
+    placeLayoutOptionsPanel();
+  }
 }
 
 function syncLayoutOptionsButton(): void {
@@ -2095,6 +2133,18 @@ canvasGridToggle.addEventListener("click", () => {
   const svg = diagram.querySelector("svg");
   if (svg instanceof SVGSVGElement) {
     paintCanvasGrid(svg);
+  }
+});
+
+layoutControls.addEventListener("scroll", () => {
+  if (layoutOptionsOpen()) {
+    setLayoutOptionsOpen(false);
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (layoutOptionsOpen()) {
+    placeLayoutOptionsPanel();
   }
 });
 
