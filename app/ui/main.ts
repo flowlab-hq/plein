@@ -112,8 +112,13 @@ import {
   type CanvasMenuItem,
 } from "../../src/view-link.ts";
 import {
+  claimNotesWrite,
+  enqueueNotesWrite,
   inspectorDetail,
+  notesCommitBeforeSelectionChange,
+  notesUnsavedStatus,
   toggleInspectorCollapsed,
+  type NotesWriteQueue,
 } from "../../src/inspector.ts";
 import { SaveNotesError, writeElementNotes } from "../../src/save-notes.ts";
 
@@ -974,6 +979,84 @@ function collectSaveUpdates(): Array<{ view: string; positions: SavedPosition[] 
 }
 
 let saveInFlight = false;
+/** Resolvers waiting until `saveInFlight` is clear so a notes write is not dropped. */
+let saveIdleWaiters: Array<() => void> = [];
+let notesQueue: NotesWriteQueue = { nextTicket: 0, pending: [] };
+let notesPump: Promise<void> = Promise.resolve();
+/** Typed notes whose write has not landed. The inspector keeps this text. */
+let notesHold: { elementId: string; value: string; message: string } | null = null;
+/** Notes passed to the file writer and not yet in the model. */
+let notesInFlight: { elementId: string; value: string } | null = null;
+
+function notifySaveIdle(): void {
+  const waiting = saveIdleWaiters;
+  saveIdleWaiters = [];
+  for (const resolve of waiting) {
+    resolve();
+  }
+}
+
+function storedNotes(elementId: string): string | null {
+  if (!loaded?.ok) {
+    return null;
+  }
+  const element = loaded.model.elements.find((candidate) => candidate.id === elementId);
+  if (!element) {
+    return null;
+  }
+  return element.notes ?? "";
+}
+
+function requestNotesCommit(elementId: string, value: string): void {
+  if (!elementId) {
+    return;
+  }
+  const queued = notesQueue.pending[notesQueue.pending.length - 1];
+  if (queued && queued.elementId === elementId && queued.value === value) {
+    return;
+  }
+  // Blur and the click that caused it both ask to store this text. The write
+  // already running is enough — a second one would save the same edit twice.
+  if (notesInFlight?.elementId === elementId && notesInFlight.value === value) {
+    return;
+  }
+  notesQueue = enqueueNotesWrite(notesQueue, elementId, value);
+  notesPump = notesPump.then(() => pumpNotesWrites());
+}
+
+async function pumpNotesWrites(): Promise<void> {
+  while (notesQueue.pending.length > 0) {
+    const claimed = claimNotesWrite(notesQueue);
+    notesQueue = claimed.queue;
+    if (!claimed.write) {
+      continue;
+    }
+    await writeNotesOnce(claimed.write.elementId, claimed.write.value);
+  }
+}
+
+function rememberNotesMiss(elementId: string, value: string, message: string): void {
+  notesHold = { elementId, value, message };
+  showError(message, NOTES_ERROR_LEAD);
+  if ((inspectorNotes.dataset.elementId ?? "") !== elementId) {
+    return;
+  }
+  inspectorNotes.value = value;
+  inspectorNotesEmpty.hidden = value.length > 0;
+  setInspectorStatus(elementId, notesUnsavedStatus(message));
+}
+
+function clearNotesHold(elementId: string): void {
+  if (notesHold?.elementId === elementId) {
+    notesHold = null;
+  }
+}
+
+function clearNotesBanner(): void {
+  if (errorLead.textContent === NOTES_ERROR_LEAD) {
+    showError(null);
+  }
+}
 
 function pleinDownloadName(file: string): string {
   const base = file.split(/[/\\]/).pop() || "model.plein";
@@ -1021,6 +1104,7 @@ async function savePositions(): Promise<void> {
     applyReload(next, loaded.file);
   } finally {
     saveInFlight = false;
+    notifySaveIdle();
   }
 }
 
@@ -1029,34 +1113,58 @@ async function savePositions(): Promise<void> {
  * Same path as a view link: the Mac app writes the open file, browser preview
  * downloads the `.plein` and keeps that text for Reload, and an Open Exchange
  * import keeps the clause for the session only.
+ * Waits for a notes write already queued by blur or by a selection change.
  */
 async function persistInspectorNotes(): Promise<void> {
-  if (!loaded?.ok || lastSource === null) {
-    return;
-  }
   const id = inspectorNotes.dataset.elementId ?? "";
-  if (!id) {
+  if (id) {
+    const typed = inspectorNotes.value;
+    const stored = storedNotes(id);
+    if (stored === null || typed !== stored) {
+      requestNotesCommit(id, typed);
+    }
+  }
+  await notesPump;
+}
+
+/**
+ * Store one element's notes. A second leave with the same text does not write
+ * again. A failed write stays in the inspector instead of being dropped.
+ */
+async function writeNotesOnce(elementId: string, typed: string): Promise<void> {
+  while (saveInFlight) {
+    await new Promise<void>((resolve) => {
+      saveIdleWaiters.push(resolve);
+    });
+  }
+  if (!loaded?.ok || lastSource === null) {
+    rememberNotesMiss(elementId, typed, "Open a .plein file before saving notes.");
     return;
   }
-  const typed = inspectorNotes.value;
-  const current = loaded.model.elements.find((element) => element.id === id)?.notes ?? "";
-  if (typed === current || saveInFlight) {
+  const stored = storedNotes(elementId);
+  if (stored !== null && typed === stored) {
+    clearNotesHold(elementId);
     return;
   }
   const file = loaded.file;
+  notesInFlight = { elementId, value: typed };
   saveInFlight = true;
   try {
     let next: string;
     try {
-      next = writeElementNotes(lastSource, id, typed, file);
+      next = writeElementNotes(lastSource, elementId, typed, file);
     } catch (error) {
       const message = error instanceof SaveNotesError ? error.message : errorMessage(error);
-      showError(message, NOTES_ERROR_LEAD);
+      rememberNotesMiss(elementId, typed, message);
       return;
     }
+    clearNotesHold(elementId);
+    clearNotesBanner();
     if (openExchangeFile) {
       applyReload(next, file);
-      setInspectorStatus(id, "Kept notes for this session. Reload re-imports the XML.");
+      if ((inspectorNotes.dataset.elementId ?? "") === elementId) {
+        setInspectorStatus(elementId, "Kept notes for this session. Reload re-imports the XML.");
+      }
       return;
     }
     const api = tauri();
@@ -1065,24 +1173,30 @@ async function persistInspectorNotes(): Promise<void> {
       try {
         await api.core.invoke("write_export_file", { path: file, contents: next });
       } catch (error) {
-        showError(errorMessage(error), NOTES_ERROR_LEAD);
+        rememberNotesMiss(elementId, typed, errorMessage(error));
         return;
       }
     } else {
       try {
         downloadText(pleinDownloadName(file), "text/plain", next);
       } catch (error) {
-        showError(errorMessage(error), NOTES_ERROR_LEAD);
+        rememberNotesMiss(elementId, typed, errorMessage(error));
         return;
       }
     }
     applyReload(next, file);
-    setInspectorStatus(
-      id,
-      writesInPlace ? "Saved notes to the file." : "Downloaded the .plein. Reload uses this text.",
-    );
+    if ((inspectorNotes.dataset.elementId ?? "") === elementId) {
+      setInspectorStatus(
+        elementId,
+        writesInPlace ? "Saved notes to the file." : "Downloaded the .plein. Reload uses this text.",
+      );
+    }
   } finally {
+    if (notesInFlight?.elementId === elementId && notesInFlight.value === typed) {
+      notesInFlight = null;
+    }
     saveInFlight = false;
+    notifySaveIdle();
   }
 }
 
@@ -1109,11 +1223,30 @@ function syncInspector(): void {
 
   const elements = loaded?.ok ? loaded.model.elements : [];
   const detail = inspectorDetail(selectedItems, elements);
+  const nextElementId = detail.kind === "element" ? detail.id : null;
+  // A box or canvas press calls preventDefault on pointerdown, so the notes
+  // field often does not blur before this paint replaces it. Read first.
+  const leaving = notesCommitBeforeSelectionChange(
+    {
+      elementId: inspectorNotes.dataset.elementId ?? "",
+      value: inspectorNotes.value,
+    },
+    nextElementId,
+  );
+  if (leaving) {
+    const stored = storedNotes(leaving.elementId);
+    if (stored === null || leaving.value !== stored) {
+      requestNotesCommit(leaving.elementId, leaving.value);
+    } else {
+      clearNotesHold(leaving.elementId);
+    }
+  }
   if (detail.kind === "empty") {
     inspectorEmpty.hidden = false;
     inspectorEmpty.textContent = detail.message;
     inspectorDetailBox.hidden = true;
     inspectorNotes.dataset.elementId = "";
+    inspectorNotes.value = "";
     if (inspectorStatusFor !== null) {
       inspectorStatus.textContent = "";
       inspectorStatusFor = null;
@@ -1126,16 +1259,27 @@ function syncInspector(): void {
   inspectorId.textContent = detail.id;
   const sameElement = inspectorNotes.dataset.elementId === detail.id;
   const editing = document.activeElement === inspectorNotes && sameElement;
+  if (notesHold?.elementId === detail.id && notesHold.value === detail.notes) {
+    notesHold = null;
+  }
+  const pending =
+    notesInFlight?.elementId === detail.id
+      ? notesInFlight.value
+      : notesHold?.elementId === detail.id
+        ? notesHold.value
+        : null;
   if (!editing) {
-    inspectorNotes.value = detail.notes;
+    inspectorNotes.value = pending ?? detail.notes;
   }
   inspectorNotes.dataset.elementId = detail.id;
-  const shown = editing ? inspectorNotes.value : detail.notes;
-  inspectorNotesEmpty.hidden = shown.length > 0;
+  inspectorNotesEmpty.hidden = inspectorNotes.value.length > 0;
   inspectorNotesEmpty.textContent = detail.emptyMessage;
   if (inspectorStatusFor !== detail.id) {
     inspectorStatus.textContent = "";
     inspectorStatusFor = detail.id;
+  }
+  if (notesHold?.elementId === detail.id) {
+    setInspectorStatus(detail.id, notesUnsavedStatus(notesHold.message));
   }
 }
 
@@ -2067,7 +2211,20 @@ inspectorNotes.addEventListener("input", () => {
 });
 
 inspectorNotes.addEventListener("blur", () => {
-  void persistInspectorNotes();
+  const elementId = inspectorNotes.dataset.elementId ?? "";
+  if (!elementId) {
+    return;
+  }
+  const typed = inspectorNotes.value;
+  const stored = storedNotes(elementId);
+  if (stored !== null && typed === stored) {
+    if (notesHold?.elementId === elementId) {
+      clearNotesHold(elementId);
+      setInspectorStatus(elementId, "");
+    }
+    return;
+  }
+  requestNotesCommit(elementId, typed);
 });
 
 exportButton.addEventListener("click", () => {
@@ -3286,6 +3443,7 @@ async function persistElementViewLink(elementId: string, viewName: string | null
     applyReload(next, file);
   } finally {
     saveInFlight = false;
+    notifySaveIdle();
   }
 }
 

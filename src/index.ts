@@ -42,11 +42,18 @@ export {
 export {
   INSPECTOR_EMPTY_NOTES,
   INSPECTOR_SELECT_PROMPT,
+  claimNotesWrite,
   elementIdForInspector,
+  enqueueNotesWrite,
   inspectorDetail,
+  notesCommitBeforeSelectionChange,
+  notesUnsavedStatus,
   toggleInspectorCollapsed,
   type InspectorDetail,
   type InspectorElement,
+  type NotesField,
+  type NotesWrite,
+  type NotesWriteQueue,
 } from "./inspector.js";
 export {
   formatInspect,

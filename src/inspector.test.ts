@@ -8,9 +8,14 @@ import { formatPleinSource } from "./format.js";
 import {
   INSPECTOR_EMPTY_NOTES,
   INSPECTOR_SELECT_PROMPT,
+  claimNotesWrite,
   elementIdForInspector,
+  enqueueNotesWrite,
   inspectorDetail,
+  notesCommitBeforeSelectionChange,
+  notesUnsavedStatus,
   toggleInspectorCollapsed,
+  type NotesWriteQueue,
 } from "./inspector.js";
 import { filterModel, reloadPleinSource } from "./list-model.js";
 import { ParseError, checkPlein } from "./parser.js";
@@ -250,4 +255,46 @@ test("notes rejects a quote, a missing string, a duplicate, and a reserved name"
   );
   assert.equal(relationship.relationships[0]!.source, "notes");
   assert.equal(relationship.elements.find((element) => element.id === "notes")?.notes, undefined);
+});
+
+test("clicking another element or the canvas commits the open notes before the field is replaced", () => {
+  const typed = { elementId: "shipper", value: "Owns the outbound booking now" };
+  assert.deepEqual(notesCommitBeforeSelectionChange(typed, "booking"), typed);
+  assert.deepEqual(notesCommitBeforeSelectionChange(typed, null), typed);
+  assert.equal(notesCommitBeforeSelectionChange(typed, "shipper"), null);
+  assert.equal(notesCommitBeforeSelectionChange({ elementId: "", value: "orphan" }, "booking"), null);
+});
+
+test("a blur and a click-away of one edit keep the latest notes once", () => {
+  let queue: NotesWriteQueue = { nextTicket: 0, pending: [] };
+  queue = enqueueNotesWrite(queue, "shipper", "Own");
+  queue = enqueueNotesWrite(queue, "shipper", "Owns the outbound booking now");
+  const claimed = claimNotesWrite(queue);
+  assert.equal(claimed.write?.elementId, "shipper");
+  assert.equal(claimed.write?.value, "Owns the outbound booking now");
+  assert.equal(claimed.write?.ticket, 2);
+  assert.deepEqual(claimed.queue.pending, []);
+  assert.equal(claimNotesWrite(claimed.queue).write, null);
+});
+
+test("notes for two elements stay in order when the later edit is a different element", () => {
+  let queue: NotesWriteQueue = { nextTicket: 0, pending: [] };
+  queue = enqueueNotesWrite(queue, "shipper", "Desk");
+  queue = enqueueNotesWrite(queue, "booking", "Request");
+  queue = enqueueNotesWrite(queue, "shipper", "Desk priority");
+  const first = claimNotesWrite(queue);
+  assert.equal(first.write?.elementId, "booking");
+  assert.equal(first.write?.value, "Request");
+  const second = claimNotesWrite(first.queue);
+  assert.equal(second.write?.elementId, "shipper");
+  assert.equal(second.write?.value, "Desk priority");
+  assert.deepEqual(second.queue.pending, []);
+});
+
+test("a failed notes write tells the inspector the text is still in the field", () => {
+  assert.equal(
+    notesUnsavedStatus("notes cannot contain a double quote or a newline"),
+    "Could not save notes. They are still in this field. notes cannot contain a double quote or a newline",
+  );
+  assert.equal(notesUnsavedStatus("  "), "Could not save notes. They are still in this field.");
 });

@@ -475,6 +475,18 @@ test("Mac UI has a collapsible right inspector for element name and notes", () =
   assert.match(ui, /persistInspectorNotes/);
   assert.match(ui, /inspectorDetail/);
   assert.match(ui, /syncInspector/);
+  const syncStart = ui.indexOf("function syncInspector(): void");
+  const syncEnd = ui.indexOf("function radioButton(", syncStart);
+  const sync = ui.slice(syncStart, syncEnd);
+  const commitAt = sync.indexOf("notesCommitBeforeSelectionChange");
+  const replaceAt = sync.indexOf("inspectorNotes.value =");
+  assert.ok(commitAt !== -1 && replaceAt !== -1 && commitAt < replaceAt, "click-away reads notes before the field is replaced");
+  assert.match(sync, /requestNotesCommit/);
+  assert.match(ui, /notesUnsavedStatus/);
+  assert.match(ui, /claimNotesWrite/);
+  const blurAt = ui.lastIndexOf('inspectorNotes.addEventListener("blur"');
+  assert.ok(blurAt !== -1, "notes still commit on blur");
+  assert.match(ui.slice(blurAt, blurAt + 700), /requestNotesCommit/);
   assert.match(ui, /inspectorToggleLabel\.hidden = inspectorCollapsed/);
   assert.match(ui, /inspectorToggleIcon\.hidden = !inspectorCollapsed/);
   assert.match(ui, /setAttribute\("aria-label", toggleName\)/);

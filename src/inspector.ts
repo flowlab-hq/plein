@@ -66,3 +66,81 @@ export function inspectorDetail(
     emptyMessage: INSPECTOR_EMPTY_NOTES,
   };
 }
+
+export type NotesField = {
+  elementId: string;
+  value: string;
+};
+
+/**
+ * Text to store before the inspector paints a different selection.
+ * A canvas press cancels the notes field's blur, and the next paint replaces
+ * the textarea. The open field has to be read first. The same element
+ * (a slower repaint, or collapse) commits nothing here — blur already will.
+ * `nextElementId` is null when the panel returns to the empty prompt.
+ */
+export function notesCommitBeforeSelectionChange(
+  field: NotesField,
+  nextElementId: string | null,
+): NotesField | null {
+  if (field.elementId.length === 0 || field.elementId === nextElementId) {
+    return null;
+  }
+  return { elementId: field.elementId, value: field.value };
+}
+
+export type NotesWrite = NotesField & {
+  ticket: number;
+};
+
+export type NotesWriteQueue = {
+  nextTicket: number;
+  pending: NotesWrite[];
+};
+
+/** Queue one leave. Tickets only increase, so a later edit of the same element wins. */
+export function enqueueNotesWrite(
+  queue: NotesWriteQueue,
+  elementId: string,
+  value: string,
+): NotesWriteQueue {
+  const ticket = queue.nextTicket + 1;
+  return {
+    nextTicket: ticket,
+    pending: [...queue.pending, { elementId, value, ticket }],
+  };
+}
+
+/**
+ * Take the next notes write.
+ * An older edit of the same element is dropped when a later one is already
+ * queued, so a blur and a click-away store the latest text once.
+ */
+export function claimNotesWrite(queue: NotesWriteQueue): {
+  queue: NotesWriteQueue;
+  write: NotesWrite | null;
+} {
+  let pending = queue.pending;
+  while (pending.length > 0) {
+    const head = pending[0]!;
+    const rest = pending.slice(1);
+    pending = rest;
+    const newer = rest.some((item) => item.elementId === head.elementId);
+    if (!newer) {
+      return { queue: { ...queue, pending }, write: head };
+    }
+  }
+  return { queue: { ...queue, pending }, write: null };
+}
+
+/**
+ * Inspector status when a notes write did not land.
+ * The field still shows the text that failed to store.
+ */
+export function notesUnsavedStatus(detail: string): string {
+  const reason = detail.trim();
+  if (reason.length === 0) {
+    return "Could not save notes. They are still in this field.";
+  }
+  return `Could not save notes. They are still in this field. ${reason}`;
+}
