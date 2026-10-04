@@ -4,7 +4,10 @@
  * Boxes and orthogonal routes sit on the snap lattice for manual placement
  * and for automatic packing (ELK layered, layers, organic), including the
  * default file-open path. This is not `autoLayout grid` (catalogue packing
- * by kind or name): that mode is left as packed.
+ * by kind or name): that mode is left as packed. An orthogonal route that
+ * would cross another element box takes a lattice path around it when one
+ * exists. A route with no way around stays on the grid line so the stroke
+ * can paint on top of the box.
  *
  * Two pitches share one model-space origin, (0, 0):
  * - Drawn lines use `DRAWN_CANVAS_GRID_PITCH`. Grid → Spacing does not
@@ -27,6 +30,8 @@
  * Hiding the lines does not skip step 1. `gridSnapForDrag` stays wired
  * whether or not the overlay is painted.
  */
+
+import { routeOrthogonalAroundBoxes } from "./layout.js";
 
 /** Cell pitch in model units. The default box width is an integer number of these. */
 export const DEFAULT_CANVAS_GRID_SIZE = 24;
@@ -514,5 +519,9 @@ export function seatLayoutOnGrid<N extends GridSeatNode, E extends GridSeatEdge>
     }
     return withRoute(edge, routeOnGrid(source, target, cellSize, routing, direction));
   });
-  return { nodes: seated, edges: routed };
+  const around =
+    routing === "orthogonal"
+      ? routeOrthogonalAroundBoxes(seated, routed, direction, normalizeCanvasGridSize(cellSize))
+      : routed;
+  return { nodes: seated, edges: around };
 }

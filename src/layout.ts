@@ -1958,6 +1958,33 @@ export function contentBounds(
   };
 }
 
+/**
+ * Content box for a seated diagram. An orthogonal lane that steps outside
+ * the node rectangles still has to sit inside the viewBox, with the same
+ * 8px margin a bypass uses when it grows the packed canvas.
+ */
+export function contentBoundsForRoutes(
+  nodes: ReadonlyArray<{ x: number; y: number; width: number; height: number }>,
+  edges: ReadonlyArray<{ points?: ReadonlyArray<{ x: number; y: number }> }>,
+  padding: number,
+  minWidth: number,
+  minHeight: number,
+): ContentBounds {
+  const boxes: Array<{ x: number; y: number; width: number; height: number }> = [...nodes];
+  const margin = 8;
+  for (const edge of edges) {
+    for (const point of edge.points ?? []) {
+      boxes.push({
+        x: point.x - margin,
+        y: point.y - margin,
+        width: margin * 2,
+        height: margin * 2,
+      });
+    }
+  }
+  return contentBounds(boxes, padding, minWidth, minHeight);
+}
+
 /** Use an explicit span when it is finite; otherwise the label-fit fallback. */
 function explicitSpan(value: number | undefined, minimum: number, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) {
@@ -2463,13 +2490,109 @@ function attachInterBandEdges(
 }
 
 /**
+ * Same orthogonal bend as `rerouteOrthogonalAroundBoxes`, on the snap lattice
+ * the Mac canvas uses after seating. A route that already misses every other
+ * box stays. A route that would cross a box takes a lattice path around it
+ * when one exists. When every lattice path still crosses, the grid route
+ * stays so the stroke can paint on top of the box.
+ */
+export function routeOrthogonalAroundBoxes<
+  N extends {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    container?: boolean;
+    parentId?: string;
+  },
+  E extends {
+    id?: string;
+    source: string;
+    target: string;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    points?: ElkPoint[];
+    impliedByNest?: boolean;
+  },
+>(nodes: readonly N[], edges: readonly E[], direction: LayoutDirection, lattice: number): E[] {
+  const size = lattice > 0 && Number.isFinite(lattice) ? lattice : 0;
+  if (!(size > 0)) {
+    return edges.slice();
+  }
+  const layoutNodes: LayoutNode[] = nodes.map((node) => ({
+    id: node.id,
+    label: node.id,
+    keyword: "businessActor",
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    ...(node.parentId ? { parentId: node.parentId } : {}),
+    ...(node.container ? { container: true } : {}),
+  }));
+  let minX = 0;
+  let minY = 0;
+  let maxX = size;
+  let maxY = size;
+  for (const node of layoutNodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+  const packed: PackedLayout = {
+    nodes: layoutNodes,
+    edges: new Map(),
+    x: minX,
+    y: minY,
+    width: Math.max(size, maxX - minX),
+    height: Math.max(size, maxY - minY),
+  };
+  for (const edge of edges) {
+    if (!edge.id || edge.impliedByNest || !edge.points || edge.points.length < 2) {
+      continue;
+    }
+    packed.edges.set(edge.id, {
+      x1: edge.x1,
+      y1: edge.y1,
+      x2: edge.x2,
+      y2: edge.y2,
+      points: edge.points.map((point) => ({ x: point.x, y: point.y })),
+    });
+  }
+  if (packed.edges.size === 0) {
+    return edges.slice();
+  }
+  rerouteOrthogonalAroundBoxes(packed, direction, size);
+  return edges.map((edge) => {
+    if (!edge.id) {
+      return edge;
+    }
+    const next = packed.edges.get(edge.id);
+    if (!next) {
+      return edge;
+    }
+    return { ...edge, x1: next.x1, y1: next.y1, x2: next.x2, y2: next.y2, points: next.points };
+  });
+}
+
+/**
  * Layered and layers keep node coordinates and redraw an orthogonal segment
  * only when it would pass through another box. That covers ELK routes, a
  * layers inter-band elbow, and a long association down a frozen column
  * (auto layout off). A clear segment, including every ELK route that
  * already misses other boxes, stays put. Organic and grid do not call this.
+ * `lattice` is the snap cell the Mac seating pass uses. Omit it for the
+ * ELK pass, which is not on that grid.
  */
-function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDirection): void {
+function rerouteOrthogonalAroundBoxes(
+  packed: PackedLayout,
+  direction: LayoutDirection,
+  lattice?: number,
+): void {
   if (packed.edges.size === 0) {
     return;
   }
@@ -2507,10 +2630,10 @@ function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDir
   if (specs.length === 0) {
     return;
   }
-  assignOrganicPorts(specs);
+  assignOrganicPorts(specs, lattice);
   const sidePorts = new Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>();
   for (const side of ["top", "right", "bottom", "left"] as const) {
-    sidePorts.set(side, portsAlongSide(specs, side));
+    sidePorts.set(side, portsAlongSide(specs, side, lattice));
   }
   const replaced = new Set<string>();
   const bypassed = new Set<string>();
@@ -2528,17 +2651,35 @@ function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDir
     }
     const before = foreignBoxCuts(original.points, spec.source.id, spec.target.id, obstacles);
     const organic = simplifyOrthogonal(
-      chooseOrganicRoute(spec, obstacles, committed, packed.width, packed.height, direction, EDGE_NODE_GAP),
+      chooseOrganicRoute(
+        spec,
+        obstacles,
+        committed,
+        packed.width,
+        packed.height,
+        direction,
+        EDGE_NODE_GAP,
+        lattice,
+      ),
     );
     let chosen = organic;
     let chosenCuts = foreignBoxCuts(organic, spec.source.id, spec.target.id, obstacles);
     let usedBypass = false;
+    // Seating asks for a snap-lattice route. An off-lattice elbow is not a
+    // candidate there; the grid route stays until a lattice bend clears it.
+    if (lattice && !pointsOnLattice(organic, lattice)) {
+      chosen = original.points;
+      chosenCuts = before;
+    }
     // A zero-cut gap elbow whose last leg already holds the arrowhead is the
     // #74 route and stays. A stack of boxes often leaves that leg shorter
     // than the head, or still crossing a centre; the outside lane is for that.
-    const organicHoldsHead = chosenCuts === 0 && finalSegmentSpan(organic) + 0.01 >= EDGE_NODE_GAP;
+    const organicHoldsHead =
+      (!lattice || pointsOnLattice(organic, lattice)) &&
+      chosenCuts === 0 &&
+      finalSegmentSpan(organic) + 0.01 >= EDGE_NODE_GAP;
     if (!organicHoldsHead) {
-      const bypass = chooseLayersBypass(spec, obstacles, committed, sidePorts);
+      const bypass = chooseLayersBypass(spec, obstacles, committed, sidePorts, lattice);
       if (bypass) {
         const bypassCuts = foreignBoxCuts(bypass, spec.source.id, spec.target.id, obstacles);
         const bypassSpan = finalSegmentSpan(bypass);
@@ -2550,6 +2691,10 @@ function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDir
           usedBypass = true;
         }
       }
+    }
+    if (lattice && !pointsOnLattice(chosen, lattice)) {
+      committed.push(...axisSegments(original.points));
+      continue;
     }
     if (chosenCuts >= before || chosen.length < 2) {
       committed.push(...axisSegments(original.points));
@@ -2569,6 +2714,18 @@ function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDir
   if (replaced.size === 0) {
     return;
   }
+  if (lattice) {
+    // The 10px channel nudge would leave the snap grid. Lengthen still runs,
+    // in cell steps, so the arrowhead stays on the last segment.
+    lengthenOrganicFinalSegments(packed, obstacles, replaced, true, lattice);
+    for (const id of replaced) {
+      const edge = packed.edges.get(id);
+      if (edge?.points) {
+        growPackedAroundPoints(packed, edge.points);
+      }
+    }
+    return;
+  }
   nudgeStackedOrganicChannels(packed, obstacles, replaced);
   // A source stub may already share a channel. That must not block sliding
   // the target trunk out to EDGE_NODE_GAP, or the arrowhead lands on the bend.
@@ -2585,6 +2742,7 @@ function rerouteOrthogonalAroundBoxes(packed: PackedLayout, direction: LayoutDir
 function portsAlongSide(
   specs: OrganicEdgeSpec[],
   side: OrganicSide,
+  lattice?: number,
 ): Map<string, { source: ElkPoint; target: ElkPoint }> {
   const clones = specs.map((spec) => ({
     ...spec,
@@ -2593,7 +2751,7 @@ function portsAlongSide(
     sourcePort: { x: 0, y: 0 },
     targetPort: { x: 0, y: 0 },
   }));
-  assignOrganicPorts(clones);
+  assignOrganicPorts(clones, lattice);
   const ports = new Map<string, { source: ElkPoint; target: ElkPoint }>();
   for (const clone of clones) {
     ports.set(clone.id, { source: clone.sourcePort, target: clone.targetPort });
@@ -2612,11 +2770,15 @@ function chooseLayersBypass(
   obstacles: LayoutNode[],
   committed: AxisSeg[],
   sidePorts: Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>,
+  lattice?: number,
 ): ElkPoint[] | null {
   let best: ElkPoint[] | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
   let bestKey = "";
-  for (const route of layersBypassCandidates(spec, obstacles, sidePorts)) {
+  for (const route of layersBypassCandidates(spec, obstacles, sidePorts, lattice)) {
+    if (lattice && !pointsOnLattice(route, lattice)) {
+      continue;
+    }
     if (foreignBoxCuts(route, spec.source.id, spec.target.id, obstacles) > 0) {
       continue;
     }
@@ -2640,6 +2802,7 @@ function layersBypassCandidates(
   spec: OrganicEdgeSpec,
   obstacles: LayoutNode[],
   sidePorts: Map<OrganicSide, Map<string, { source: ElkPoint; target: ElkPoint }>>,
+  lattice?: number,
 ): ElkPoint[][] {
   const span = spanObstacles(spec, obstacles);
   const boxes = [spec.source, spec.target, ...span];
@@ -2655,12 +2818,13 @@ function layersBypassCandidates(
   }
   const routes: ElkPoint[][] = [];
   for (let step = 0; step < 6; step += 1) {
-    const pad = EDGE_NODE_GAP + step * ORGANIC_EDGE_GAP;
+    const pad = lattice ? lattice * (step + 1) : EDGE_NODE_GAP + step * ORGANIC_EDGE_GAP;
+    const laneAt = (value: number): number => (lattice ? snapLattice(value, lattice) : roundCoord(value));
     const lanes: Array<{ side: OrganicSide; lane: number; axis: "x" | "y" }> = [
-      { side: "left", lane: roundCoord(minX - pad), axis: "x" },
-      { side: "right", lane: roundCoord(maxX + pad), axis: "x" },
-      { side: "top", lane: roundCoord(minY - pad), axis: "y" },
-      { side: "bottom", lane: roundCoord(maxY + pad), axis: "y" },
+      { side: "left", lane: laneAt(minX - pad), axis: "x" },
+      { side: "right", lane: laneAt(maxX + pad), axis: "x" },
+      { side: "top", lane: laneAt(minY - pad), axis: "y" },
+      { side: "bottom", lane: laneAt(maxY + pad), axis: "y" },
     ];
     for (const lane of lanes) {
       const ports = sidePorts.get(lane.side)?.get(spec.id);
@@ -2917,7 +3081,7 @@ function organicFacingSides(
     : { source: "left", target: "right" };
 }
 
-function assignOrganicPorts(specs: OrganicEdgeSpec[]): void {
+function assignOrganicPorts(specs: OrganicEdgeSpec[], lattice?: number): void {
   const groups = new Map<string, Map<OrganicSide, OrganicEdgeSpec[]>>();
   const add = (nodeId: string, side: OrganicSide, spec: OrganicEdgeSpec): void => {
     let bySide = groups.get(nodeId);
@@ -2952,7 +3116,7 @@ function assignOrganicPorts(specs: OrganicEdgeSpec[]): void {
         return compareText(a.id, b.id);
       });
       ordered.forEach((spec, index) => {
-        const port = organicPort(node, side, index, ordered.length);
+        const port = organicPort(node, side, index, ordered.length, lattice);
         if (spec.source.id === nodeId && spec.sourceSide === side) {
           spec.sourcePort = port;
         } else {
@@ -2963,23 +3127,38 @@ function assignOrganicPorts(specs: OrganicEdgeSpec[]): void {
   }
 }
 
-function organicPort(node: LayoutNode, side: OrganicSide, index: number, count: number): ElkPoint {
+function organicPort(
+  node: LayoutNode,
+  side: OrganicSide,
+  index: number,
+  count: number,
+  lattice?: number,
+): ElkPoint {
   const along = (start: number, length: number, margin: number): number => {
     const usable = Math.max(length - margin * 2, 1);
     return roundCoord(start + margin + ((index + 0.5) / count) * usable);
   };
   const marginX = Math.min(16, Math.max(4, node.width / 5));
   const marginY = Math.min(12, Math.max(4, node.height / 5));
-  switch (side) {
-    case "top":
-      return { x: along(node.x, node.width, marginX), y: roundCoord(node.y) };
-    case "bottom":
-      return { x: along(node.x, node.width, marginX), y: roundCoord(node.y + node.height) };
-    case "left":
-      return { x: roundCoord(node.x), y: along(node.y, node.height, marginY) };
-    default:
-      return { x: roundCoord(node.x + node.width), y: along(node.y, node.height, marginY) };
+  const point = ((): ElkPoint => {
+    switch (side) {
+      case "top":
+        return { x: along(node.x, node.width, marginX), y: roundCoord(node.y) };
+      case "bottom":
+        return { x: along(node.x, node.width, marginX), y: roundCoord(node.y + node.height) };
+      case "left":
+        return { x: roundCoord(node.x), y: along(node.y, node.height, marginY) };
+      default:
+        return { x: roundCoord(node.x + node.width), y: along(node.y, node.height, marginY) };
+    }
+  })();
+  if (!lattice) {
+    return point;
   }
+  if (side === "top" || side === "bottom") {
+    return { x: latticeOnSegment(node.x, node.x + node.width, point.x, lattice), y: point.y };
+  }
+  return { x: point.x, y: latticeOnSegment(node.y, node.y + node.height, point.y, lattice) };
 }
 
 /**
@@ -3069,6 +3248,8 @@ function lengthenOrganicFinalSegments(
   onlyIds?: ReadonlySet<string>,
   /** When set, an already-stacked source stub does not veto the target slide. */
   looseStack = false,
+  /** Snap cell. Steps stay on that lattice instead of the 10px organic pitch. */
+  lattice?: number,
 ): void {
   const ids = [...packed.edges.keys()].filter((id) => !onlyIds || onlyIds.has(id)).sort(compareText);
   for (const id of ids) {
@@ -3097,6 +3278,7 @@ function lengthenOrganicFinalSegments(
     }
     const endCoord = vertical ? end.y : end.x;
     const limit = vertical ? packed.height : packed.width;
+    const pitch = lattice ?? ORGANIC_EDGE_GAP;
     const trunkIndex = points.length - 3;
     const bendIndex = points.length - 2;
     const oldBefore = points[trunkIndex - 1]!;
@@ -3105,7 +3287,10 @@ function lengthenOrganicFinalSegments(
     // The runway is EDGE_NODE_GAP. If that channel is taken, step further
     // out by ORGANIC_EDGE_GAP. A shorter stub would put the head on the bend.
     for (let step = 0; step < 8; step += 1) {
-      const coord = roundCoord(endCoord + away * (EDGE_NODE_GAP + step * ORGANIC_EDGE_GAP));
+      const coord = roundCoord(endCoord + away * (EDGE_NODE_GAP + step * pitch));
+      if (lattice && !coordOnLattice(coord, lattice)) {
+        continue;
+      }
       if (coord < 2 || coord > limit - 2) {
         continue;
       }
@@ -3262,13 +3447,17 @@ function chooseOrganicRoute(
   height: number,
   direction: LayoutDirection = "tb",
   minFinal = 8,
+  lattice?: number,
 ): ElkPoint[] {
-  const routes = organicRouteCandidates(spec, obstacles, committed, width, height, minFinal > 8);
+  const routes = organicRouteCandidates(spec, obstacles, committed, width, height, minFinal > 8, lattice);
   let best = orthogonalBetween(spec.source, spec.target, direction).points;
   let bestScore = Number.POSITIVE_INFINITY;
   let bestKey = "";
   for (const route of routes) {
     if (route.length < 2) {
+      continue;
+    }
+    if (lattice && !pointsOnLattice(route, lattice)) {
       continue;
     }
     const score = scoreOrganicRoute(route, obstacles, spec, committed, minFinal);
@@ -3289,12 +3478,13 @@ function organicRouteCandidates(
   width: number,
   height: number,
   deepStubs = false,
+  lattice?: number,
 ): ElkPoint[][] {
   const verticalExit = spec.sourceSide === "top" || spec.sourceSide === "bottom";
   const gap = facingInterval(spec);
   const routes: ElkPoint[][] = [];
   if (verticalExit) {
-    const ys = channelCandidates(gap, obstacles, committed, height, "y");
+    const ys = channelCandidates(gap, obstacles, committed, height, "y", lattice);
     for (const y of ys) {
       routes.push(
         simplifyOrthogonal([
@@ -3306,14 +3496,14 @@ function organicRouteCandidates(
       );
     }
     if (gap && gap.hi - gap.lo >= ORGANIC_EDGE_STUB * 2 + 2) {
-      const sourceDepths = outwardStubs(spec.source, spec.sourceSide, height, gap, deepStubs);
-      const targetDepths = outwardStubs(spec.target, spec.targetSide, height, gap, deepStubs);
+      const sourceDepths = outwardStubs(spec.source, spec.sourceSide, height, gap, deepStubs, lattice);
+      const targetDepths = outwardStubs(spec.target, spec.targetSide, height, gap, deepStubs, lattice);
       for (const ySource of sourceDepths) {
         for (const yTarget of targetDepths) {
           if (Math.abs(ySource - yTarget) < 4) {
             continue;
           }
-          for (const lane of laneCandidates(obstacles, committed, width, "x")) {
+          for (const lane of laneCandidates(obstacles, committed, width, "x", lattice)) {
             routes.push(
               simplifyOrthogonal([
                 spec.sourcePort,
@@ -3330,7 +3520,7 @@ function organicRouteCandidates(
     }
     return routes;
   }
-  const xs = channelCandidates(gap, obstacles, committed, width, "x");
+  const xs = channelCandidates(gap, obstacles, committed, width, "x", lattice);
   for (const x of xs) {
     routes.push(
       simplifyOrthogonal([
@@ -3342,14 +3532,14 @@ function organicRouteCandidates(
     );
   }
   if (gap && gap.hi - gap.lo >= ORGANIC_EDGE_STUB * 2 + 2) {
-    const sourceDepths = outwardStubs(spec.source, spec.sourceSide, width, gap, deepStubs);
-    const targetDepths = outwardStubs(spec.target, spec.targetSide, width, gap, deepStubs);
+    const sourceDepths = outwardStubs(spec.source, spec.sourceSide, width, gap, deepStubs, lattice);
+    const targetDepths = outwardStubs(spec.target, spec.targetSide, width, gap, deepStubs, lattice);
     for (const xSource of sourceDepths) {
       for (const xTarget of targetDepths) {
         if (Math.abs(xSource - xTarget) < 4) {
           continue;
         }
-        for (const lane of laneCandidates(obstacles, committed, height, "y")) {
+        for (const lane of laneCandidates(obstacles, committed, height, "y", lattice)) {
           routes.push(
             simplifyOrthogonal([
               spec.sourcePort,
@@ -3396,13 +3586,150 @@ function facingInterval(spec: OrganicEdgeSpec): { lo: number; hi: number } | nul
   return { lo, hi };
 }
 
+function snapLattice(value: number, lattice: number): number {
+  const steps = value / lattice;
+  const index = Math.sign(steps) * Math.round(Math.abs(steps));
+  const snapped = index * lattice;
+  return snapped === 0 ? 0 : snapped;
+}
+
+function coordOnLattice(value: number, lattice: number): boolean {
+  if (!Number.isFinite(value) || !(lattice > 0)) {
+    return false;
+  }
+  const mod = Math.abs(value % lattice);
+  return mod < 1e-6 || Math.abs(mod - lattice) < 1e-6;
+}
+
+function pointsOnLattice(points: ElkPoint[], lattice: number): boolean {
+  return points.every((point) => coordOnLattice(point.x, lattice) && coordOnLattice(point.y, lattice));
+}
+
+/** Nearest lattice coordinate on the closed segment from `lo` to `hi`. */
+function latticeOnSegment(lo: number, hi: number, prefer: number, lattice: number): number {
+  const start = Math.min(lo, hi);
+  const end = Math.max(lo, hi);
+  const first = Math.ceil(start / lattice - 1e-9);
+  const last = Math.floor(end / lattice + 1e-9);
+  if (last < first) {
+    return snapLattice((start + end) / 2, lattice);
+  }
+  let best = first * lattice;
+  let bestDist = Math.abs(best - prefer);
+  for (let index = first + 1; index <= last; index += 1) {
+    const value = index * lattice;
+    const dist = Math.abs(value - prefer);
+    if (dist < bestDist - 1e-9) {
+      best = value;
+      bestDist = dist;
+    }
+  }
+  return best === 0 ? 0 : best;
+}
+
+/**
+ * Snap-lattice channels for the same search `channelCandidates` runs off the
+ * grid. Lines sit in the facing gap, one cell outside each box, and one cell
+ * off a channel already taken. A few cells past the content box stay in so
+ * a lane beside a stack is still a candidate.
+ */
+function latticeChannelCandidates(
+  gap: { lo: number; hi: number } | null,
+  obstacles: LayoutNode[],
+  committed: AxisSeg[],
+  limit: number,
+  axis: "x" | "y",
+  lattice: number,
+): number[] {
+  const values: number[] = [];
+  const push = (value: number): void => {
+    const snapped = snapLattice(value, lattice);
+    if (snapped < -lattice * 6 || snapped > limit + lattice * 6) {
+      return;
+    }
+    values.push(snapped === 0 ? 0 : snapped);
+  };
+  if (gap && gap.hi > gap.lo) {
+    const first = Math.ceil((gap.lo + lattice * 0.5) / lattice);
+    const last = Math.floor((gap.hi - lattice * 0.5) / lattice);
+    for (let index = first; index <= last; index += 1) {
+      push(index * lattice);
+    }
+    push(gap.lo - lattice);
+    push(gap.hi + lattice);
+  }
+  for (const node of obstacles) {
+    if (axis === "y") {
+      push(node.y - lattice);
+      push(node.y);
+      push(node.y + node.height);
+      push(node.y + node.height + lattice);
+    } else {
+      push(node.x - lattice);
+      push(node.x);
+      push(node.x + node.width);
+      push(node.x + node.width + lattice);
+    }
+  }
+  for (const seg of committed) {
+    const parallel = axis === "y" ? seg.horiz : !seg.horiz;
+    if (!parallel) {
+      continue;
+    }
+    const at = axis === "y" ? seg.y1 : seg.x1;
+    push(at - lattice);
+    push(at + lattice);
+  }
+  return [...new Set(values)];
+}
+
+function latticeOutwardStubs(
+  node: LayoutNode,
+  side: OrganicSide,
+  limit: number,
+  gap: { lo: number; hi: number },
+  lattice: number,
+): number[] {
+  const values: number[] = [];
+  for (let step = 1; step <= 4; step += 1) {
+    let value = 0;
+    switch (side) {
+      case "bottom":
+        value = node.y + node.height + step * lattice;
+        break;
+      case "top":
+        value = node.y - step * lattice;
+        break;
+      case "right":
+        value = node.x + node.width + step * lattice;
+        break;
+      default:
+        value = node.x - step * lattice;
+        break;
+    }
+    const snapped = snapLattice(value, lattice);
+    if (snapped <= gap.lo || snapped >= gap.hi) {
+      continue;
+    }
+    if (snapped < -lattice * 6 || snapped > limit + lattice * 6) {
+      continue;
+    }
+    values.push(snapped === 0 ? 0 : snapped);
+  }
+  return values;
+}
+
 function channelCandidates(
   gap: { lo: number; hi: number } | null,
   obstacles: LayoutNode[],
   committed: AxisSeg[],
   limit: number,
   axis: "x" | "y",
+  lattice?: number,
 ): number[] {
+  if (lattice) {
+    return latticeChannelCandidates(gap, obstacles, committed, limit, axis, lattice);
+  }
   const values: number[] = [];
   const push = (value: number): void => {
     const rounded = roundCoord(value);
@@ -3450,8 +3777,9 @@ function laneCandidates(
   committed: AxisSeg[],
   limit: number,
   axis: "x" | "y",
+  lattice?: number,
 ): number[] {
-  return channelCandidates(null, obstacles, committed, limit, axis);
+  return channelCandidates(null, obstacles, committed, limit, axis, lattice);
 }
 
 /**
@@ -3465,7 +3793,11 @@ function outwardStubs(
   limit: number,
   gap: { lo: number; hi: number },
   deep = false,
+  lattice?: number,
 ): number[] {
+  if (lattice) {
+    return latticeOutwardStubs(node, side, limit, gap, lattice);
+  }
   const values: number[] = [];
   // Layers needs a stub past EDGE_NODE_GAP so the arrowhead stays on the
   // final segment. Organic keeps the two short depths.

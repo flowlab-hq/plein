@@ -15,6 +15,7 @@ import {
 import { elementStyle } from "../../src/archimate-style.ts";
 import {
   contentBounds,
+  contentBoundsForRoutes,
   edgeId,
   EDGE_ROUTINGS,
   isAutoLayoutEnabled,
@@ -1810,8 +1811,9 @@ async function renderDiagram(seq: number): Promise<void> {
         layout.direction,
         layout.auto === false ? alignHold : undefined,
       );
-      const bounds = contentBounds(
+      const bounds = contentBoundsForRoutes(
         seated.nodes,
+        seated.edges,
         PADDING,
         PADDING * 2 + NODE_WIDTH,
         PADDING * 2 + NODE_HEIGHT,

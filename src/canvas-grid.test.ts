@@ -5,7 +5,15 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { loadPleinSource } from "./list-model.js";
-import { layoutViewpoint } from "./layout.js";
+import {
+  contentBoundsForRoutes,
+  layoutViewpoint,
+  PADDING,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  renderViewpointSvg,
+  type LayoutNode,
+} from "./layout.js";
 import {
   CANVAS_GRID_SIZES,
   DEFAULT_CANVAS_GRID_SIZE,
@@ -13,6 +21,7 @@ import {
   canvasGridLinePaths,
   canvasGridLines,
   layoutSitsOnSnapGrid,
+  routeOnGrid,
   modelSpaceFrame,
   seatLayoutOnGrid,
   snapProposedOrigin,
@@ -395,6 +404,7 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.ok(renderFrom !== -1 && renderTo > renderFrom);
   const render = ui.slice(renderFrom, renderTo);
   assert.match(render, /layoutSitsOnSnapGrid\(layout\)/);
+  assert.match(render, /contentBoundsForRoutes/);
   assert.match(render, /layout\.auto === false \? alignHold/);
   assert.equal(render.includes("if (layout.auto === false)"), false, "seating is not limited to Auto Off");
 
@@ -406,4 +416,159 @@ test("Mac canvas toggles grid visibility without turning snap off", () => {
   assert.match(readme, /Auto layout\*\* \*\*On/);
   assert.match(readme, /default file-open path/);
   assert.match(readme, /catalogue packing is not reseated/);
+});
+
+function crossesBox(
+  points: ReadonlyArray<{ x: number; y: number }>,
+  node: { x: number; y: number; width: number; height: number },
+): boolean {
+  const left = node.x + 1;
+  const right = node.x + node.width - 1;
+  const top = node.y + 1;
+  const bottom = node.y + node.height - 1;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const a = points[index]!;
+    const b = points[index + 1]!;
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 0.6) {
+      continue;
+    }
+    if (Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)) {
+      const y = (a.y + b.y) / 2;
+      if (y <= top || y >= bottom) {
+        continue;
+      }
+      const overlap = Math.min(Math.max(a.x, b.x), right) - Math.max(Math.min(a.x, b.x), left);
+      if (overlap > 2) {
+        return true;
+      }
+    } else {
+      const x = (a.x + b.x) / 2;
+      if (x <= left || x >= right) {
+        continue;
+      }
+      const overlap = Math.min(Math.max(a.y, b.y), bottom) - Math.max(Math.min(a.y, b.y), top);
+      if (overlap > 2) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function renderedPolyline(svg: string, edgeId: string): Array<{ x: number; y: number }> {
+  const group = svg.slice(svg.indexOf(`data-edge-id="${edgeId}"`));
+  const points = /<polyline points="([^"]+)"/.exec(group)?.[1];
+  assert.ok(points, edgeId);
+  return points.split(" ").map((pair) => {
+    const [x, y] = pair.split(",");
+    return { x: Number(x), y: Number(y) };
+  });
+}
+
+/** The Mac pane: seat on the snap lattice, then `renderViewpointSvg`. */
+function macDiagram(layout: Awaited<ReturnType<typeof layoutViewpoint>>) {
+  assert.equal(layoutSitsOnSnapGrid(layout), true);
+  const seated = seatLayoutOnGrid(
+    layout.nodes,
+    layout.edges,
+    DEFAULT_CANVAS_GRID_SIZE,
+    layout.routing,
+    layout.direction,
+  );
+  const bounds = contentBoundsForRoutes(
+    seated.nodes,
+    seated.edges,
+    PADDING,
+    PADDING * 2 + NODE_WIDTH,
+    PADDING * 2 + NODE_HEIGHT,
+  );
+  const drawn = {
+    ...layout,
+    nodes: seated.nodes as LayoutNode[],
+    edges: seated.edges,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  };
+  return { seated, svg: renderViewpointSvg(drawn) };
+}
+
+test("orthogonal seating goes around a box when a path exists and keeps a necessary crossing visible", async () => {
+  const loaded = loadPleinSource(
+    readFileSync(join(repoRoot, "fixtures/valid-orthogonal-around.plein"), "utf8"),
+    "fixtures/valid-orthogonal-around.plein",
+  );
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) {
+    return;
+  }
+
+  const around = await layoutViewpoint(loaded.model, "around");
+  assert.equal(around.mode, "layered");
+  assert.equal(around.routing, "orthogonal");
+  assert.equal(around.auto, false);
+  const aroundMac = macDiagram(around);
+  assert.equal(aroundMac.seated.nodes.length, 3);
+  const top = aroundMac.seated.nodes.find((node) => node.id === "top")!;
+  const middle = aroundMac.seated.nodes.find((node) => node.id === "middle")!;
+  const bottom = aroundMac.seated.nodes.find((node) => node.id === "bottom")!;
+  assert.equal(top.x, 24);
+  assert.equal(middle.x, 24);
+  assert.equal(bottom.x, 24);
+  const straight = routeOnGrid(top, bottom, DEFAULT_CANVAS_GRID_SIZE, "orthogonal", around.direction);
+  assert.equal(crossesBox(straight, middle), true, "the grid centreline still crosses the middle box");
+  const aroundEdge = aroundMac.seated.edges.find((edge) => edge.source === "top" && edge.target === "bottom");
+  assert.ok(aroundEdge?.points);
+  assert.equal(crossesBox(aroundEdge.points, middle), false, "the seated route goes around the middle box");
+  assert.equal(
+    aroundEdge.points.some((point) => point.x < middle.x || point.x > middle.x + middle.width),
+    true,
+    "the detour leaves the column",
+  );
+  for (let index = 1; index < aroundEdge.points.length; index += 1) {
+    const previous = aroundEdge.points[index - 1]!;
+    const point = aroundEdge.points[index]!;
+    assert.ok(previous.x === point.x || previous.y === point.y);
+    assert.ok(onLattice(point.x, DEFAULT_CANVAS_GRID_SIZE));
+    assert.ok(onLattice(point.y, DEFAULT_CANVAS_GRID_SIZE));
+  }
+  const nodesAt = aroundMac.svg.indexOf('<g class="nodes">');
+  const edgesAt = aroundMac.svg.indexOf('<g class="edges">');
+  assert.ok(nodesAt !== -1 && nodesAt < edgesAt);
+  assert.match(aroundMac.svg, /data-layout-mode="layered"/);
+  assert.match(aroundMac.svg, /data-layout-routing="orthogonal"/);
+  const drawnAround = renderedPolyline(aroundMac.svg, aroundEdge.id!);
+  assert.equal(crossesBox(drawnAround, middle), false);
+  const lane = drawnAround.find((point) => point.x < middle.x || point.x > middle.x + middle.width);
+  assert.ok(lane);
+  const viewBox = /viewBox="([^"]+)"/.exec(aroundMac.svg)?.[1]?.split(/\s+/).map(Number);
+  assert.ok(viewBox && viewBox.length === 4);
+  assert.ok(lane.x >= viewBox[0]! - 0.01 && lane.x <= viewBox[0]! + viewBox[2]! + 0.01, "the around lane is inside the Mac viewBox");
+  assert.ok(lane.y >= viewBox[1]! - 0.01 && lane.y <= viewBox[1]! + viewBox[3]! + 0.01);
+
+  const crossing = await layoutViewpoint(loaded.model, "crossing");
+  assert.equal(crossing.mode, "layered");
+  assert.equal(crossing.routing, "orthogonal");
+  const crossingMac = macDiagram(crossing);
+  const cover = crossingMac.seated.nodes.find((node) => node.id === "cover")!;
+  const inside = crossingMac.seated.nodes.find((node) => node.id === "inside")!;
+  const also = crossingMac.seated.nodes.find((node) => node.id === "also")!;
+  assert.ok(inside.x > cover.x && inside.y > cover.y);
+  assert.ok(also.x + also.width < cover.x + cover.width);
+  assert.ok(also.y + also.height < cover.y + cover.height);
+  const through = crossingMac.seated.edges.find((edge) => edge.source === "inside" && edge.target === "also");
+  assert.ok(through?.points && through.id);
+  assert.equal(crossesBox(through.points, cover), true, "no around-path exists, so the route still crosses cover");
+  const crossingNodesAt = crossingMac.svg.indexOf('<g class="nodes">');
+  const crossingEdgesAt = crossingMac.svg.indexOf('<g class="edges">');
+  const coverAt = crossingMac.svg.indexOf('data-node-id="cover"');
+  const edgeAt = crossingMac.svg.indexOf(`data-edge-id="${through.id}"`);
+  assert.ok(crossingNodesAt !== -1 && crossingNodesAt < crossingEdgesAt);
+  assert.ok(coverAt !== -1 && coverAt < edgeAt, "the crossing stroke paints after the box");
+  assert.match(crossingMac.svg.slice(edgeAt, edgeAt + 800), /stroke="#6e6e73"/);
+  assert.match(crossingMac.svg.slice(edgeAt, edgeAt + 800), /pointer-events="none"/);
+  const drawnThrough = renderedPolyline(crossingMac.svg, through.id);
+  assert.equal(crossesBox(drawnThrough, cover), true);
+  assert.match(crossingMac.svg, /data-layout-mode="layered"/);
 });
