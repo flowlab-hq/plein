@@ -237,7 +237,11 @@ button:disabled {
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 300px);
+  /* The canvas keeps the width it has at about 1180px, where Layout, View,
+     and Grid still fit. Narrower than that, the side panes yield instead of
+     ellipsizing those menu values. 180px is the floor that still fits beside
+     a 600px canvas at the 960px stack breakpoint. */
+  grid-template-columns: minmax(180px, 280px) minmax(600px, 1fr) minmax(180px, 300px);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
@@ -327,23 +331,20 @@ button:disabled {
   justify-content: flex-end;
   gap: 8px;
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: max-content;
   margin-left: auto;
   overflow: visible;
 }
 
 .chrome-menu {
   position: relative;
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .chrome-menu > summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
-  min-width: 0;
   list-style: none;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -388,7 +389,8 @@ button:disabled {
 }
 
 .chrome-menu-value {
-  min-width: 0;
+  flex: 0 0 auto;
+  width: max-content;
   max-width: 10rem;
   overflow: hidden;
   text-overflow: ellipsis;
