@@ -1,0 +1,31 @@
+plein {
+  model {
+    business-actor "Top" as top
+    business-actor "Middle" as middle
+    business-actor "Bottom" as bottom
+    business-actor "Cover" as cover
+    business-actor "Inside" as inside
+    business-actor "Also" as also
+
+    top -> bottom: association
+    inside -> also: association
+  }
+
+  views {
+    viewpoint around "Around a box" {
+      include top middle bottom
+      autoLayout off
+      position top 24 24
+      position middle 24 144
+      position bottom 24 264
+    }
+    viewpoint crossing "Crossing stays visible" {
+      include cover inside also
+      autoLayout off
+      position cover 0 0
+      size cover 480 360
+      position inside 48 48
+      position also 48 240
+    }
+  }
+}

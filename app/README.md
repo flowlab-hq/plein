@@ -125,7 +125,7 @@ Manual smoke (`npm run app:preview` or `Plein.app`):
 
 The diagram pane draws a snap grid in model space, from the top-left `(0, 0)` outward — the same coordinates as `position` clauses, including empty canvas past the boxes. Drawn lines are **8** model units apart (a stronger line every four of those). That drawn pitch does not change when you pick a larger **snap spacing**. Only zoom changes how big the lines look on screen.
 
-**Snap spacing** is how far boxes jump on snap: 8, 16, 24, 32, or 48. The default is **24** (the diagram padding; a default-width box is seven snap cells wide). Each of those sizes lands on a drawn line. Boxes are seated on that spacing (both edges on a cell) and orthogonal relationships run along those lines. That seating applies with **Auto layout** **Off** and with **Auto layout** **On**, including the default file-open path (ELK layered, layers, and organic). **Mode → Grid** catalogue packing is not reseated.
+**Snap spacing** is how far boxes jump on snap: 8, 16, 24, 32, or 48. The default is **24** (the diagram padding; a default-width box is seven snap cells wide). Each of those sizes lands on a drawn line. Boxes are seated on that spacing (both edges on a cell) and orthogonal relationships run along those lines. When a right-angle path around another box exists, the seated route takes it. A route that still has to cross stays drawn on top of the box. That seating applies with **Auto layout** **Off** and with **Auto layout** **On**, including the default file-open path (ELK layered, layers, and organic). **Mode → Grid** catalogue packing is not reseated.
 
 This is a placement aid. It does not replace **Mode → Grid** (`autoLayout grid`), which still packs a catalogue by kind or name.
 
