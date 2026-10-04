@@ -260,8 +260,18 @@ test("Mac UI puts layout direction controls in the diagram chrome", () => {
   assert.ok(layoutControlsCss);
   assert.match(layoutControlsCss[0]!, /flex-wrap:\s*nowrap/);
   assert.match(layoutControlsCss[0]!, /overflow:\s*visible/);
+  assert.match(layoutControlsCss[0]!, /min-width:\s*max-content/);
   assert.equal(/overflow-x:\s*auto/.test(layoutControlsCss[0]!), false, "controls do not scroll horizontally");
   assert.equal(/scrollbar-width/.test(layoutControlsCss[0]!), false, "no scrollbar painted on the controls");
+  const menuCss = css.match(/\.chrome-menu\s*\{[^}]+\}/);
+  assert.ok(menuCss, "chrome-menu rule exists");
+  assert.match(menuCss[0]!, /flex:\s*0\s+0\s+auto/);
+  assert.equal(/min-width:\s*0/.test(menuCss[0]!), false, "menu buttons do not shrink away their labels");
+  const menuValueCss = css.match(/\.chrome-menu-value\s*\{[^}]+\}/);
+  assert.ok(menuValueCss, "chrome-menu-value rule exists");
+  assert.match(menuValueCss[0]!, /max-width:\s*10rem/);
+  assert.match(menuValueCss[0]!, /text-overflow:\s*ellipsis/);
+  assert.match(menuValueCss[0]!, /flex:\s*0\s+0\s+auto/);
   const menuPanelCss = css.match(/\.chrome-menu-panel\s*\{[^}]+\}/);
   assert.ok(menuPanelCss);
   assert.match(menuPanelCss[0]!, /position:\s*absolute/);
@@ -334,7 +344,7 @@ test("workspace CSS is a single-row sidebar + canvas (no bottom list row)", () =
   assert.ok(workspace, "workspace rule exists");
   assert.match(
     workspace[0]!,
-    /grid-template-columns:\s*minmax\(240px,\s*280px\)\s+minmax\(0,\s*1fr\)\s+minmax\(240px,\s*300px\)/,
+    /grid-template-columns:\s*minmax\(180px,\s*280px\)\s+minmax\(600px,\s*1fr\)\s+minmax\(180px,\s*300px\)/,
   );
   assert.match(css, /\.workspace\.inspector-collapsed\s*\{[^}]*44px/);
   assert.match(workspace[0]!, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
