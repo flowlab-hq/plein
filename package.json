@@ -1,6 +1,6 @@
 {
   "name": "plein",
-  "version": "0.1.47",
+  "version": "0.1.50",
   "description": "Plein CLI and Mac app for .plein models",
   "type": "module",
   "main": "./dist/index.js",
